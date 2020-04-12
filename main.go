@@ -1,62 +1,149 @@
 package main
 
 import (
-	"errors"
+	"context"
 	"flag"
-	"fmt"
-	"log"
+	"io"
+	"net/http"
 	"os"
-	"os/user"
 
-	"github.com/stefaanc/golang-exec/runner"
-	"github.com/stefaanc/golang-exec/runner/ssh"
-	"github.com/stefaanc/golang-exec/script"
+	"github.com/docker/cli/cli/connhelper"
+	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/mount"
+	"github.com/docker/docker/client"
+	"github.com/docker/docker/pkg/stdcopy"
+	"github.com/kr/pretty"
+	"github.com/mitchellh/go-homedir"
 	"golang.org/x/crypto/ssh/terminal"
 )
 
 func main() {
-	user, err := user.Current()
+	var dockerHost string
+	flag.StringVar(&dockerHost, "host", "", "Specify the Docket host to connect to (overriding DOCKER_HOST)")
+	flag.Parse()
+
+	ctx := context.Background()
+	var clientOpts []client.Opt
+	clientOpts = append(clientOpts,
+		client.FromEnv,
+		client.WithAPIVersionNegotiation(),
+	)
+
+	// Resolve the Docker host using the connection helpers
+	// This supports the resolution of ssh:// URL schemes for tunneled execution
+	if dockerHost != "" {
+		helper, err := connhelper.GetConnectionHelper(dockerHost)
+		if err != nil {
+			return
+		}
+
+		httpClient := &http.Client{
+			// No tls
+			// No proxy
+			Transport: &http.Transport{
+				DialContext: helper.Dialer,
+			},
+		}
+
+		clientOpts = append(clientOpts,
+			client.WithHTTPClient(httpClient),
+			client.WithHost(helper.Host),
+			client.WithDialContext(helper.Dialer),
+		)
+	}
+
+	cli, err := client.NewClientWithOpts(clientOpts...)
+	if err != nil {
+		pretty.Println("Unable to create docker client")
+		panic(err)
+	}
+
+	// FIXME: These paths are expanded locally but over an ssh transport
+	// will resolve locally rather than on the remote host
+	kubeDir, err := homedir.Expand("~/.kube")
+	if err != nil {
+		pretty.Println("No ~/.kube found")
+		panic(err)
+	}
+	awsDir, err := homedir.Expand("~/.aws")
+	if err != nil {
+		pretty.Println("No ~/.aws found")
+		panic(err)
+	}
+	resp, err := cli.ContainerCreate(ctx, &container.Config{
+		Image:        "imb",
+		AttachStdin:  true,
+		AttachStdout: true,
+		AttachStderr: true,
+		Tty:          true,
+		OpenStdin:    true,
+		StdinOnce:    false,
+	}, &container.HostConfig{
+		Mounts: []mount.Mount{
+			mount.Mount{
+				Type:     mount.TypeBind,
+				Source:   kubeDir,
+				Target:   "/root/.kube",
+				ReadOnly: true,
+			},
+			mount.Mount{
+				Type:     mount.TypeBind,
+				Source:   awsDir,
+				Target:   "/root/.aws",
+				ReadOnly: true,
+			},
+		},
+	}, nil, "")
 	if err != nil {
 		panic(err)
 	}
 
-	username := flag.String("user", user.Username, "The user to authenticate as.")
-	password := flag.String("password", "", "The password to authenticate with.")
-	host := flag.String("host", "localhost", "The host to connect to.")
-	sshMode := flag.Bool("ssh", false, "Execute via SSH.")
-	flag.Parse()
-
-	connectionType := "local"
-	if *sshMode {
-		connectionType = "ssh"
-
-		if *password == "" {
-			fmt.Print("Enter Password: ")
-			bytePassword, err := terminal.ReadPassword(0)
-			if err != nil {
-				panic(err)
-			}
-			*password = string(bytePassword)
-		}
+	// Start and attach to the container
+	// The terminal/TTY hackery is necessary to enable interactive CLI applications
+	if err := cli.ContainerStart(ctx, resp.ID, types.ContainerStartOptions{}); err != nil {
+		panic(err)
 	}
 
-	c := ssh.Connection{
-		Type:     connectionType,
-		Host:     *host,
-		Port:     22,
-		User:     *username,
-		Password: *password,
-		Insecure: true,
-	}
-
-	err = runner.Run(&c, dockerScript, nil, os.Stdout, os.Stderr)
+	fd := int(os.Stdin.Fd())
+	oldState, err := terminal.MakeRaw(fd)
 	if err != nil {
-		var runnerErr runner.Error
-		errors.As(err, &runnerErr)
-		// fmt.Printf("exitcode: %d\n", runnerErr.ExitCode())
-		log.Fatal(err)
+		panic(err)
 	}
-}
 
-// TODO: Not sure why we need to cd ~/ and the --login flag on sh gets angry
-var dockerScript = script.New("imb", "/bin/sh", "cd ~/ && docker run -it -v ~/.kube:/root/.kube imb")
+	termWidth, termHeight, err := terminal.GetSize(fd)
+	if err != nil {
+		panic(err)
+	}
+
+	if err = cli.ContainerResize(ctx, resp.ID, types.ResizeOptions{Width: uint(termWidth), Height: uint(termHeight)}); err != nil {
+		panic(err)
+	}
+
+	waiter, err := cli.ContainerAttach(ctx, resp.ID, types.ContainerAttachOptions{
+		Stderr: true,
+		Stdout: true,
+		Stdin:  true,
+		Stream: true,
+	})
+	defer cli.Close()
+	go io.Copy(os.Stdout, waiter.Reader)
+	go io.Copy(waiter.Conn, os.Stdin)
+
+	statusCh, errCh := cli.ContainerWait(ctx, resp.ID, container.WaitConditionNotRunning)
+	select {
+	case err := <-errCh:
+		if err != nil {
+			panic(err)
+		}
+	case <-statusCh:
+	}
+	terminal.Restore(fd, oldState)
+
+	out, err := cli.ContainerLogs(ctx, resp.ID, types.ContainerLogsOptions{ShowStdout: true})
+	if err != nil {
+		panic(err)
+	}
+
+	stdcopy.StdCopy(os.Stdout, os.Stderr, out)
+}
