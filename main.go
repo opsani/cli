@@ -81,13 +81,13 @@ func main() {
 		StdinOnce:    false,
 	}, &container.HostConfig{
 		Mounts: []mount.Mount{
-			mount.Mount{
+			{
 				Type:     mount.TypeBind,
 				Source:   kubeDir,
 				Target:   "/root/.kube",
 				ReadOnly: true,
 			},
-			mount.Mount{
+			{
 				Type:     mount.TypeBind,
 				Source:   awsDir,
 				Target:   "/root/.aws",
