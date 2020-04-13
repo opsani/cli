@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/AlecAivazis/survey/v2"
 	"github.com/docker/cli/cli/connhelper"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
@@ -19,6 +20,9 @@ import (
 	"github.com/kr/pretty"
 	"github.com/mitchellh/go-homedir"
 	"golang.org/x/crypto/ssh/terminal"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/clientcmd"
 )
 
 const imbImageName string = "opsani/intelligent-manifest-builder"
@@ -170,12 +174,117 @@ func copyArtifactsFromContainerToHost(ctx context.Context, cli *client.Client, c
 	archive.CopyTo(content, srcInfo, pwd)
 }
 
+func homeDir() string {
+	if h := os.Getenv("HOME"); h != "" {
+		return h
+	}
+	return os.Getenv("USERPROFILE") // windows
+}
+
 func main() {
+	ctx := context.Background()
+	clientCfg, err := clientcmd.NewDefaultClientConfigLoadingRules().Load()
+
+	var clusterNames []string
+	for _, value := range clientCfg.Contexts {
+		clusterNames = append(clusterNames, value.Cluster)
+	}
+	kubeContext := struct {
+		Context    string
+		Namespace  string
+		Deployment string
+	}{}
+
+	var clusterQ = []*survey.Question{
+		{
+			Name: "Context",
+			Prompt: &survey.Select{
+				Message: "Select the cluster to be optimized:",
+				Options: clusterNames,
+			},
+			Validate: survey.Required,
+		},
+	}
+
+	err = survey.Ask(clusterQ, &kubeContext)
+	if err != nil {
+		fmt.Println(err.Error())
+		return
+	}
+	fmt.Printf("Activating context: %s.\n", kubeContext.Context)
+
+	var kubeconfig *string
+	if home := homeDir(); home != "" {
+		kubeconfig = flag.String("kubeconfig", filepath.Join(home, ".kube", "config"), "(optional) absolute path to the kubeconfig file")
+	} else {
+		kubeconfig = flag.String("kubeconfig", "", "absolute path to the kubeconfig file")
+	}
+	flag.Parse()
+
+	config, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
+	if err != nil {
+		panic(err.Error())
+	}
+
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		panic(err.Error())
+	}
+
+	namespaces, _ := clientset.CoreV1().Namespaces().List(ctx, metav1.ListOptions{})
+	fmt.Printf("There are %d namespaces in the cluster\n", len(namespaces.Items))
+
+	var namespaceNames []string
+	for _, value := range namespaces.Items {
+		namespaceNames = append(namespaceNames, value.Name)
+	}
+	var namespaceQ = []*survey.Question{
+		{
+			Name: "Namespace",
+			Prompt: &survey.Select{
+				Message: "Select the namespace to be optimized:",
+				Options: namespaceNames,
+			},
+			Validate: survey.Required,
+		},
+	}
+	err = survey.Ask(namespaceQ, &kubeContext)
+	if err != nil {
+		fmt.Println(err.Error())
+		return
+	}
+
+	// Deployments
+	deployments, _ := clientset.AppsV1().Deployments(kubeContext.Namespace).List(ctx, metav1.ListOptions{})
+	fmt.Printf("There are %d deployments in the namespace\n", len(deployments.Items))
+
+	var deploymentNames []string
+	for _, value := range deployments.Items {
+		namespaceNames = append(deploymentNames, value.Name)
+	}
+	var deploymentQ = []*survey.Question{
+		{
+			Name: "Deployment",
+			Prompt: &survey.Select{
+				Message: "Select the deployment to be optimized:",
+				Options: deploymentNames,
+			},
+			Validate: survey.Required,
+		},
+	}
+	err = survey.Ask(deploymentQ, &kubeContext)
+	if err != nil {
+		fmt.Println(err.Error())
+		return
+	}
+	if true {
+		return
+	}
+
 	var dockerHost string
 	flag.StringVar(&dockerHost, "host", "", "Specify the Docket host to connect to (overriding DOCKER_HOST)")
 	flag.Parse()
 
-	ctx := context.Background()
 	var clientOpts []client.Opt
 	clientOpts = append(clientOpts,
 		client.FromEnv,
