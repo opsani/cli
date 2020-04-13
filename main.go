@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -18,47 +19,28 @@ import (
 	"golang.org/x/crypto/ssh/terminal"
 )
 
-func main() {
-	var dockerHost string
-	flag.StringVar(&dockerHost, "host", "", "Specify the Docket host to connect to (overriding DOCKER_HOST)")
-	flag.Parse()
+const imbImageName string = "opsani/intelligent-manifest-builder"
+const imbTargetVersion string = "latest" // TODO: Should be 1 for semantically versioned containers
 
-	ctx := context.Background()
-	var clientOpts []client.Opt
-	clientOpts = append(clientOpts,
-		client.FromEnv,
-		client.WithAPIVersionNegotiation(),
-	)
-
-	// Resolve the Docker host using the connection helpers
-	// This supports the resolution of ssh:// URL schemes for tunneled execution
-	if dockerHost != "" {
-		helper, err := connhelper.GetConnectionHelper(dockerHost)
-		if err != nil {
-			return
-		}
-
-		httpClient := &http.Client{
-			// No tls
-			// No proxy
-			Transport: &http.Transport{
-				DialContext: helper.Dialer,
-			},
-		}
-
-		clientOpts = append(clientOpts,
-			client.WithHTTPClient(httpClient),
-			client.WithHost(helper.Host),
-			client.WithDialContext(helper.Dialer),
-		)
-	}
-
-	cli, err := client.NewClientWithOpts(clientOpts...)
+/**
+Pulls the latest Semantically Versioned tag of the manifest builder
+*/
+func pullManifestBuilderImage(ctx context.Context, cli *client.Client) {
+	imageRef := fmt.Sprintf("%s:%s", imbImageName, imbTargetVersion)
+	out, err := cli.ImagePull(ctx, imageRef, types.ImagePullOptions{})
 	if err != nil {
-		pretty.Println("Unable to create docker client")
-		panic(err)
+		// panic(err)
+		pretty.Printf("WARNING: Unable to pull Intelligent Manifest Builder image (%s): %s\n", imageRef, err.Error())
+		return
 	}
 
+	defer out.Close()
+
+	io.Copy(os.Stdout, out)
+}
+
+func runManifestBuilderContainer(ctx context.Context, cli *client.Client) {
+	imageRef := fmt.Sprintf("%s:%s", imbImageName, imbTargetVersion)
 	// FIXME: These paths are expanded locally but over an ssh transport
 	// will resolve locally rather than on the remote host
 	kubeDir, err := homedir.Expand("~/.kube")
@@ -72,7 +54,7 @@ func main() {
 		panic(err)
 	}
 	resp, err := cli.ContainerCreate(ctx, &container.Config{
-		Image:        "imb",
+		Image:        imageRef,
 		AttachStdin:  true,
 		AttachStdout: true,
 		AttachStderr: true,
@@ -146,4 +128,49 @@ func main() {
 	}
 
 	stdcopy.StdCopy(os.Stdout, os.Stderr, out)
+}
+
+func main() {
+	var dockerHost string
+	flag.StringVar(&dockerHost, "host", "", "Specify the Docket host to connect to (overriding DOCKER_HOST)")
+	flag.Parse()
+
+	ctx := context.Background()
+	var clientOpts []client.Opt
+	clientOpts = append(clientOpts,
+		client.FromEnv,
+		client.WithAPIVersionNegotiation(),
+	)
+
+	// Resolve the Docker host using the connection helpers
+	// This supports the resolution of ssh:// URL schemes for tunneled execution
+	if dockerHost != "" {
+		helper, err := connhelper.GetConnectionHelper(dockerHost)
+		if err != nil {
+			return
+		}
+
+		httpClient := &http.Client{
+			// No tls
+			// No proxy
+			Transport: &http.Transport{
+				DialContext: helper.Dialer,
+			},
+		}
+
+		clientOpts = append(clientOpts,
+			client.WithHTTPClient(httpClient),
+			client.WithHost(helper.Host),
+			client.WithDialContext(helper.Dialer),
+		)
+	}
+
+	cli, err := client.NewClientWithOpts(clientOpts...)
+	if err != nil {
+		pretty.Println("Unable to create docker client")
+		panic(err)
+	}
+
+	pullManifestBuilderImage(ctx, cli)
+	runManifestBuilderContainer(ctx, cli)
 }

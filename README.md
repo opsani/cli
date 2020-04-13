@@ -12,7 +12,7 @@ The command expects a locally built image of the Intelligent Manifest Builder (I
 your local Docker environment as `imb`:
 
 1. Clone the Dockerized build of IMB: `git clone git@github.com:opsani/intelligent-manifest-builder.git cli-experiments`
-2. Build the Docker tag: `docker build -t imb .`
+2. Build the Docker tag: `docker build -t opsani/intelligent-manifest-builder .`
 3. Run the CLI example to orchestrate Docker locally: `go run main.go`
 4. Run the CLI example to orchestrate Docker over local SSH: `go run main.go -host ssh://localhost`
 
