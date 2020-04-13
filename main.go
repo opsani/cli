@@ -260,7 +260,7 @@ func main() {
 
 	var deploymentNames []string
 	for _, value := range deployments.Items {
-		namespaceNames = append(deploymentNames, value.Name)
+		deploymentNames = append(deploymentNames, value.Name)
 	}
 	var deploymentQ = []*survey.Question{
 		{
@@ -275,9 +275,6 @@ func main() {
 	err = survey.Ask(deploymentQ, &kubeContext)
 	if err != nil {
 		fmt.Println(err.Error())
-		return
-	}
-	if true {
 		return
 	}
 
