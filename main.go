@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 
 	"github.com/docker/cli/cli/connhelper"
 	"github.com/docker/docker/api/types"
@@ -29,7 +30,6 @@ func pullManifestBuilderImage(ctx context.Context, cli *client.Client) {
 	imageRef := fmt.Sprintf("%s:%s", imbImageName, imbTargetVersion)
 	out, err := cli.ImagePull(ctx, imageRef, types.ImagePullOptions{})
 	if err != nil {
-		// panic(err)
 		pretty.Printf("WARNING: Unable to pull Intelligent Manifest Builder image (%s): %s\n", imageRef, err.Error())
 		return
 	}
@@ -48,11 +48,40 @@ func runManifestBuilderContainer(ctx context.Context, cli *client.Client) {
 		pretty.Println("No ~/.kube found")
 		panic(err)
 	}
-	awsDir, err := homedir.Expand("~/.aws")
-	if err != nil {
-		pretty.Println("No ~/.aws found")
-		panic(err)
+	hostConfig := container.HostConfig{
+		Mounts: []mount.Mount{
+			{
+				Type:     mount.TypeBind,
+				Source:   kubeDir,
+				Target:   "/root/.kube",
+				ReadOnly: true,
+			},
+		},
 	}
+	supplementalDirs := []string{"~/.aws", "~/.minikube"}
+	for _, dir := range supplementalDirs {
+		sourcePath, err := homedir.Expand(dir)
+		if err == nil {
+			if _, err := os.Stat(sourcePath); !os.IsNotExist(err) {
+				targetPath := fmt.Sprintf("/root/%s", filepath.Base(sourcePath))
+				hostConfig.Mounts = append(hostConfig.Mounts,
+					mount.Mount{
+						Type:     mount.TypeBind,
+						Source:   sourcePath,
+						Target:   targetPath,
+						ReadOnly: true,
+					},
+					// FIXME: This is some temporary black magic to handle absolute paths in Minikube config
+					mount.Mount{
+						Type:     mount.TypeBind,
+						Source:   sourcePath,
+						Target:   sourcePath,
+						ReadOnly: true,
+					})
+			}
+		}
+	}
+
 	resp, err := cli.ContainerCreate(ctx, &container.Config{
 		Image:        imageRef,
 		AttachStdin:  true,
@@ -61,22 +90,7 @@ func runManifestBuilderContainer(ctx context.Context, cli *client.Client) {
 		Tty:          true,
 		OpenStdin:    true,
 		StdinOnce:    false,
-	}, &container.HostConfig{
-		Mounts: []mount.Mount{
-			{
-				Type:     mount.TypeBind,
-				Source:   kubeDir,
-				Target:   "/root/.kube",
-				ReadOnly: true,
-			},
-			{
-				Type:     mount.TypeBind,
-				Source:   awsDir,
-				Target:   "/root/.aws",
-				ReadOnly: true,
-			},
-		},
-	}, nil, "")
+	}, &hostConfig, nil, "")
 	if err != nil {
 		panic(err)
 	}
