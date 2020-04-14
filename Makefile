@@ -26,11 +26,6 @@ test: install_deps vet
 	$(info ******************** running tests ********************)
 	richgo test -v ./...
 
-# opsani: install_deps
-# 	$(info ******************** building cli ********************)
-# 	mkdir -p $(BIN)
-# 	make -C cobra all
-
 install_deps:
 	$(info ******************** downloading dependencies ********************)
 	go get -v ./...
