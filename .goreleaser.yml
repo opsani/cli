@@ -1,4 +1,7 @@
 project_name: opsani
+env:
+  - GO111MODULE=on
+  - GOPROXY=https://gocenter.io
 
 before:
   hooks:
@@ -38,33 +41,35 @@ archives:
     format: zip
 
 brews:
-  - name: gh
+  - name: 
+    
     ids: [nix]
     github:
-      owner: github
-      name: homebrew-gh
+      owner: opsani
+      name: homebrew-cli
     skip_upload: auto
-    description: GitHub CLI
-    homepage: https://github.com/cli/cli
+    description: Opsani CLI
+    homepage: https://github.com/opsani/cli
     folder: Formula
     custom_block: |
       head do
-        url "https://github.com/cli/cli.git"
+        url "https://github.com/opsani/cli.git"
         depends_on "go"
       end
     install: |
       system "make" if build.head?
-      bin.install "bin/gh"
-      (bash_completion/"gh.sh").write `#{bin}/gh completion -s bash`
-      (zsh_completion/"_gh").write `#{bin}/gh completion -s zsh`
-      (fish_completion/"gh.fish").write `#{bin}/gh completion -s fish`
+      bin.install "bin/opsani"
+      (bash_completion/"opsani.sh").write `#{bin}/opsani completion -s bash`
+      (zsh_completion/"_opsani").write `#{bin}/opsani completion -s zsh`
+      (fish_completion/"opsani.fish").write `#{bin}/opsani completion -s fish`
     test: |
-      help_text = shell_output("#{bin}/gh --help")
+      help_text = shell_output("#{bin}/opsani --help")
       assert_includes help_text, "Usage:"
+
 nfpms:
   - license: MIT
-    maintainer: GitHub
-    homepage: https://github.com/cli/cli
+    maintainer: Opsani
+    homepage: https://github.com/opsani/cli
     bindir: /usr/local
     dependencies:
       - git
@@ -74,15 +79,28 @@ nfpms:
 
 scoop:
   bucket:
-    owner: cli
-    name: scoop-gh
-  commit_author:
-    name: vilmibm
-    email: vilmibm@github.com
-  homepage: https://github.com/cli/cli
+    owner: opsani
+    name: scoop-bucket
+  homepage: https://github.com/opsani/cli
   skip_upload: auto
-  description: GitHub CLI
+  description: Opsani CLI
   license: MIT
+  
+# Docker isn't finding the binaries
+# dockers:
+#   -
+#     goos: linux
+#     goarch: amd64
+#     goarm: '6'
+#     skip_push: true
+#     builds:
+#     - linux
+#     binaries:
+#     - bin/opsani
+#     image_templates:
+#     - "opsani/cli:latest"
+#     - "opsani/cli:{{ .Tag }}"
+#     dockerfile: Dockerfile
 
 checksum:
   name_template: 'checksums.txt'
