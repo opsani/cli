@@ -26,6 +26,7 @@ import (
 	"github.com/spf13/viper"
 )
 
+var baseURL string
 var cfgFile string
 var printVersion bool
 
@@ -71,6 +72,8 @@ func init() {
 		fmt.Println(err)
 		os.Exit(1)
 	}
+	rootCmd.PersistentFlags().StringVar(&baseURL, "base-url", "https://api.opsani.com/", "Base URL for accessing the Opsani API")
+	rootCmd.PersistentFlags().MarkHidden("base-url")
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", fmt.Sprintf("Location of config file (default \"%s\")", filepath.Join(home, ".opsani", "config.yaml")))
 	rootCmd.PersistentFlags().BoolVarP(&printVersion, "version", "v", false, "Print version information and quit")
 }

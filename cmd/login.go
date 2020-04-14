@@ -23,10 +23,12 @@ package cmd
 
 import (
 	"fmt"
-
 	"github.com/AlecAivazis/survey/v2"
+	"github.com/AlecAivazis/survey/v2/terminal"
 	"github.com/mgutz/ansi"
 	"github.com/spf13/cobra"
+	"net/url"
+	"os"
 )
 
 // Configuration options bound via Cobra
@@ -41,21 +43,39 @@ var loginCmd = &cobra.Command{
 	Short: "Login to the Opsani API",
 	Long:  `Login to the Opsani API and persist access credentials.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("Logging into api.opsani.com")
+		u, err := url.Parse(baseURL)
+		if err != nil {
+			panic(err)
+		}
+		baseURLDescription := u.Hostname()
+		if port := u.Port(); port != "" && port != "80" && port != "443" {
+			baseURLDescription = baseURLDescription + ":" + port
+		}
+		fmt.Println("Logging into", baseURLDescription)
 
 		whiteBold := ansi.ColorCode("white+b")
 		if loginConfig.Username == "" {
-			survey.AskOne(&survey.Input{
+			err := survey.AskOne(&survey.Input{
 				Message: "Username:",
 			}, &loginConfig.Username, survey.WithValidator(survey.Required))
+			if err == terminal.InterruptErr {
+				os.Exit(0)
+			} else if err != nil {
+				panic(err)
+			}
 		} else {
 			fmt.Printf("%si %sUsername: %s%s%s%s\n", ansi.Blue, whiteBold, ansi.Reset, ansi.LightCyan, loginConfig.Username, ansi.Reset)
 		}
 
 		if loginConfig.Password == "" {
-			survey.AskOne(&survey.Password{
+			err := survey.AskOne(&survey.Password{
 				Message: "Password:",
 			}, &loginConfig.Password, survey.WithValidator(survey.Required))
+			if err == terminal.InterruptErr {
+				os.Exit(0)
+			} else if err != nil {
+				panic(err)
+			}
 		}
 	},
 }
