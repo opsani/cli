@@ -5,13 +5,13 @@ ifeq (, $(shell which richgo))
 $(warning "could not find richgo in $(PATH), run: go get github.com/kyoh86/richgo")
 endif
 
-.PHONY: build run fmt vet test install_deps clean
+.PHONY: build run fmt vet test deps clean
 
 default: all
 
 all: fmt vet test build	
 
-build: install_deps
+build: deps
 	$(info ******************** building cli ********************)
 	go build -o $(BIN)/opsani main.go
 
@@ -26,7 +26,7 @@ test: install_deps vet
 	$(info ******************** running tests ********************)
 	richgo test -v ./...
 
-install_deps:
+deps:
 	$(info ******************** downloading dependencies ********************)
 	go get -v ./...
 
