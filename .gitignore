@@ -8,7 +8,7 @@ bin/
 *.so
 *.dylib
 cli
-opsani
+bin/opsani
 dist
 
 # Test binary, build with `go test -c`
