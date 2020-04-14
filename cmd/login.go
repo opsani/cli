@@ -25,6 +25,7 @@ import (
 	"fmt"
 
 	"github.com/AlecAivazis/survey/v2"
+	"github.com/mgutz/ansi"
 	"github.com/spf13/cobra"
 )
 
@@ -40,18 +41,21 @@ var loginCmd = &cobra.Command{
 	Short: "Login to the Opsani API",
 	Long:  `Login to the Opsani API and persist access credentials.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		if loginConfig.Username == "" {
+		fmt.Println("Logging into api.opsani.com")
 
+		whiteBold := ansi.ColorCode("white+b")
+		if loginConfig.Username == "" {
+			survey.AskOne(&survey.Input{
+				Message: "Username:",
+			}, &loginConfig.Username, survey.WithValidator(survey.Required))
+		} else {
+			fmt.Printf("%si %sUsername: %s%s%s%s\n", ansi.Blue, whiteBold, ansi.Reset, ansi.LightCyan, loginConfig.Username, ansi.Reset)
 		}
 
 		if loginConfig.Password == "" {
-			fmt.Println("Logging into api.opsani.com")
-			survey.AskOne(&survey.Input{
-				Message: "Username:",
-			}, &loginConfig.Username)
 			survey.AskOne(&survey.Password{
 				Message: "Password:",
-			}, &loginConfig.Password)
+			}, &loginConfig.Password, survey.WithValidator(survey.Required))
 		}
 	},
 }
