@@ -22,6 +22,9 @@ require (
 	github.com/gorilla/mux v1.7.4 // indirect
 	github.com/imdario/mergo v0.3.9 // indirect
 	github.com/kr/pretty v0.2.0
+	github.com/kyoh86/richgo v0.3.3 // indirect
+	github.com/kyoh86/xdg v1.2.0 // indirect
+	github.com/mattn/go-isatty v0.0.12 // indirect
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/mitchellh/mapstructure v1.2.2 // indirect
 	github.com/morikuni/aec v1.0.0 // indirect
@@ -33,19 +36,21 @@ require (
 	github.com/sirupsen/logrus v1.5.0 // indirect
 	github.com/spf13/afero v1.2.2 // indirect
 	github.com/spf13/cast v1.3.1 // indirect
-	github.com/spf13/cobra v1.0.0 // indirect
+	github.com/spf13/cobra v1.0.0
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
-	github.com/spf13/viper v1.6.3 // indirect
+	github.com/spf13/viper v1.6.3
+	github.com/wacul/ptr v1.0.0 // indirect
 	golang.org/x/crypto v0.0.0-20200220183623-bac4c82f6975
 	golang.org/x/net v0.0.0-20200324143707-d3edc9973b7e // indirect
-	golang.org/x/sys v0.0.0-20200409092240-59c9f1ba88fa // indirect
+	golang.org/x/sys v0.0.0-20200413165638-669c56c373c4 // indirect
 	golang.org/x/text v0.3.2 // indirect
 	golang.org/x/time v0.0.0-20191024005414-555d28b269f0 // indirect
 	google.golang.org/grpc v1.28.1 // indirect
 	gopkg.in/ini.v1 v1.55.0 // indirect
 	gotest.tools v2.2.0+incompatible // indirect
 	k8s.io/api v0.18.1 // indirect
+	k8s.io/apimachinery v0.18.1
 	k8s.io/client-go v0.18.1
 	k8s.io/kube-openapi v0.0.0-20200403204345-e1beb1bd0f35 // indirect
 	k8s.io/utils v0.0.0-20200411171748-3d5a2fe318e4 // indirect
