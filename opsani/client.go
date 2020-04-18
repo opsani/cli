@@ -82,6 +82,14 @@ func (c *Client) GetConfig() (interface{}, error) {
 	return resp.Result(), err
 }
 
+// GetConfigToOutput retrieves the Opsani app configuration from the API and writes it to a file
+func (c *Client) GetConfigToOutput(filename string) error {
+	_, err := c.restyClient.R().
+		SetOutput(filename).
+		Get(c.configURLPath())
+	return err
+}
+
 /**
 Authentication actions
 */
@@ -151,4 +159,17 @@ func (c *Client) EnableTrace() *Client {
 		return nil
 	})
 	return c
+}
+
+// SetOutputDirectory sets the output directory for saving API responses
+func (c *Client) SetOutputDirectory(dir string) {
+	c.restyClient.SetOutputDirectory(dir)
+}
+
+// WriteOutputToFile configures a request handler to write responses to the specified file
+func (c *Client) WriteOutputToFile(filename string) {
+	c.restyClient.OnBeforeRequest(func(c *resty.Client, r *resty.Request) error {
+		r.SetOutput(filename)
+		return nil // if its success otherwise return error
+	})
 }

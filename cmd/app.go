@@ -23,6 +23,7 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/hokaccha/go-prettyjson"
 	"github.com/opsani/cli/opsani"
@@ -39,6 +40,12 @@ func NewAPIClientFromConfig() *opsani.Client {
 	tracingEnabled := opsani.GetRequestTracingEnabled()
 	if tracingEnabled {
 		c.EnableTrace()
+	}
+
+	// Set the output directory to pwd by default
+	dir, err := os.Getwd()
+	if err == nil {
+		c.SetOutputDirectory(dir)
 	}
 	return c
 }
@@ -61,17 +68,34 @@ var appConfigSetCmd = &cobra.Command{
 	},
 }
 
+var appConfig = struct {
+	OutputFile string
+}{}
+
 var appConfigCmd = &cobra.Command{
 	Use:   "config",
 	Short: "Manage app configuration",
 	Run: func(cmd *cobra.Command, args []string) {
 		client := NewAPIClientFromConfig()
-		config, err := client.GetConfig()
-		if err != nil {
-			panic(err)
+		if appConfig.OutputFile == "" {
+			config, err := client.GetConfig()
+			if err != nil {
+				panic(err)
+			}
+			if appConfig.OutputFile != "" {
+
+			} else {
+				s, _ := prettyjson.Marshal(config)
+				fmt.Println(string(s))
+			}
+		} else {
+			err := client.GetConfigToOutput(appConfig.OutputFile)
+			if err == nil {
+				fmt.Printf("Output written to \"%s\"", appConfig.OutputFile)
+			} else {
+				panic(err)
+			}
 		}
-		s, _ := prettyjson.Marshal(config)
-		fmt.Println(string(s))
 	},
 }
 
@@ -84,10 +108,14 @@ var appCmd = &cobra.Command{
 }
 
 func init() {
-	configCmd.AddCommand(appConfigEditCmd)
-	configCmd.AddCommand(appConfigSetCmd)
-	appCmd.AddCommand(appConfigCmd)
 	rootCmd.AddCommand(appCmd)
+	appCmd.AddCommand(appConfigCmd)
+	appConfigCmd.AddCommand(appConfigEditCmd)
+	appConfigCmd.AddCommand(appConfigSetCmd)
 
+	// app config flags
+	appConfigCmd.Flags().StringVarP(&appConfig.OutputFile, "output", "o", "", "Write output to file instead of stdout")
+
+	// app config set flags
 	appConfigSetCmd.Flags().StringP("file", "f", "", "File containing configuration to apply")
 }
