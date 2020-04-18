@@ -31,6 +31,7 @@ import (
 	"github.com/hokaccha/go-prettyjson"
 	"github.com/opsani/cli/opsani"
 	"github.com/spf13/cobra"
+	"github.com/tidwall/sjson"
 )
 
 // NewAPIClientFromConfig returns an Opsani API client configured using the active configuration
@@ -136,8 +137,8 @@ func openFileInEditor(filename string, editor string) error {
 }
 
 var appConfigEditCmd = &cobra.Command{
-	Use:   "edit",
-	Short: "Edit app configuration interactively",
+	Use:   "edit [PATH=VALUE ...]",
+	Short: "Edit app config",
 	Run: func(cmd *cobra.Command, args []string) {
 		// Create temp file
 		tempFile, err := ioutil.TempFile(os.TempDir(), "*.json")
@@ -160,8 +161,34 @@ var appConfigEditCmd = &cobra.Command{
 			panic(err)
 		}
 
-		if err = openFileInEditor(filename, appConfig.Editor); err != nil {
-			panic(err)
+		// Apply any inline path edits
+		if len(args) > 0 {
+			configDoc, err := ioutil.ReadFile(filename)
+			if err != nil {
+				panic(err)
+			}
+
+			for _, exp := range args {
+				// Split expression and apply
+				components := strings.SplitN(exp, "=", 2)
+				path, value := components[0], components[1:]
+				configDoc, err = sjson.SetBytes(configDoc, path, value[0])
+				if err != nil {
+					panic(err)
+				}
+			}
+
+			err = ioutil.WriteFile(filename, configDoc, 0755)
+			if err != nil {
+				panic(err)
+			}
+		}
+
+		// Edit interactively if necessary
+		if len(args) == 0 || appConfig.Interactive {
+			if err = openFileInEditor(filename, appConfig.Editor); err != nil {
+				panic(err)
+			}
 		}
 
 		body, err := ioutil.ReadFile(filename)
@@ -191,8 +218,6 @@ var appConfigSetCmd = &cobra.Command{
 			}
 			body = bytes
 		} else {
-			// Read literal from the positional argument
-			// TODO: support JSON Path/literal format
 			body = args[0]
 		}
 		status, err := client.SetConfigFromBody(body, appConfig.ApplyNow)
@@ -217,8 +242,6 @@ var appConfigPatchCmd = &cobra.Command{
 			}
 			body = bytes
 		} else {
-			// Read literal from the positional argument
-			// TODO: support JSON Path/literal format
 			body = args[0]
 		}
 		status, err := client.PatchConfigFromBody(body, appConfig.ApplyNow)
@@ -230,10 +253,11 @@ var appConfigPatchCmd = &cobra.Command{
 }
 
 var appConfig = struct {
-	OutputFile string
-	InputFile  string
-	ApplyNow   bool
-	Editor     string
+	OutputFile  string
+	InputFile   string
+	ApplyNow    bool
+	Editor      string
+	Interactive bool
 }{}
 
 var appConfigCmd = &cobra.Command{
@@ -261,9 +285,6 @@ var appConfigCmd = &cobra.Command{
 var appCmd = &cobra.Command{
 	Use:   "app",
 	Short: "Manage apps",
-	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("app called")
-	},
 }
 
 func init() {
@@ -292,4 +313,5 @@ func init() {
 
 	// app edit flags
 	appConfigEditCmd.Flags().StringVarP(&appConfig.Editor, "editor", "e", os.Getenv("EDITOR"), "Edit the config with the given editor (overrides $EDITOR)")
+	appConfigEditCmd.Flags().BoolVarP(&appConfig.Interactive, "interactive", "i", false, "Edit the config changes interactively")
 }
