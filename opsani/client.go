@@ -115,7 +115,6 @@ func (c *Client) GetConfigToOutput(file string) error {
 			return err
 		}
 
-		// formattedJSON, err := prettyjson.Format(resp.Body())
 		var formattedJSON bytes.Buffer
 		err = json.Indent(&formattedJSON, resp.Body(), "", "    ")
 		if err != nil {

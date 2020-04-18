@@ -36,3 +36,7 @@ vet:
 
 clean:
 	rm -rf $(BIN)
+
+install: build
+	$(info ******************** installing ********************)
+	cp $(BIN)/opsani /usr/local/bin/opsani
