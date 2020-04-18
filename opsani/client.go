@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/go-resty/resty/v2"
+	"k8s.io/apimachinery/pkg/util/json"
 )
 
 // Client provides a high level interface to the Opsani API
@@ -66,11 +67,15 @@ func (c *Client) GetApp(app string) string {
 	return filepath.Join(c.appDomain, c.appName)
 }
 
+func (c *Client) resourceURLPath(resource string) string {
+	return fmt.Sprintf("/accounts/%s/applications/%s/%s", c.appDomain, c.appName, resource)
+}
+
 /**
 Configuration
 */
 func (c *Client) configURLPath() string {
-	return fmt.Sprintf("/accounts/%s/applications/%s/config", c.appDomain, c.appName)
+	return c.resourceURLPath("config")
 }
 
 // GetConfig retrieves the Opsani app configuration from the API
@@ -88,6 +93,93 @@ func (c *Client) GetConfigToOutput(filename string) error {
 		SetOutput(filename).
 		Get(c.configURLPath())
 	return err
+}
+
+/**
+Lifecycle
+*/
+
+// APIError represents an error returned by the Opsani API
+type APIError struct {
+	Status    string `json:"status"`
+	Message   string `json:"message"`
+	Traceback string `json:"traceback"`
+	Version   string `json:"version"`
+}
+
+func (c *Client) stateURLPath() string {
+	return c.resourceURLPath("state")
+}
+
+func (c *Client) responseOutcome(resp *resty.Response, respErr error) (interface{}, error) {
+	if respErr != nil {
+		return nil, respErr
+	}
+
+	if resp.IsSuccess() {
+		if r := resp.Result(); r != nil {
+			return r, nil
+		}
+	} else if resp.IsError() {
+		if e := resp.Error(); e != nil {
+			return e, nil
+		}
+	}
+	var result map[string]interface{}
+	err := json.Unmarshal(resp.Body(), result)
+	return result, err
+}
+
+// StartApp starts a stopped Opsani app
+func (c *Client) StartApp() (interface{}, error) {
+	var result map[string]interface{}
+	var apiError APIError
+	resp, err := c.restyClient.R().
+		SetBody(`{"target_state": "running"}`).
+		SetResult(&result).
+		SetError(&apiError).
+		Patch(c.stateURLPath())
+	return c.responseOutcome(resp, err)
+}
+
+// StopApp stops a running Opsani app
+func (c *Client) StopApp() (interface{}, error) {
+	var result map[string]interface{}
+	var apiError APIError
+	resp, err := c.restyClient.R().
+		SetBody(`{"target_state": "stopped"}`).
+		SetResult(&result).
+		SetError(&apiError).
+		Patch(c.stateURLPath())
+	return c.responseOutcome(resp, err)
+}
+
+// RestartApp stops a running Opsani app
+func (c *Client) RestartApp() (interface{}, error) {
+	var result map[string]interface{}
+	var apiError APIError
+	resp, err := c.restyClient.R().
+		SetHeader("Content-Type", "application/merge-patch+json").
+		SetQueryParams(map[string]string{
+			"reset": "true",
+			"patch": "true",
+		}).
+		SetBody(`{}`).
+		SetResult(&result).
+		SetError(&apiError).
+		Put(c.configURLPath())
+	return c.responseOutcome(resp, err)
+}
+
+// GetAppStatus retrieves the status of the Opsani app from the API
+func (c *Client) GetAppStatus() (interface{}, error) {
+	var result map[string]interface{}
+	var apiError APIError
+	resp, err := c.restyClient.R().
+		SetResult(&result).
+		SetError(&apiError).
+		Get(c.stateURLPath())
+	return c.responseOutcome(resp, err)
 }
 
 /**

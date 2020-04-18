@@ -50,6 +50,71 @@ func NewAPIClientFromConfig() *opsani.Client {
 	return c
 }
 
+// PrettyPrintJSON prints the given object as pretty printed JSON
+func PrettyPrintJSON(obj interface{}) {
+	s, _ := prettyjson.Marshal(obj)
+	fmt.Println(string(s))
+}
+
+/**
+Lifecycle commands
+*/
+var appStartCmd = &cobra.Command{
+	Use:   "start",
+	Short: "Start the app",
+	Run: func(cmd *cobra.Command, args []string) {
+		client := NewAPIClientFromConfig()
+		status, err := client.StartApp()
+		if err != nil {
+			panic(err)
+		}
+		PrettyPrintJSON(status)
+	},
+}
+
+var appStopCmd = &cobra.Command{
+	Use:   "stop",
+	Short: "Stop the app",
+	Run: func(cmd *cobra.Command, args []string) {
+		client := NewAPIClientFromConfig()
+		status, err := client.StopApp()
+		if err != nil {
+			panic(err)
+		}
+		PrettyPrintJSON(status)
+	},
+}
+
+var appRestartCmd = &cobra.Command{
+	Use:   "restart",
+	Short: "Restart the app",
+	Run: func(cmd *cobra.Command, args []string) {
+		client := NewAPIClientFromConfig()
+		status, err := client.RestartApp()
+		if err != nil {
+			panic(err)
+		}
+		PrettyPrintJSON(status)
+	},
+}
+
+var appStatusCmd = &cobra.Command{
+	Use:   "status",
+	Short: "Check app status",
+	Run: func(cmd *cobra.Command, args []string) {
+		client := NewAPIClientFromConfig()
+		status, err := client.GetAppStatus()
+		if err != nil {
+			panic(err)
+		}
+		PrettyPrintJSON(status)
+	},
+}
+
+/**
+Config commands
+*/
+
 var appConfigEditCmd = &cobra.Command{
 	Use:   "edit",
 	Short: "Edit app configuration interactively via $EDITOR",
@@ -82,12 +147,7 @@ var appConfigCmd = &cobra.Command{
 			if err != nil {
 				panic(err)
 			}
-			if appConfig.OutputFile != "" {
-
-			} else {
-				s, _ := prettyjson.Marshal(config)
-				fmt.Println(string(s))
-			}
+			PrettyPrintJSON(config)
 		} else {
 			err := client.GetConfigToOutput(appConfig.OutputFile)
 			if err == nil {
@@ -109,6 +169,14 @@ var appCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(appCmd)
+
+	// Lifecycle
+	appCmd.AddCommand(appStartCmd)
+	appCmd.AddCommand(appStopCmd)
+	appCmd.AddCommand(appRestartCmd)
+	appCmd.AddCommand(appStatusCmd)
+
+	// Config
 	appCmd.AddCommand(appConfigCmd)
 	appConfigCmd.AddCommand(appConfigEditCmd)
 	appConfigCmd.AddCommand(appConfigSetCmd)
