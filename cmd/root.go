@@ -26,8 +26,13 @@ import (
 	"github.com/spf13/viper"
 )
 
-var baseURL string
-var cfgFile string
+// Configuration options bound via Cobra
+var opsaniConfig = struct {
+	BaseURL    string
+	ConfigFile string
+	App        string
+	Token      string
+}{}
 var printVersion bool
 
 // rootCmd represents the base command when called without any subcommands
@@ -59,47 +64,58 @@ func Execute() {
 	}
 }
 
-func init() {
-	cobra.OnInitialize(initConfig)
-
-	// Here you will define your flags and configuration settings.
-	// Cobra supports persistent flags, which, if defined here,
-	// will be global for your application.
-
-	// Find home directory.
+func defaultConfigFile() string {
 	home, err := homedir.Dir()
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
-	rootCmd.PersistentFlags().StringVar(&baseURL, "base-url", "https://api.opsani.com/", "Base URL for accessing the Opsani API")
+	return filepath.Join(home, ".opsani", "config.yaml")
+}
+
+func init() {
+	cobra.OnInitialize(initConfig)
+
+	rootCmd.PersistentFlags().StringVar(&opsaniConfig.BaseURL, "base-url", "https://api.opsani.com/", "Base URL for accessing the Opsani API")
 	rootCmd.PersistentFlags().MarkHidden("base-url")
-	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", fmt.Sprintf("Location of config file (default \"%s\")", filepath.Join(home, ".opsani", "config.yaml")))
+	viper.BindPFlag("base-url", rootCmd.PersistentFlags().Lookup("base-url"))
+	rootCmd.PersistentFlags().StringVar(&opsaniConfig.ConfigFile, "config", "", fmt.Sprintf("Location of config file (default \"%s\")", defaultConfigFile()))
+	rootCmd.PersistentFlags().StringVar(&opsaniConfig.App, "app", "", "App to control (overrides config file and OPSANI_APP)")
+	viper.BindPFlag("app", rootCmd.PersistentFlags().Lookup("app"))
+	rootCmd.PersistentFlags().StringVar(&opsaniConfig.Token, "token", "", "API token to authenticate with (overrides config file and OPSANI_TOKEN)")
+	viper.BindPFlag("token", rootCmd.PersistentFlags().Lookup("token"))
 	rootCmd.PersistentFlags().BoolVarP(&printVersion, "version", "v", false, "Print version information and quit")
 }
 
-// initConfig reads in config file and ENV variables if set.
 func initConfig() {
-	if cfgFile != "" {
-		// Use config file from the flag.
-		viper.SetConfigFile(cfgFile)
+	if opsaniConfig.ConfigFile != "" {
+		// Use config file from the flag. (TODO: Should we check if the file exists unless we are running init?)
+		viper.SetConfigFile(opsaniConfig.ConfigFile)
 	} else {
-		// Find home directory.
+		// Find Opsani config in home directory
 		home, err := homedir.Dir()
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
 		}
 
-		// Search config in home directory with name ".cli" (without extension).
-		viper.AddConfigPath(home)
-		viper.SetConfigName(".opsani/config.yaml")
+		viper.AddConfigPath(filepath.Join(home, ".opsani"))
+		viper.SetConfigName("config")
+		viper.SetConfigType("yaml")
+
+		opsaniConfig.ConfigFile = defaultConfigFile()
 	}
 
-	viper.AutomaticEnv() // read in environment variables that match
+	// Set up environment variables
+	viper.SetEnvPrefix("OPSANI")
+	viper.AutomaticEnv()
 
-	// If a config file is found, read it in.
-	if err := viper.ReadInConfig(); err == nil {
-		fmt.Println("Using config file:", viper.ConfigFileUsed())
+	// Load the configuration
+	if err := viper.ReadInConfig(); err != nil {
+		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
+			// Config file not found; ignore error if desired
+		} else {
+			panic(fmt.Errorf("error parsing configuration file: %s", err))
+		}
 	}
 }
