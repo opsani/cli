@@ -98,6 +98,7 @@ func initConfig() {
 	} else {
 		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
 			// Config file not found; ignore error if desired
+			opsani.ConfigFile = opsani.DefaultConfigFile()
 		} else {
 			panic(fmt.Errorf("error parsing configuration file: %s", err))
 		}
