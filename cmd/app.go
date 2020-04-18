@@ -25,6 +25,8 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"os/exec"
+	"strings"
 
 	"github.com/hokaccha/go-prettyjson"
 	"github.com/opsani/cli/opsani"
@@ -116,18 +118,69 @@ var appStatusCmd = &cobra.Command{
 Config commands
 */
 
+func openFileInEditor(filename string, editor string) error {
+	components := strings.Split(editor, " ")
+	editor, args := components[0], components[1:]
+	executable, err := exec.LookPath(editor)
+	if err != nil {
+		return err
+	}
+
+	args = append(args, filename)
+	cmd := exec.Command(executable, args...)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	return cmd.Run()
+}
+
 var appConfigEditCmd = &cobra.Command{
 	Use:   "edit",
-	Short: "Edit app configuration interactively via $EDITOR",
+	Short: "Edit app configuration interactively",
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("edit called")
-		// TODO: edit the config
+		// Create temp file
+		tempFile, err := ioutil.TempFile(os.TempDir(), "*.json")
+		if err != nil {
+			panic(err)
+		}
+		filename := tempFile.Name()
+
+		// Download config to temp
+		client := NewAPIClientFromConfig()
+		err = client.GetConfigToOutput(filename)
+		if err != nil {
+			panic(err)
+		}
+
+		// Defer removal of the temporary file in case any of the next steps fail.
+		defer os.Remove(filename)
+
+		if err = tempFile.Close(); err != nil {
+			panic(err)
+		}
+
+		if err = openFileInEditor(filename, appConfig.Editor); err != nil {
+			panic(err)
+		}
+
+		body, err := ioutil.ReadFile(filename)
+		if err != nil {
+			panic(err)
+		}
+
+		// Send it back
+		status, err := client.SetConfigFromBody(body, appConfig.ApplyNow)
+		if err != nil {
+			panic(err)
+		}
+		PrettyPrintJSON(status)
 	},
 }
 
 var appConfigSetCmd = &cobra.Command{
 	Use:   "set [CONFIG]",
-	Short: "Set application configuration",
+	Short: "Set app config",
 	Run: func(cmd *cobra.Command, args []string) {
 		client := NewAPIClientFromConfig()
 		var body interface{}
@@ -152,7 +205,7 @@ var appConfigSetCmd = &cobra.Command{
 
 var appConfigPatchCmd = &cobra.Command{
 	Use:   "patch [CONFIG]",
-	Short: "Patch the existing application configuration",
+	Short: "Patch app config",
 	Long:  "Patch merges the incoming change into the existing configuration.",
 	Run: func(cmd *cobra.Command, args []string) {
 		client := NewAPIClientFromConfig()
@@ -180,11 +233,12 @@ var appConfig = struct {
 	OutputFile string
 	InputFile  string
 	ApplyNow   bool
+	Editor     string
 }{}
 
 var appConfigCmd = &cobra.Command{
 	Use:   "config",
-	Short: "Manage app configuration",
+	Short: "Manage app config",
 	Run: func(cmd *cobra.Command, args []string) {
 		client := NewAPIClientFromConfig()
 		if appConfig.OutputFile == "" {
@@ -230,11 +284,12 @@ func init() {
 	// app config flags
 	appConfigCmd.Flags().StringVarP(&appConfig.OutputFile, "output", "o", "", "Write output to file instead of stdout")
 
-	// app config set flags
-	// TODO: Read from standard input
-	//
-	appConfigPatchCmd.Flags().StringVarP(&appConfig.InputFile, "file", "f", "", "File containing configuration to apply")
+	// app config set & patch flags
+	appConfigPatchCmd.Flags().StringVarP(&appConfig.InputFile, "file", "f", "", "File containing config to apply")
 	appConfigPatchCmd.Flags().BoolVarP(&appConfig.ApplyNow, "apply", "a", true, "Apply the config changes immediately")
-	appConfigSetCmd.Flags().StringVarP(&appConfig.InputFile, "file", "f", "", "File containing configuration to apply")
+	appConfigSetCmd.Flags().StringVarP(&appConfig.InputFile, "file", "f", "", "File containing config to apply")
 	appConfigSetCmd.Flags().BoolVarP(&appConfig.ApplyNow, "apply", "a", true, "Apply the config changes immediately")
+
+	// app edit flags
+	appConfigEditCmd.Flags().StringVarP(&appConfig.Editor, "editor", "e", os.Getenv("EDITOR"), "Edit the config with the given editor (overrides $EDITOR)")
 }

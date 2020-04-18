@@ -1,14 +1,19 @@
 package opsani
 
 import (
+	"bufio"
+	"bytes"
 	"fmt"
+	"io"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 
+	"encoding/json"
+
 	"github.com/go-resty/resty/v2"
-	"k8s.io/apimachinery/pkg/util/json"
 )
 
 // Client provides a high level interface to the Opsani API
@@ -89,10 +94,40 @@ func (c *Client) GetConfig() (interface{}, error) {
 }
 
 // GetConfigToOutput retrieves the Opsani app configuration from the API and writes it to a file
-func (c *Client) GetConfigToOutput(filename string) error {
-	_, err := c.restyClient.R().
-		SetOutput(filename).
+func (c *Client) GetConfigToOutput(file string) error {
+	resp, err := c.restyClient.R().
 		Get(c.configURLPath())
+
+	if resp.IsSuccess() {
+		outputPath := ""
+
+		if !filepath.IsAbs(file) {
+			pwd, err := os.Getwd()
+			if err != nil {
+				return err
+			}
+			outputPath += pwd + string(filepath.Separator)
+		}
+
+		outputPath = filepath.Clean(outputPath + file)
+		outFile, err := os.Create(outputPath)
+		if err != nil {
+			return err
+		}
+
+		// formattedJSON, err := prettyjson.Format(resp.Body())
+		var formattedJSON bytes.Buffer
+		err = json.Indent(&formattedJSON, resp.Body(), "", "    ")
+		if err != nil {
+			return err
+		}
+		// _, err = outFile.Write(formattedJSON)
+		reader := bufio.NewReader(&formattedJSON)
+		_, err = io.Copy(outFile, reader)
+		if err != nil {
+			return err
+		}
+	}
 	return err
 }
 
