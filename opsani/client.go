@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/go-resty/resty/v2"
@@ -93,6 +94,38 @@ func (c *Client) GetConfigToOutput(filename string) error {
 		SetOutput(filename).
 		Get(c.configURLPath())
 	return err
+}
+
+// SetConfigFromBody sets the app configuration from the given body, overwriting the existing configuration
+func (c *Client) SetConfigFromBody(body interface{}, apply bool) (interface{}, error) {
+	var result map[string]interface{}
+	var apiError APIError
+	resp, err := c.restyClient.R().
+		SetQueryParams(map[string]string{
+			"reset": strconv.FormatBool(apply),
+		}).
+		SetBody(body).
+		SetResult(&result).
+		SetError(&apiError).
+		Put(c.configURLPath())
+	return c.responseOutcome(resp, err)
+}
+
+// PatchConfigFromBody patches the existing app configuration from the given body producing a merged configuration
+func (c *Client) PatchConfigFromBody(body interface{}, apply bool) (interface{}, error) {
+	var result map[string]interface{}
+	var apiError APIError
+	resp, err := c.restyClient.R().
+		SetHeader("Content-Type", "application/merge-patch+json").
+		SetQueryParams(map[string]string{
+			"reset": strconv.FormatBool(apply),
+			"patch": "true",
+		}).
+		SetBody(body).
+		SetResult(&result).
+		SetError(&apiError).
+		Put(c.configURLPath())
+	return c.responseOutcome(resp, err)
 }
 
 /**

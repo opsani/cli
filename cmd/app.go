@@ -23,6 +23,7 @@ package cmd
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 
 	"github.com/hokaccha/go-prettyjson"
@@ -125,16 +126,60 @@ var appConfigEditCmd = &cobra.Command{
 }
 
 var appConfigSetCmd = &cobra.Command{
-	Use:   "set",
+	Use:   "set [CONFIG]",
 	Short: "Set application configuration",
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("set called")
-		// TODO: set the config
+		client := NewAPIClientFromConfig()
+		var body interface{}
+		if filename := appConfig.InputFile; filename != "" {
+			bytes, err := ioutil.ReadFile(filename)
+			if err != nil {
+				panic(err)
+			}
+			body = bytes
+		} else {
+			// Read literal from the positional argument
+			// TODO: support JSON Path/literal format
+			body = args[0]
+		}
+		status, err := client.SetConfigFromBody(body, appConfig.ApplyNow)
+		if err != nil {
+			panic(err)
+		}
+		PrettyPrintJSON(status)
+	},
+}
+
+var appConfigPatchCmd = &cobra.Command{
+	Use:   "patch [CONFIG]",
+	Short: "Patch the existing application configuration",
+	Long:  "Patch merges the incoming change into the existing configuration.",
+	Run: func(cmd *cobra.Command, args []string) {
+		client := NewAPIClientFromConfig()
+		var body interface{}
+		if filename := appConfig.InputFile; filename != "" {
+			bytes, err := ioutil.ReadFile(filename)
+			if err != nil {
+				panic(err)
+			}
+			body = bytes
+		} else {
+			// Read literal from the positional argument
+			// TODO: support JSON Path/literal format
+			body = args[0]
+		}
+		status, err := client.PatchConfigFromBody(body, appConfig.ApplyNow)
+		if err != nil {
+			panic(err)
+		}
+		PrettyPrintJSON(status)
 	},
 }
 
 var appConfig = struct {
 	OutputFile string
+	InputFile  string
+	ApplyNow   bool
 }{}
 
 var appConfigCmd = &cobra.Command{
@@ -151,7 +196,7 @@ var appConfigCmd = &cobra.Command{
 		} else {
 			err := client.GetConfigToOutput(appConfig.OutputFile)
 			if err == nil {
-				fmt.Printf("Output written to \"%s\"", appConfig.OutputFile)
+				fmt.Printf("Output written to \"%s\"\n", appConfig.OutputFile)
 			} else {
 				panic(err)
 			}
@@ -180,10 +225,16 @@ func init() {
 	appCmd.AddCommand(appConfigCmd)
 	appConfigCmd.AddCommand(appConfigEditCmd)
 	appConfigCmd.AddCommand(appConfigSetCmd)
+	appConfigCmd.AddCommand(appConfigPatchCmd)
 
 	// app config flags
 	appConfigCmd.Flags().StringVarP(&appConfig.OutputFile, "output", "o", "", "Write output to file instead of stdout")
 
 	// app config set flags
-	appConfigSetCmd.Flags().StringP("file", "f", "", "File containing configuration to apply")
+	// TODO: Read from standard input
+	//
+	appConfigPatchCmd.Flags().StringVarP(&appConfig.InputFile, "file", "f", "", "File containing configuration to apply")
+	appConfigPatchCmd.Flags().BoolVarP(&appConfig.ApplyNow, "apply", "a", true, "Apply the config changes immediately")
+	appConfigSetCmd.Flags().StringVarP(&appConfig.InputFile, "file", "f", "", "File containing configuration to apply")
+	appConfigSetCmd.Flags().BoolVarP(&appConfig.ApplyNow, "apply", "a", true, "Apply the config changes immediately")
 }
