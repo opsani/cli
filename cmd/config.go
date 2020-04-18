@@ -25,8 +25,8 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/opsani/cli/opsani"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 	"gopkg.in/ffmt.v1"
 )
 
@@ -34,11 +34,11 @@ var configCmd = &cobra.Command{
 	Use:   "config",
 	Short: "Manages client configuration",
 	Run: func(cmd *cobra.Command, args []string) {
-		if _, err := os.Stat(opsaniConfig.ConfigFile); os.IsNotExist(err) {
+		if _, err := os.Stat(opsani.ConfigFile); os.IsNotExist(err) {
 			panic(err)
 		}
-		fmt.Println("Using configuration from: ", opsaniConfig.ConfigFile)
-		ffmt.Print(viper.AllSettings())
+		fmt.Println("Using configuration from: ", opsani.ConfigFile)
+		ffmt.Print(opsani.GetAllSettings())
 	},
 }
 

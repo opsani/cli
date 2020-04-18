@@ -333,18 +333,15 @@ func runDiscovery(args []string) {
 	runManifestBuilderContainer(ctx, cli)
 }
 
-// discoverCmd represents the discover command
 var discoverCmd = &cobra.Command{
 	Use:   "discover",
-	Short: "Builds Servo assets through Kubernetes discovery",
-	Long: `A longer description that spans multiple lines and likely contains examples
-and usage of using your command. For example:
+	Short: "Build Servo assets through Kubernetes discovery",
+	Long: `The discover command introspects your Kubernetes and Prometheus
+clusters to auto-detect configuration necessary to build a Servo.
 
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
+Upon completion of discovery, manifests will be generated that can be
+used to build a Servo assembly image and deploy it to Kubernetes.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		// Set the default Kubeconfig
 		if discoverConfig.Kubeconfig == "" {
 			discoverConfig.Kubeconfig = pathToDefaultKubeconfig()
 		}

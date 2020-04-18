@@ -18,21 +18,14 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"path/filepath"
+	"strings"
 
+	"github.com/opsani/cli/opsani"
 	"github.com/spf13/cobra"
 
-	homedir "github.com/mitchellh/go-homedir"
 	"github.com/spf13/viper"
 )
 
-// Configuration options bound via Cobra
-var opsaniConfig = struct {
-	BaseURL    string
-	ConfigFile string
-	App        string
-	Token      string
-}{}
 var printVersion bool
 
 // rootCmd represents the base command when called without any subcommands
@@ -64,54 +57,45 @@ func Execute() {
 	}
 }
 
-func defaultConfigFile() string {
-	home, err := homedir.Dir()
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
-	return filepath.Join(home, ".opsani", "config.yaml")
-}
-
 func init() {
 	cobra.OnInitialize(initConfig)
 
-	rootCmd.PersistentFlags().StringVar(&opsaniConfig.BaseURL, "base-url", "https://api.opsani.com/", "Base URL for accessing the Opsani API")
-	rootCmd.PersistentFlags().MarkHidden("base-url")
-	viper.BindPFlag("base-url", rootCmd.PersistentFlags().Lookup("base-url"))
-	rootCmd.PersistentFlags().StringVar(&opsaniConfig.ConfigFile, "config", "", fmt.Sprintf("Location of config file (default \"%s\")", defaultConfigFile()))
-	rootCmd.PersistentFlags().StringVar(&opsaniConfig.App, "app", "", "App to control (overrides config file and OPSANI_APP)")
-	viper.BindPFlag("app", rootCmd.PersistentFlags().Lookup("app"))
-	rootCmd.PersistentFlags().StringVar(&opsaniConfig.Token, "token", "", "API token to authenticate with (overrides config file and OPSANI_TOKEN)")
-	viper.BindPFlag("token", rootCmd.PersistentFlags().Lookup("token"))
+	rootCmd.PersistentFlags().String(opsani.KeyBaseURL, opsani.DefaultBaseURL, "Base URL for accessing the Opsani API")
+	rootCmd.PersistentFlags().MarkHidden(opsani.KeyBaseURL)
+	viper.BindPFlag(opsani.KeyBaseURL, rootCmd.PersistentFlags().Lookup(opsani.KeyBaseURL))
+	rootCmd.PersistentFlags().String(opsani.KeyApp, "", "App to control (overrides config file and OPSANI_APP)")
+	viper.BindPFlag(opsani.KeyApp, rootCmd.PersistentFlags().Lookup(opsani.KeyApp))
+	rootCmd.PersistentFlags().String(opsani.KeyToken, "", "API token to authenticate with (overrides config file and OPSANI_TOKEN)")
+	viper.BindPFlag(opsani.KeyToken, rootCmd.PersistentFlags().Lookup(opsani.KeyToken))
+	rootCmd.PersistentFlags().BoolP(opsani.KeyDebugMode, "D", false, "Enable debug mode")
+	viper.BindPFlag(opsani.KeyDebugMode, rootCmd.PersistentFlags().Lookup(opsani.KeyDebugMode))
+	rootCmd.PersistentFlags().Bool(opsani.KeyRequestTracing, false, "Enable request tracing")
+	viper.BindPFlag(opsani.KeyRequestTracing, rootCmd.PersistentFlags().Lookup(opsani.KeyRequestTracing))
+
+	rootCmd.PersistentFlags().StringVar(&opsani.ConfigFile, "config", "", fmt.Sprintf("Location of config file (default \"%s\")", opsani.DefaultConfigFile()))
 	rootCmd.PersistentFlags().BoolVarP(&printVersion, "version", "v", false, "Print version information and quit")
 }
 
 func initConfig() {
-	if opsaniConfig.ConfigFile != "" {
+	if opsani.ConfigFile != "" {
 		// Use config file from the flag. (TODO: Should we check if the file exists unless we are running init?)
-		viper.SetConfigFile(opsaniConfig.ConfigFile)
+		viper.SetConfigFile(opsani.ConfigFile)
 	} else {
 		// Find Opsani config in home directory
-		home, err := homedir.Dir()
-		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
-		}
-
-		viper.AddConfigPath(filepath.Join(home, ".opsani"))
+		viper.AddConfigPath(opsani.DefaultConfigPath())
 		viper.SetConfigName("config")
-		viper.SetConfigType("yaml")
-
-		opsaniConfig.ConfigFile = defaultConfigFile()
+		viper.SetConfigType(opsani.DefaultConfigType())
 	}
 
 	// Set up environment variables
-	viper.SetEnvPrefix("OPSANI")
+	viper.SetEnvPrefix(opsani.KeyEnvPrefix)
+	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
 	viper.AutomaticEnv()
 
 	// Load the configuration
-	if err := viper.ReadInConfig(); err != nil {
+	if err := viper.ReadInConfig(); err == nil {
+		opsani.ConfigFile = viper.ConfigFileUsed()
+	} else {
 		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
 			// Config file not found; ignore error if desired
 		} else {

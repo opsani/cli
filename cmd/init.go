@@ -29,6 +29,7 @@ import (
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/AlecAivazis/survey/v2/terminal"
 	"github.com/mgutz/ansi"
+	"github.com/opsani/cli/opsani"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"gopkg.in/ffmt.v1"
@@ -44,53 +45,56 @@ var initCmd = &cobra.Command{
   * 'token': API token to authenticate with (OPSANI_TOKEN).
 `,
 	Run: func(cmd *cobra.Command, args []string) {
+		app := opsani.GetApp()
+		token := opsani.GetAccessToken()
 		whiteBold := ansi.ColorCode("white+b")
-		if opsaniConfig.App == "" {
+
+		if app == "" {
 			err := survey.AskOne(&survey.Input{
 				Message: "Opsani app (i.e. domain.com/app):",
-			}, &opsaniConfig.App, survey.WithValidator(survey.Required))
+			}, &app, survey.WithValidator(survey.Required))
 			if err == terminal.InterruptErr {
 				os.Exit(0)
 			} else if err != nil {
 				panic(err)
 			}
 		} else {
-			fmt.Printf("%si %sApp: %s%s%s%s\n", ansi.Blue, whiteBold, ansi.Reset, ansi.LightCyan, opsaniConfig.App, ansi.Reset)
+			fmt.Printf("%si %sApp: %s%s%s%s\n", ansi.Blue, whiteBold, ansi.Reset, ansi.LightCyan, app, ansi.Reset)
 		}
 
-		if opsaniConfig.Token == "" {
+		if token == "" {
 			err := survey.AskOne(&survey.Input{
 				Message: "API Token:",
-			}, &opsaniConfig.Token, survey.WithValidator(survey.Required))
+			}, &token, survey.WithValidator(survey.Required))
 			if err == terminal.InterruptErr {
 				os.Exit(0)
 			} else if err != nil {
 				panic(err)
 			}
 		} else {
-			fmt.Printf("%si %sAPI Token: %s%s%s%s\n", ansi.Blue, whiteBold, ansi.Reset, ansi.LightCyan, opsaniConfig.Token, ansi.Reset)
+			fmt.Printf("%si %sAPI Token: %s%s%s%s\n", ansi.Blue, whiteBold, ansi.Reset, ansi.LightCyan, token, ansi.Reset)
 		}
 
 		// Confirm that the user wants to write this config
-		viper.Set("app", opsaniConfig.App)
-		viper.Set("token", opsaniConfig.Token)
+		opsani.SetApp(app)
+		opsani.SetAccessToken(token)
 
 		fmt.Printf("\nOpsani config initialized:\n")
-		ffmt.Print(viper.AllSettings())
+		ffmt.Print(opsani.GetAllSettings())
 		confirmed := false
 		prompt := &survey.Confirm{
-			Message: fmt.Sprintf("Write to %s?", opsaniConfig.ConfigFile),
+			Message: fmt.Sprintf("Write to %s?", opsani.ConfigFile),
 		}
 		survey.AskOne(prompt, &confirmed)
 		if confirmed {
-			configDir := filepath.Dir(opsaniConfig.ConfigFile)
+			configDir := filepath.Dir(opsani.ConfigFile)
 			if _, err := os.Stat(configDir); os.IsNotExist(err) {
 				err = os.Mkdir(configDir, 0755)
 				if err != nil {
 					panic(err)
 				}
 			}
-			if err := viper.WriteConfigAs(opsaniConfig.ConfigFile); err != nil {
+			if err := viper.WriteConfigAs(opsani.ConfigFile); err != nil {
 				panic(err)
 			}
 			fmt.Println("\nOpsani CLI initialized")

@@ -23,12 +23,13 @@ package cmd
 
 import (
 	"fmt"
+	"os"
+
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/AlecAivazis/survey/v2/terminal"
 	"github.com/mgutz/ansi"
+	"github.com/opsani/cli/opsani"
 	"github.com/spf13/cobra"
-	"net/url"
-	"os"
 )
 
 // Configuration options bound via Cobra
@@ -37,21 +38,12 @@ var loginConfig = struct {
 	Password string
 }{}
 
-// loginCmd represents the login command
 var loginCmd = &cobra.Command{
 	Use:   "login",
 	Short: "Login to the Opsani API",
 	Long:  `Login to the Opsani API and persist access credentials.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		u, err := url.Parse(baseURL)
-		if err != nil {
-			panic(err)
-		}
-		baseURLDescription := u.Hostname()
-		if port := u.Port(); port != "" && port != "80" && port != "443" {
-			baseURLDescription = baseURLDescription + ":" + port
-		}
-		fmt.Println("Logging into", baseURLDescription)
+		fmt.Println("Logging into", opsani.GetBaseURLHostnameAndPort())
 
 		whiteBold := ansi.ColorCode("white+b")
 		if loginConfig.Username == "" {
