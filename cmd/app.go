@@ -24,9 +24,9 @@ package cmd
 import (
 	"fmt"
 
+	"github.com/hokaccha/go-prettyjson"
 	"github.com/opsani/cli/opsani"
 	"github.com/spf13/cobra"
-	"gopkg.in/ffmt.v1"
 )
 
 // NewAPIClientFromConfig returns an Opsani API client configured using the active configuration
@@ -70,7 +70,8 @@ var appConfigCmd = &cobra.Command{
 		if err != nil {
 			panic(err)
 		}
-		ffmt.Pjson(config)
+		s, _ := prettyjson.Marshal(config)
+		fmt.Println(string(s))
 	},
 }
 
