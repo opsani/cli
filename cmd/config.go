@@ -30,9 +30,10 @@ import (
 )
 
 var configCmd = &cobra.Command{
-	Use:   "config",
-	Short: "Manages client configuration",
-	Args:  cobra.NoArgs,
+	Use:               "config",
+	Short:             "Manages client configuration",
+	Args:              cobra.NoArgs,
+	PersistentPreRunE: InitRequiredToExecute,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if _, err := os.Stat(opsani.ConfigFile); os.IsNotExist(err) {
 			return err

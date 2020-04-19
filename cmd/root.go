@@ -100,6 +100,15 @@ func Execute() {
 	}
 }
 
+// InitRequiredToExecute returns a command errorif the client is not initialized
+func InitRequiredToExecute(cmd *cobra.Command, args []string) error {
+	if !opsani.IsInitialized() {
+		return fmt.Errorf("command failed because client is not initialized. Run %q and try again", subCommandPath(rootCmd, initCmd))
+	}
+
+	return nil
+}
+
 func init() {
 	cobra.OnInitialize(initConfig)
 

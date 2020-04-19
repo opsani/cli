@@ -105,3 +105,8 @@ func GetDebugModeEnabled() bool {
 func GetRequestTracingEnabled() bool {
 	return viper.GetBool(KeyRequestTracing)
 }
+
+// IsInitialized returns a boolean value that indicates if the client has been initialized
+func IsInitialized() bool {
+	return GetApp() != "" && GetAccessToken() != ""
+}

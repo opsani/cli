@@ -249,7 +249,8 @@ clusters to auto-detect configuration necessary to build a Servo.
 
 Upon completion of discovery, manifests will be generated that can be
 used to build a Servo assembly image and deploy it to Kubernetes.`,
-	Args: cobra.NoArgs,
+	Args:              cobra.NoArgs,
+	PersistentPreRunE: InitRequiredToExecute,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if discoverConfig.Kubeconfig == "" {
 			discoverConfig.Kubeconfig = pathToDefaultKubeconfig()
