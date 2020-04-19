@@ -125,6 +125,7 @@ func init() {
 	viper.BindPFlag(opsani.KeyRequestTracing, rootCmd.PersistentFlags().Lookup(opsani.KeyRequestTracing))
 
 	rootCmd.PersistentFlags().StringVar(&opsani.ConfigFile, "config", "", fmt.Sprintf("Location of config file (default \"%s\")", opsani.DefaultConfigFile()))
+	rootCmd.MarkPersistentFlagFilename("config", "*.yaml", "*.yml")
 	rootCmd.SetVersionTemplate("Opsani CLI version {{.Version}}\n")
 
 	// See Execute()

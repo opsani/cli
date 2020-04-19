@@ -40,3 +40,7 @@ clean:
 install: build
 	$(info ******************** installing ********************)
 	cp $(BIN)/opsani /usr/local/bin/opsani
+
+completion:
+	$(info ******************** completion ********************)
+	go run . completion --shell zsh > /usr/local/share/zsh-completions/_opsani

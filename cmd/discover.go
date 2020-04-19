@@ -287,4 +287,5 @@ func init() {
 	imbCmd.Flags().StringVarP(&discoverConfig.DockerImageRef, "image", "i", defaultImageRef, "Docker image ref to run")
 	imbCmd.Flags().StringVarP(&discoverConfig.DockerHost, "host", "H", "", "Docket host to connect to (overriding DOCKER_HOST)")
 	discoverCmd.Flags().StringVar(&discoverConfig.Kubeconfig, "kubeconfig", "", fmt.Sprintf("Location of the kubeconfig file (default is \"%s\")", pathToDefaultKubeconfig()))
+	discoverCmd.MarkFlagFilename("kubeconfig")
 }

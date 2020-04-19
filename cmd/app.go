@@ -385,11 +385,15 @@ func init() {
 
 	// app config flags
 	appConfigCmd.Flags().StringVarP(&appConfig.OutputFile, "output", "o", "", "Write output to file instead of stdout")
+	appConfigCmd.MarkFlagFilename("output")
 
 	// app config set & patch flags
+	updateGlobs := []string{"*.json", "*.yaml", "*.yml"}
 	appConfigPatchCmd.Flags().StringVarP(&appConfig.InputFile, "file", "f", "", "File containing config to apply")
+	appConfigPatchCmd.MarkFlagFilename("file", updateGlobs...)
 	appConfigPatchCmd.Flags().BoolVarP(&appConfig.ApplyNow, "apply", "a", true, "Apply the config changes immediately")
 	appConfigSetCmd.Flags().StringVarP(&appConfig.InputFile, "file", "f", "", "File containing config to apply")
+	appConfigSetCmd.MarkFlagFilename("file", updateGlobs...)
 	appConfigSetCmd.Flags().BoolVarP(&appConfig.ApplyNow, "apply", "a", true, "Apply the config changes immediately")
 
 	// app edit flags
