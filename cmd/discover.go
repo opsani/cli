@@ -30,7 +30,6 @@ import (
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/pkg/archive"
-	"github.com/kr/pretty"
 	"github.com/mitchellh/go-homedir"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -46,23 +45,22 @@ var discoverConfig = struct {
 	Kubeconfig     string
 }{}
 
-func runIntelligentManifestBuilderContainer(ctx context.Context) {
+func runIntelligentManifestBuilderContainer(ctx context.Context) error {
 	di, err := NewDockerInterface()
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	err = di.PullImageWithProgressReporting(ctx, discoverConfig.DockerImageRef)
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	// FIXME: These paths are expanded locally but over an ssh transport
 	// will resolve locally rather than on the remote host
 	kubeDir, err := homedir.Expand("~/.kube")
 	if err != nil {
-		pretty.Println("No ~/.kube found")
-		panic(err)
+		return err
 	}
 	hostConfig := container.HostConfig{
 		Mounts: []mount.Mount{
@@ -101,10 +99,7 @@ func runIntelligentManifestBuilderContainer(ctx context.Context) {
 	icc := NewInteractiveContainerConfigWithImageRef(discoverConfig.DockerImageRef)
 	icc.HostConfig = &hostConfig
 	icc.CompletionCallback = copyArtifactsFromContainerToHost
-	err = di.RunInteractiveContainer(ctx, icc)
-	if err != nil {
-		panic(err)
-	}
+	return di.RunInteractiveContainer(ctx, icc)
 }
 
 func copyArtifactsFromContainerToHost(ctx context.Context, di *DockerInterface, cnt container.ContainerCreateCreatedBody, result container.ContainerWaitOKBody) {
@@ -112,11 +107,17 @@ func copyArtifactsFromContainerToHost(ctx context.Context, di *DockerInterface, 
 		return
 	}
 
-	// Check that the assets are there
+	// Check that our paths are workable
 	srcPath := "/work/servo-manifests"
 	_, err := di.dockerClient.ContainerStatPath(ctx, cnt.ID, srcPath)
 	if err != nil {
-		fmt.Println("Unable to find manifests in container, skipping...")
+		fmt.Println("Unable to find artifacts in container, skipping...")
+		return
+	}
+
+	pwd, err := os.Getwd()
+	if err != nil {
+		fmt.Println("Failed copying artifacts from container:", err)
 		return
 	}
 
@@ -124,7 +125,8 @@ func copyArtifactsFromContainerToHost(ctx context.Context, di *DockerInterface, 
 	fmt.Println("Copying artifacts...")
 	content, _, err := di.dockerClient.CopyFromContainer(ctx, cnt.ID, srcPath)
 	if err != nil {
-		panic(err)
+		fmt.Println("Failed copying artifacts from container:", err)
+		return
 	}
 	defer content.Close()
 
@@ -134,15 +136,10 @@ func copyArtifactsFromContainerToHost(ctx context.Context, di *DockerInterface, 
 		IsDir:  true,
 	}
 
-	pwd, err := os.Getwd()
-	if err != nil {
-		pretty.Println("Unable to determine pwd for output path")
-		panic(err)
-	}
 	archive.CopyTo(content, srcInfo, pwd)
 }
 
-func runDiscovery(args []string) {
+func runDiscovery(args []string) error {
 	ctx := context.Background()
 	clientCfg, err := clientcmd.NewDefaultClientConfigLoadingRules().Load()
 
@@ -169,19 +166,18 @@ func runDiscovery(args []string) {
 
 	err = survey.Ask(clusterQ, &kubeContext)
 	if err != nil {
-		fmt.Println(err.Error())
-		return
+		return err
 	}
 	fmt.Printf("Activating context: %s.\n", kubeContext.Context)
 
 	config, err := clientcmd.BuildConfigFromFlags("", discoverConfig.Kubeconfig)
 	if err != nil {
-		panic(err.Error())
+		return err
 	}
 
 	clientset, err := kubernetes.NewForConfig(config)
 	if err != nil {
-		panic(err.Error())
+		return err
 	}
 
 	namespaces, _ := clientset.CoreV1().Namespaces().List(ctx, metav1.ListOptions{})
@@ -203,8 +199,7 @@ func runDiscovery(args []string) {
 	}
 	err = survey.Ask(namespaceQ, &kubeContext)
 	if err != nil {
-		fmt.Println(err.Error())
-		return
+		return err
 	}
 
 	// Deployments
@@ -227,28 +222,22 @@ func runDiscovery(args []string) {
 	}
 	err = survey.Ask(deploymentQ, &kubeContext)
 	if err != nil {
-		fmt.Println(err.Error())
-		return
+		return err
 	}
+	return nil
 }
 
 var pullCmd = &cobra.Command{
 	Use:   "pull",
 	Short: "Pull a Docker image",
-	Run: func(cmd *cobra.Command, args []string) {
-		if len(args) == 0 {
-			panic("Must specify an image to pull")
-		}
-
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
 		di, err := NewDockerInterface()
 		if err != nil {
-			panic(err)
+			return err
 		}
 
-		err = di.PullImageWithProgressReporting(context.Background(), args[0])
-		if err != nil {
-			panic(err)
-		}
+		return di.PullImageWithProgressReporting(context.Background(), args[0])
 	},
 }
 
@@ -260,20 +249,22 @@ clusters to auto-detect configuration necessary to build a Servo.
 
 Upon completion of discovery, manifests will be generated that can be
 used to build a Servo assembly image and deploy it to Kubernetes.`,
-	Run: func(cmd *cobra.Command, args []string) {
+	Args: cobra.NoArgs,
+	RunE: func(cmd *cobra.Command, args []string) error {
 		if discoverConfig.Kubeconfig == "" {
 			discoverConfig.Kubeconfig = pathToDefaultKubeconfig()
 		}
 
-		runDiscovery(args)
+		return runDiscovery(args)
 	},
 }
 
 var imbCmd = &cobra.Command{
 	Use:   "imb",
 	Short: "Run the intelligent manifest builder under Docker",
-	Run: func(cmd *cobra.Command, args []string) {
-		runIntelligentManifestBuilderContainer(context.Background())
+	Args:  cobra.NoArgs,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return runIntelligentManifestBuilderContainer(context.Background())
 	},
 }
 

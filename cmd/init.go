@@ -27,12 +27,10 @@ import (
 	"path/filepath"
 
 	"github.com/AlecAivazis/survey/v2"
-	"github.com/AlecAivazis/survey/v2/terminal"
 	"github.com/mgutz/ansi"
 	"github.com/opsani/cli/opsani"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"gopkg.in/ffmt.v1"
 )
 
 // initCmd represents the init command
@@ -44,7 +42,8 @@ var initCmd = &cobra.Command{
   * 'app':   Opsani app to control (OPSANI_APP).
   * 'token': API token to authenticate with (OPSANI_TOKEN).
 `,
-	Run: func(cmd *cobra.Command, args []string) {
+	Args: cobra.NoArgs,
+	RunE: func(cmd *cobra.Command, args []string) error {
 		app := opsani.GetApp()
 		token := opsani.GetAccessToken()
 		whiteBold := ansi.ColorCode("white+b")
@@ -53,10 +52,8 @@ var initCmd = &cobra.Command{
 			err := survey.AskOne(&survey.Input{
 				Message: "Opsani app (i.e. domain.com/app):",
 			}, &app, survey.WithValidator(survey.Required))
-			if err == terminal.InterruptErr {
-				os.Exit(0)
-			} else if err != nil {
-				panic(err)
+			if err != nil {
+				return err
 			}
 		} else {
 			fmt.Printf("%si %sApp: %s%s%s%s\n", ansi.Blue, whiteBold, ansi.Reset, ansi.LightCyan, app, ansi.Reset)
@@ -66,10 +63,8 @@ var initCmd = &cobra.Command{
 			err := survey.AskOne(&survey.Input{
 				Message: "API Token:",
 			}, &token, survey.WithValidator(survey.Required))
-			if err == terminal.InterruptErr {
-				os.Exit(0)
-			} else if err != nil {
-				panic(err)
+			if err != nil {
+				return err
 			}
 		} else {
 			fmt.Printf("%si %sAPI Token: %s%s%s%s\n", ansi.Blue, whiteBold, ansi.Reset, ansi.LightCyan, token, ansi.Reset)
@@ -80,7 +75,7 @@ var initCmd = &cobra.Command{
 		opsani.SetAccessToken(token)
 
 		fmt.Printf("\nOpsani config initialized:\n")
-		ffmt.Print(opsani.GetAllSettings())
+		PrettyPrintJSONObject(opsani.GetAllSettings)
 		confirmed := false
 		prompt := &survey.Confirm{
 			Message: fmt.Sprintf("Write to %s?", opsani.ConfigFile),
@@ -91,14 +86,15 @@ var initCmd = &cobra.Command{
 			if _, err := os.Stat(configDir); os.IsNotExist(err) {
 				err = os.Mkdir(configDir, 0755)
 				if err != nil {
-					panic(err)
+					return err
 				}
 			}
 			if err := viper.WriteConfigAs(opsani.ConfigFile); err != nil {
-				panic(err)
+				return err
 			}
 			fmt.Println("\nOpsani CLI initialized")
 		}
+		return nil
 	},
 }
 

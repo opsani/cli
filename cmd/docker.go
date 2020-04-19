@@ -147,7 +147,7 @@ func (di *DockerInterface) PullImageWithProgressReporting(ctx context.Context, i
 				break
 			}
 
-			panic(err)
+			return err
 		}
 
 		imageID := event.ID

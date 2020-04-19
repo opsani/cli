@@ -60,7 +60,7 @@ func GetBaseURL() string {
 func GetBaseURLHostnameAndPort() string {
 	u, err := url.Parse(GetBaseURL())
 	if err != nil {
-		panic(err)
+		return GetBaseURL()
 	}
 	baseURLDescription := u.Hostname()
 	if port := u.Port(); port != "" && port != "80" && port != "443" {

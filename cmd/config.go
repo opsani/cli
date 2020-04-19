@@ -27,18 +27,18 @@ import (
 
 	"github.com/opsani/cli/opsani"
 	"github.com/spf13/cobra"
-	"gopkg.in/ffmt.v1"
 )
 
 var configCmd = &cobra.Command{
 	Use:   "config",
 	Short: "Manages client configuration",
-	Run: func(cmd *cobra.Command, args []string) {
+	Args:  cobra.NoArgs,
+	RunE: func(cmd *cobra.Command, args []string) error {
 		if _, err := os.Stat(opsani.ConfigFile); os.IsNotExist(err) {
-			panic(err)
+			return err
 		}
-		fmt.Println("Using configuration from: ", opsani.ConfigFile)
-		ffmt.Print(opsani.GetAllSettings())
+		fmt.Println("Using config from:", opsani.ConfigFile)
+		return PrettyPrintJSONObject(opsani.GetAllSettings())
 	},
 }
 

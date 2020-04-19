@@ -58,52 +58,56 @@ Lifecycle commands
 var appStartCmd = &cobra.Command{
 	Use:   "start",
 	Short: "Start the app",
-	Run: func(cmd *cobra.Command, args []string) {
+	Args:  cobra.NoArgs,
+	RunE: func(cmd *cobra.Command, args []string) error {
 		client := NewAPIClientFromConfig()
 		resp, err := client.StartApp()
 		if err != nil {
-			panic(err)
+			return err
 		}
-		PrettyPrintJSONResponse(resp)
+		return PrettyPrintJSONResponse(resp)
 	},
 }
 
 var appStopCmd = &cobra.Command{
 	Use:   "stop",
 	Short: "Stop the app",
-	Run: func(cmd *cobra.Command, args []string) {
+	Args:  cobra.NoArgs,
+	RunE: func(cmd *cobra.Command, args []string) error {
 		client := NewAPIClientFromConfig()
 		resp, err := client.StopApp()
 		if err != nil {
-			panic(err)
+			return err
 		}
-		PrettyPrintJSONResponse(resp)
+		return PrettyPrintJSONResponse(resp)
 	},
 }
 
 var appRestartCmd = &cobra.Command{
 	Use:   "restart",
 	Short: "Restart the app",
-	Run: func(cmd *cobra.Command, args []string) {
+	Args:  cobra.NoArgs,
+	RunE: func(cmd *cobra.Command, args []string) error {
 		client := NewAPIClientFromConfig()
 		resp, err := client.RestartApp()
 		if err != nil {
-			panic(err)
+			return err
 		}
-		PrettyPrintJSONResponse(resp)
+		return PrettyPrintJSONResponse(resp)
 	},
 }
 
 var appStatusCmd = &cobra.Command{
 	Use:   "status",
 	Short: "Check app status",
-	Run: func(cmd *cobra.Command, args []string) {
+	Args:  cobra.NoArgs,
+	RunE: func(cmd *cobra.Command, args []string) error {
 		client := NewAPIClientFromConfig()
 		resp, err := client.GetAppStatus()
 		if err != nil {
-			panic(err)
+			return err
 		}
-		PrettyPrintJSONResponse(resp)
+		return PrettyPrintJSONResponse(resp)
 	},
 }
 
@@ -131,11 +135,12 @@ func openFileInEditor(filename string, editor string) error {
 var appConfigEditCmd = &cobra.Command{
 	Use:   "edit [PATH=VALUE ...]",
 	Short: "Edit app config",
-	Run: func(cmd *cobra.Command, args []string) {
+	Args:  cobra.ArbitraryArgs,
+	RunE: func(cmd *cobra.Command, args []string) error {
 		// Create temp file
 		tempFile, err := ioutil.TempFile(os.TempDir(), "*.json")
 		if err != nil {
-			panic(err)
+			return err
 		}
 		filename := tempFile.Name()
 
@@ -143,67 +148,68 @@ var appConfigEditCmd = &cobra.Command{
 		client := NewAPIClientFromConfig()
 		resp, err := client.GetConfig()
 		if err != nil {
-			panic(err)
+			return err
 		}
 		opsani.WritePrettyJSONBytesToFile(resp.Body(), filename)
 		if err != nil {
-			panic(err)
+			return err
 		}
 
 		// Defer removal of the temporary file in case any of the next steps fail.
 		defer os.Remove(filename)
 
 		if err = tempFile.Close(); err != nil {
-			panic(err)
+			return err
 		}
 
 		// Apply any inline path edits
 		if len(args) > 0 {
 			config, err := ioutil.ReadFile(filename)
 			if err != nil {
-				panic(err)
+				return err
 			}
 
 			config, err = SetJSONKeyPathValuesFromStringsOnBytes(args, config)
 			if err != nil {
-				panic(err)
+				return err
 			}
 
 			err = ioutil.WriteFile(filename, config, 0755)
 			if err != nil {
-				panic(err)
+				return err
 			}
 		}
 
 		// Edit interactively if necessary
 		if len(args) == 0 || appConfig.Interactive {
 			if err = openFileInEditor(filename, appConfig.Editor); err != nil {
-				panic(err)
+				return err
 			}
 		}
 
 		body, err := ioutil.ReadFile(filename)
 		if err != nil {
-			panic(err)
+			return err
 		}
 
 		// Send it back
 		resp, err = client.SetConfigFromBody(body, appConfig.ApplyNow)
 		if err != nil {
-			panic(err)
+			return err
 		}
-		PrettyPrintJSONResponse(resp)
+		return PrettyPrintJSONResponse(resp)
 	},
 }
 
 var appConfigGetCmd = &cobra.Command{
-	Use:   "get [PATH]",
+	Use:   "get [PATH ...]",
 	Short: "Get app config",
-	Run: func(cmd *cobra.Command, args []string) {
+	Args:  cobra.ArbitraryArgs,
+	RunE: func(cmd *cobra.Command, args []string) error {
 		client := NewAPIClientFromConfig()
 		resp, err := client.GetConfig()
 		if err != nil {
-			panic(err)
+			return err
 		}
 
 		// Non-filtered invocation
@@ -231,23 +237,26 @@ var appConfigGetCmd = &cobra.Command{
 			if appConfig.OutputFile != "" {
 				err := opsani.WritePrettyJSONStringsToFile(jsonStrings, appConfig.OutputFile)
 				if err != nil {
-					panic(err)
+					return err
 				}
 			}
 		}
+
+		return nil
 	},
 }
 
 var appConfigSetCmd = &cobra.Command{
 	Use:   "set [CONFIG]",
 	Short: "Set app config",
-	Run: func(cmd *cobra.Command, args []string) {
+	Args:  cobra.MaximumNArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
 		client := NewAPIClientFromConfig()
 		var body interface{}
 		if filename := appConfig.InputFile; filename != "" {
 			bytes, err := ioutil.ReadFile(filename)
 			if err != nil {
-				panic(err)
+				return err
 			}
 			body = bytes
 		} else {
@@ -255,9 +264,9 @@ var appConfigSetCmd = &cobra.Command{
 		}
 		resp, err := client.SetConfigFromBody(body, appConfig.ApplyNow)
 		if err != nil {
-			panic(err)
+			return err
 		}
-		PrettyPrintJSONResponse(resp)
+		return PrettyPrintJSONResponse(resp)
 	},
 }
 
@@ -265,13 +274,14 @@ var appConfigPatchCmd = &cobra.Command{
 	Use:   "patch [CONFIG]",
 	Short: "Patch app config",
 	Long:  "Patch merges the incoming change into the existing configuration.",
-	Run: func(cmd *cobra.Command, args []string) {
+	Args:  cobra.MaximumNArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
 		client := NewAPIClientFromConfig()
 		var body interface{}
 		if filename := appConfig.InputFile; filename != "" {
 			bytes, err := ioutil.ReadFile(filename)
 			if err != nil {
-				panic(err)
+				return err
 			}
 			body = bytes
 		} else {
@@ -279,9 +289,9 @@ var appConfigPatchCmd = &cobra.Command{
 		}
 		resp, err := client.PatchConfigFromBody(body, appConfig.ApplyNow)
 		if err != nil {
-			panic(err)
+			return err
 		}
-		PrettyPrintJSONResponse(resp)
+		return PrettyPrintJSONResponse(resp)
 	},
 }
 
@@ -296,7 +306,10 @@ var appConfig = struct {
 var appConfigCmd = &cobra.Command{
 	Use:   "config",
 	Short: "Manage app config",
-	Run:   appConfigGetCmd.Run, // Alias for app config get
+
+	// Alias for app config get
+	Args: appConfigGetCmd.Args,
+	RunE: appConfigGetCmd.RunE,
 }
 
 var appCmd = &cobra.Command{

@@ -16,12 +16,15 @@ limitations under the License.
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strings"
 
+	"github.com/AlecAivazis/survey/v2/terminal"
 	"github.com/opsani/cli/opsani"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 
 	"github.com/spf13/viper"
 )
@@ -34,19 +37,46 @@ var rootCmd = &cobra.Command{
 
 Opsani CLI is in early stages of development. 
 We'd love to hear your feedback at <https://github.com/opsani/cli>`,
-	Run: func(cmd *cobra.Command, args []string) {
-		cmd.Help()
-		os.Exit(0)
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return cmd.Help()
 	},
-	SilenceUsage: true,
-	Version:      "0.0.1",
+	SilenceUsage:  true,
+	SilenceErrors: true,
+	Version:       "0.0.1",
 }
 
-// Execute adds all child commands to the root command and sets flags appropriately.
-// This is called by main.main(). It only needs to happen once to the rootCmd.
+// FlagError is the kind of error raised in flag processing
+type FlagError struct {
+	Err error
+}
+
+func (fe FlagError) Error() string {
+	return fe.Err.Error()
+}
+
+func (fe FlagError) Unwrap() error {
+	return fe.Err
+}
+
+// Execute is the entry point for executing all commands from main
+// All commands with RunE will bubble errors back here
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
-		fmt.Println(err)
+		// Exit silently if the user bailed with control-c
+		if err == terminal.InterruptErr {
+			os.Exit(0)
+		}
+
+		fmt.Fprintln(os.Stderr, err)
+
+		// Display usage for invalid command and flag errors
+		var flagError *FlagError
+		if errors.As(err, &flagError) || strings.HasPrefix(err.Error(), "unknown command ") {
+			if !strings.HasSuffix(err.Error(), "\n") {
+				fmt.Fprintln(os.Stderr)
+			}
+			fmt.Fprintln(os.Stderr, rootCmd.UsageString())
+		}
 		os.Exit(1)
 	}
 }
@@ -68,6 +98,14 @@ func init() {
 
 	rootCmd.PersistentFlags().StringVar(&opsani.ConfigFile, "config", "", fmt.Sprintf("Location of config file (default \"%s\")", opsani.DefaultConfigFile()))
 	rootCmd.SetVersionTemplate("Opsani CLI version {{.Version}}\n")
+
+	// See Execute()
+	rootCmd.SetFlagErrorFunc(func(cmd *cobra.Command, err error) error {
+		if err == pflag.ErrHelp {
+			return err
+		}
+		return &FlagError{Err: err}
+	})
 }
 
 func initConfig() {
@@ -94,7 +132,8 @@ func initConfig() {
 			// Config file not found; ignore error if desired
 			opsani.ConfigFile = opsani.DefaultConfigFile()
 		} else {
-			panic(fmt.Errorf("error parsing configuration file: %s", err))
+			fmt.Fprintln(os.Stderr, fmt.Errorf("error parsing configuration file: %s", err))
+			os.Exit(1)
 		}
 	}
 }
