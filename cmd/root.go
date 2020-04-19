@@ -26,8 +26,6 @@ import (
 	"github.com/spf13/viper"
 )
 
-var printVersion bool
-
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "opsani",
@@ -37,15 +35,11 @@ var rootCmd = &cobra.Command{
 Opsani CLI is in early stages of development. 
 We'd love to hear your feedback at <https://github.com/opsani/cli>`,
 	Run: func(cmd *cobra.Command, args []string) {
-		if printVersion {
-			fmt.Println("Opsani CLI version 0.0.1")
-			os.Exit(0)
-		}
-
-		// If we aren't printing the version display usage and exit
 		cmd.Help()
 		os.Exit(0)
 	},
+	SilenceUsage: true,
+	Version:      "0.0.1",
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
@@ -73,7 +67,7 @@ func init() {
 	viper.BindPFlag(opsani.KeyRequestTracing, rootCmd.PersistentFlags().Lookup(opsani.KeyRequestTracing))
 
 	rootCmd.PersistentFlags().StringVar(&opsani.ConfigFile, "config", "", fmt.Sprintf("Location of config file (default \"%s\")", opsani.DefaultConfigFile()))
-	rootCmd.PersistentFlags().BoolVarP(&printVersion, "version", "v", false, "Print version information and quit")
+	rootCmd.SetVersionTemplate("Opsani CLI version {{.Version}}\n")
 }
 
 func initConfig() {
