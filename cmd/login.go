@@ -30,47 +30,54 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// Configuration options bound via Cobra
-var loginConfig = struct {
-	Username string
-	Password string
-}{}
+const usernameArg = "username"
+const passwordArg = "password"
+
+func runLoginCommand(cmd *cobra.Command, args []string) error {
+	username, err := cmd.Flags().GetString(usernameArg)
+	if err != nil {
+		return err
+	}
+	password, err := cmd.Flags().GetString(passwordArg)
+	if err != nil {
+		return err
+	}
+	fmt.Println("Logging into", opsani.GetBaseURLHostnameAndPort())
+
+	whiteBold := ansi.ColorCode("white+b")
+	if username == "" {
+		err := survey.AskOne(&survey.Input{
+			Message: "Username:",
+		}, &username, survey.WithValidator(survey.Required))
+		if err != nil {
+			return err
+		}
+	} else {
+		fmt.Printf("%si %sUsername: %s%s%s%s\n", ansi.Blue, whiteBold, ansi.Reset, ansi.LightCyan, username, ansi.Reset)
+	}
+
+	if password == "" {
+		err := survey.AskOne(&survey.Password{
+			Message: "Password:",
+		}, &password, survey.WithValidator(survey.Required))
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
 
 var loginCmd = &cobra.Command{
 	Use:   "login",
 	Short: "Login to the Opsani API",
 	Long:  `Login to the Opsani API and persist access credentials.`,
 	Args:  cobra.NoArgs,
-	RunE: func(cmd *cobra.Command, args []string) error {
-		fmt.Println("Logging into", opsani.GetBaseURLHostnameAndPort())
-
-		whiteBold := ansi.ColorCode("white+b")
-		if loginConfig.Username == "" {
-			err := survey.AskOne(&survey.Input{
-				Message: "Username:",
-			}, &loginConfig.Username, survey.WithValidator(survey.Required))
-			if err != nil {
-				return err
-			}
-		} else {
-			fmt.Printf("%si %sUsername: %s%s%s%s\n", ansi.Blue, whiteBold, ansi.Reset, ansi.LightCyan, loginConfig.Username, ansi.Reset)
-		}
-
-		if loginConfig.Password == "" {
-			err := survey.AskOne(&survey.Password{
-				Message: "Password:",
-			}, &loginConfig.Password, survey.WithValidator(survey.Required))
-			if err != nil {
-				return err
-			}
-		}
-		return nil
-	},
+	RunE:  runLoginCommand,
 }
 
 func init() {
 	rootCmd.AddCommand(loginCmd)
 
-	loginCmd.Flags().StringVarP(&loginConfig.Username, "username", "u", "", "Opsani Username")
-	loginCmd.Flags().StringVarP(&loginConfig.Password, "password", "p", "", "Password")
+	loginCmd.Flags().StringP(usernameArg, "u", "", "Opsani Username")
+	loginCmd.Flags().StringP(passwordArg, "p", "", "Password")
 }
