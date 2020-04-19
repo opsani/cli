@@ -42,7 +42,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
-const imbImageName string = "opsani/intelligent-manifest-builder"
+const imbImageName string = "opsani/k8s-imb"
 const imbTargetVersion string = "latest" // TODO: Should be 1 for semantically versioned containers
 
 // Configuration options bound via Cobra
