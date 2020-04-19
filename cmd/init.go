@@ -27,13 +27,12 @@ import (
 	"path/filepath"
 
 	"github.com/AlecAivazis/survey/v2"
+	"github.com/AlecAivazis/survey/v2/terminal"
 	"github.com/mgutz/ansi"
 	"github.com/opsani/cli/opsani"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
-
-var confirmed bool
 
 // initCmd represents the init command
 var initCmd = &cobra.Command{
@@ -46,13 +45,36 @@ var initCmd = &cobra.Command{
 `,
 	Args: cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		confirmed, err := cmd.Flags().GetBool("confirmed")
+		if err != nil {
+			return err
+		}
+
+		// Handle reinitialization case
+		overwrite := false
+		if _, err := os.Stat(opsani.ConfigFile); !os.IsNotExist(err) && !confirmed {
+			fmt.Println("Using config from:", opsani.ConfigFile)
+			PrettyPrintJSONObject(opsani.GetAllSettings())
+
+			prompt := &survey.Confirm{
+				Message: fmt.Sprintf("Existing config found. Overwrite %s?", opsani.ConfigFile),
+			}
+			err := survey.AskOne(prompt, &overwrite)
+			if err != nil {
+				return err
+			}
+			if !overwrite {
+				return terminal.InterruptErr
+			}
+		}
 		app := opsani.GetApp()
 		token := opsani.GetAccessToken()
 		whiteBold := ansi.ColorCode("white+b")
 
-		if app == "" {
+		if overwrite || app == "" {
 			err := survey.AskOne(&survey.Input{
 				Message: "Opsani app (i.e. domain.com/app):",
+				Default: opsani.GetApp(),
 			}, &app, survey.WithValidator(survey.Required))
 			if err != nil {
 				return err
@@ -61,9 +83,10 @@ var initCmd = &cobra.Command{
 			fmt.Printf("%si %sApp: %s%s%s%s\n", ansi.Blue, whiteBold, ansi.Reset, ansi.LightCyan, app, ansi.Reset)
 		}
 
-		if token == "" {
+		if overwrite || token == "" {
 			err := survey.AskOne(&survey.Input{
 				Message: "API Token:",
+				Default: opsani.GetAccessToken(),
 			}, &token, survey.WithValidator(survey.Required))
 			if err != nil {
 				return err
@@ -104,5 +127,5 @@ var initCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(initCmd)
 
-	initCmd.Flags().BoolVar(&confirmed, "confirmed", false, "Write config without asking for confirmation")
+	initCmd.Flags().Bool("confirmed", false, "Write config without asking for confirmation")
 }
