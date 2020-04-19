@@ -16,7 +16,9 @@ limitations under the License.
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -52,20 +54,122 @@ var discoverConfig = struct {
 	Kubeconfig     string
 }{}
 
-/**
-Pulls the latest Semantically Versioned tag of the manifest builder
-*/
-func pullManifestBuilderImage(ctx context.Context, cli *client.Client) {
-	imageRef := fmt.Sprintf("%s:%s", imbImageName, imbTargetVersion)
+// Struct representing events returned from image pulling
+type pullEvent struct {
+	ID             string `json:"id"`
+	Status         string `json:"status"`
+	Error          string `json:"error,omitempty"`
+	Progress       string `json:"progress,omitempty"`
+	ProgressDetail struct {
+		Current int `json:"current"`
+		Total   int `json:"total"`
+	} `json:"progressDetail"`
+}
+
+// Cursor structure that implements some methods
+// for manipulating command line's cursor
+type Cursor struct{}
+
+func (cursor *Cursor) hide() {
+	fmt.Printf("\033[?25l")
+}
+
+func (cursor *Cursor) show() {
+	fmt.Printf("\033[?25h")
+}
+
+func (cursor *Cursor) moveUp(rows int) {
+	fmt.Printf("\033[%dF", rows)
+}
+
+func (cursor *Cursor) moveDown(rows int) {
+	fmt.Printf("\033[%dE", rows)
+}
+
+func (cursor *Cursor) clearLine() {
+	fmt.Printf("\033[2K")
+}
+
+func pullDockerImageWithProgressReporting(ctx context.Context, cli *client.Client, imageRef string) error {
 	out, err := cli.ImagePull(ctx, imageRef, types.ImagePullOptions{})
 	if err != nil {
 		pretty.Printf("WARNING: Unable to pull Intelligent Manifest Builder image (%s): %s\n", imageRef, err.Error())
-		return
+		return err
 	}
-
 	defer out.Close()
 
-	io.Copy(os.Stdout, out)
+	cursor := Cursor{}
+	layers := make([]string, 0)
+	oldIndex := len(layers)
+
+	var event *pullEvent
+	decoder := json.NewDecoder(out)
+
+	fmt.Printf("\n")
+	cursor.hide()
+
+	for {
+		if err := decoder.Decode(&event); err != nil {
+			if err == io.EOF {
+				break
+			}
+
+			panic(err)
+		}
+
+		imageID := event.ID
+
+		// Check if the line is one of the final two ones
+		if strings.HasPrefix(event.Status, "Digest:") || strings.HasPrefix(event.Status, "Status:") {
+			fmt.Printf("%s\n", event.Status)
+			continue
+		}
+
+		// Check if ID has already passed once
+		index := 0
+		for i, v := range layers {
+			if v == imageID {
+				index = i + 1
+				break
+			}
+		}
+
+		// Move the cursor
+		if index > 0 {
+			diff := index - oldIndex
+
+			if diff > 1 {
+				down := diff - 1
+				cursor.moveDown(down)
+			} else if diff < 1 {
+				up := diff*(-1) + 1
+				cursor.moveUp(up)
+			}
+
+			oldIndex = index
+		} else {
+			layers = append(layers, event.ID)
+			diff := len(layers) - oldIndex
+
+			if diff > 1 {
+				cursor.moveDown(diff) // Return to the last row
+			}
+
+			oldIndex = len(layers)
+		}
+
+		cursor.clearLine()
+
+		if event.Status == "Pull complete" {
+			fmt.Printf("%s: %s\n", event.ID, event.Status)
+		} else {
+			fmt.Printf("%s: %s %s\n", event.ID, event.Status, event.Progress)
+		}
+
+	}
+
+	cursor.show()
+	return nil
 }
 
 func runManifestBuilderContainer(ctx context.Context, cli *client.Client) {
@@ -329,8 +433,59 @@ func runDiscovery(args []string) {
 		panic(err)
 	}
 
-	pullManifestBuilderImage(ctx, cli)
+	pullDockerImageWithProgressReporting(ctx, cli, discoverConfig.DockerImageRef)
 	runManifestBuilderContainer(ctx, cli)
+}
+
+var pullCmd = &cobra.Command{
+	Use:   "pull",
+	Short: "Pull an image",
+	Run: func(cmd *cobra.Command, args []string) {
+		if len(args) == 0 {
+			panic("Must specify an image to pull")
+		}
+
+		if discoverConfig.Kubeconfig == "" {
+			discoverConfig.Kubeconfig = pathToDefaultKubeconfig()
+		}
+
+		var clientOpts []client.Opt
+		clientOpts = append(clientOpts,
+			client.FromEnv,
+			client.WithAPIVersionNegotiation(),
+		)
+
+		// Resolve the Docker host using the connection helpers
+		// This supports the resolution of ssh:// URL schemes for tunneled execution
+		if discoverConfig.DockerHost != "" {
+			helper, err := connhelper.GetConnectionHelper(discoverConfig.DockerHost)
+			if err != nil {
+				return
+			}
+
+			httpClient := &http.Client{
+				// No tls
+				// No proxy
+				Transport: &http.Transport{
+					DialContext: helper.Dialer,
+				},
+			}
+
+			clientOpts = append(clientOpts,
+				client.WithHTTPClient(httpClient),
+				client.WithHost(helper.Host),
+				client.WithDialContext(helper.Dialer),
+			)
+		}
+
+		cli, err := client.NewClientWithOpts(clientOpts...)
+		if err != nil {
+			pretty.Println("Unable to create docker client")
+			panic(err)
+		}
+
+		pullDockerImageWithProgressReporting(context.Background(), cli, args[0])
+	},
 }
 
 var discoverCmd = &cobra.Command{
@@ -361,9 +516,12 @@ func pathToDefaultKubeconfig() string {
 
 func init() {
 	rootCmd.AddCommand(discoverCmd)
+	rootCmd.AddCommand(pullCmd)
 
 	defaultImageRef := fmt.Sprintf("%s:%s", imbImageName, imbTargetVersion)
 	discoverCmd.Flags().StringVarP(&discoverConfig.DockerImageRef, "image", "i", defaultImageRef, "Docker image ref to use for discovery")
 	discoverCmd.Flags().StringVarP(&discoverConfig.DockerHost, "host", "H", "", "Docket host to connect to (overriding DOCKER_HOST)")
 	discoverCmd.Flags().StringVar(&discoverConfig.Kubeconfig, "kubeconfig", "", fmt.Sprintf("Location of the kubeconfig file (default is \"%s\")", pathToDefaultKubeconfig()))
+
+	pullCmd.Flags().StringVarP(&discoverConfig.DockerImageRef, "image", "i", defaultImageRef, "Docker image ref to use for discovery")
 }
