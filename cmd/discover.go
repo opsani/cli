@@ -35,23 +35,32 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-const imbImageName string = "opsani/k8s-imb"
-const imbTargetVersion string = "latest" // TODO: Should be 1 for semantically versioned containers
+const imbImageName = "opsani/k8s-imb"
+const imbTargetVersion = "latest" // TODO: Should be 1 for semantically versioned containers
 
-// Configuration options bound via Cobra
-var discoverConfig = struct {
-	DockerImageRef string
-	DockerHost     string
-	Kubeconfig     string
-}{}
+// Args
+const imageArg = "image"
+const hostArg = "host"
+const kubeconfigArg = "kubeconfig"
 
-func runIntelligentManifestBuilderContainer(ctx context.Context) error {
-	di, err := NewDockerInterface()
+func runIntelligentManifestBuilderCommand(cmd *cobra.Command, args []string) error {
+	ctx := context.Background()
+	imageRef, err := cmd.Flags().GetString(imageArg)
 	if err != nil {
 		return err
 	}
 
-	err = di.PullImageWithProgressReporting(ctx, discoverConfig.DockerImageRef)
+	dockerHost, err := cmd.Flags().GetString(hostArg)
+	if err != nil {
+		return err
+	}
+
+	di, err := NewDockerInterface(dockerHost)
+	if err != nil {
+		return err
+	}
+
+	err = di.PullImageWithProgressReporting(ctx, imageRef)
 	if err != nil {
 		return err
 	}
@@ -96,7 +105,7 @@ func runIntelligentManifestBuilderContainer(ctx context.Context) error {
 		}
 	}
 
-	icc := NewInteractiveContainerConfigWithImageRef(discoverConfig.DockerImageRef)
+	icc := NewInteractiveContainerConfigWithImageRef(imageRef)
 	icc.HostConfig = &hostConfig
 	icc.CompletionCallback = copyArtifactsFromContainerToHost
 	return di.RunInteractiveContainer(ctx, icc)
@@ -139,7 +148,12 @@ func copyArtifactsFromContainerToHost(ctx context.Context, di *DockerInterface, 
 	archive.CopyTo(content, srcInfo, pwd)
 }
 
-func runDiscovery(args []string) error {
+func runDiscoveryCommand(cmd *cobra.Command, args []string) error {
+	kubeconfig, err := cmd.Flags().GetString(kubeconfigArg)
+	if err != nil {
+		return err
+	}
+
 	ctx := context.Background()
 	clientCfg, err := clientcmd.NewDefaultClientConfigLoadingRules().Load()
 
@@ -170,7 +184,7 @@ func runDiscovery(args []string) error {
 	}
 	fmt.Printf("Activating context: %s.\n", kubeContext.Context)
 
-	config, err := clientcmd.BuildConfigFromFlags("", discoverConfig.Kubeconfig)
+	config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
 	if err != nil {
 		return err
 	}
@@ -232,7 +246,12 @@ var pullCmd = &cobra.Command{
 	Short: "Pull a Docker image",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		di, err := NewDockerInterface()
+		dockerHost, err := cmd.Flags().GetString(hostArg)
+		if err != nil {
+			return err
+		}
+
+		di, err := NewDockerInterface(dockerHost)
 		if err != nil {
 			return err
 		}
@@ -251,22 +270,14 @@ Upon completion of discovery, manifests will be generated that can be
 used to build a Servo assembly image and deploy it to Kubernetes.`,
 	Args:              cobra.NoArgs,
 	PersistentPreRunE: InitRequiredToExecute,
-	RunE: func(cmd *cobra.Command, args []string) error {
-		if discoverConfig.Kubeconfig == "" {
-			discoverConfig.Kubeconfig = pathToDefaultKubeconfig()
-		}
-
-		return runDiscovery(args)
-	},
+	RunE:              runDiscoveryCommand,
 }
 
 var imbCmd = &cobra.Command{
 	Use:   "imb",
 	Short: "Run the intelligent manifest builder under Docker",
 	Args:  cobra.NoArgs,
-	RunE: func(cmd *cobra.Command, args []string) error {
-		return runIntelligentManifestBuilderContainer(context.Background())
-	},
+	RunE:  runIntelligentManifestBuilderCommand,
 }
 
 func pathToDefaultKubeconfig() string {
@@ -284,8 +295,8 @@ func init() {
 	rootCmd.AddCommand(pullCmd)
 
 	defaultImageRef := fmt.Sprintf("%s:%s", imbImageName, imbTargetVersion)
-	imbCmd.Flags().StringVarP(&discoverConfig.DockerImageRef, "image", "i", defaultImageRef, "Docker image ref to run")
-	imbCmd.Flags().StringVarP(&discoverConfig.DockerHost, "host", "H", "", "Docket host to connect to (overriding DOCKER_HOST)")
-	discoverCmd.Flags().StringVar(&discoverConfig.Kubeconfig, "kubeconfig", "", fmt.Sprintf("Location of the kubeconfig file (default is \"%s\")", pathToDefaultKubeconfig()))
-	discoverCmd.MarkFlagFilename("kubeconfig")
+	imbCmd.Flags().StringP(imageArg, "i", defaultImageRef, "Docker image ref to run")
+	imbCmd.Flags().StringP(hostArg, "H", "", "Docket host to connect to (overriding DOCKER_HOST)")
+	discoverCmd.Flags().String(kubeconfigArg, pathToDefaultKubeconfig(), "Location of the kubeconfig file")
+	discoverCmd.MarkFlagFilename(kubeconfigArg)
 }

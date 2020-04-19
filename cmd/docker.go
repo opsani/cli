@@ -39,7 +39,7 @@ type DockerInterface struct {
 }
 
 // NewDockerInterface initializes and returns a new DockerInterface for interacting with Docker
-func NewDockerInterface() (*DockerInterface, error) {
+func NewDockerInterface(dockerHost string) (*DockerInterface, error) {
 	var clientOpts []client.Opt
 	clientOpts = append(clientOpts,
 		client.FromEnv,
@@ -48,8 +48,8 @@ func NewDockerInterface() (*DockerInterface, error) {
 
 	// Resolve the Docker host using the connection helpers
 	// This supports the resolution of ssh:// URL schemes for tunneled execution
-	if discoverConfig.DockerHost != "" {
-		helper, err := connhelper.GetConnectionHelper(discoverConfig.DockerHost)
+	if dockerHost != "" {
+		helper, err := connhelper.GetConnectionHelper(dockerHost)
 		if err != nil {
 			return nil, err
 		}
