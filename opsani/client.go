@@ -73,93 +73,54 @@ func (c *Client) GetApp(app string) string {
 	return filepath.Join(c.appDomain, c.appName)
 }
 
-func (c *Client) resourceURLPath(resource string) string {
+/**
+Request Primitives
+*/
+
+func (c *Client) newRequest() *resty.Request {
+	req := c.restyClient.NewRequest()
+	req.SetResult(&map[string]interface{}{})
+	req.SetError(&APIError{})
+	return req
+}
+
+func (c *Client) appResourceURLPath(resource string) string {
 	return fmt.Sprintf("/accounts/%s/applications/%s/%s", c.appDomain, c.appName, resource)
 }
 
 /**
 Configuration
 */
-func (c *Client) configURLPath() string {
-	return c.resourceURLPath("config")
+func (c *Client) appConfigURLPath() string {
+	return c.appResourceURLPath("config")
 }
 
 // GetConfig retrieves the Opsani app configuration from the API
-func (c *Client) GetConfig() (interface{}, error) {
-	var result map[string]interface{}
-	resp, err := c.restyClient.R().
-		SetResult(&result).
-		Get(c.configURLPath())
-	return resp.Result(), err
-}
-
-// GetConfigToOutput retrieves the Opsani app configuration from the API and writes it to a file
-func (c *Client) GetConfigToOutput(file string) error {
-	resp, err := c.restyClient.R().
-		Get(c.configURLPath())
-
-	if resp.IsSuccess() {
-		outputPath := ""
-
-		if !filepath.IsAbs(file) {
-			pwd, err := os.Getwd()
-			if err != nil {
-				return err
-			}
-			outputPath += pwd + string(filepath.Separator)
-		}
-
-		outputPath = filepath.Clean(outputPath + file)
-		outFile, err := os.Create(outputPath)
-		if err != nil {
-			return err
-		}
-
-		var formattedJSON bytes.Buffer
-		err = json.Indent(&formattedJSON, resp.Body(), "", "    ")
-		if err != nil {
-			return err
-		}
-		// _, err = outFile.Write(formattedJSON)
-		reader := bufio.NewReader(&formattedJSON)
-		_, err = io.Copy(outFile, reader)
-		if err != nil {
-			return err
-		}
-	}
-	return err
+func (c *Client) GetConfig() (*resty.Response, error) {
+	return c.newRequest().
+		Get(c.appConfigURLPath())
 }
 
 // SetConfigFromBody sets the app configuration from the given body, overwriting the existing configuration
-func (c *Client) SetConfigFromBody(body interface{}, apply bool) (interface{}, error) {
-	var result map[string]interface{}
-	var apiError APIError
-	resp, err := c.restyClient.R().
+func (c *Client) SetConfigFromBody(body interface{}, apply bool) (*resty.Response, error) {
+	return c.newRequest().
 		SetQueryParams(map[string]string{
 			"reset": strconv.FormatBool(apply),
 		}).
 		SetBody(body).
-		SetResult(&result).
-		SetError(&apiError).
-		Put(c.configURLPath())
-	return c.responseOutcome(resp, err)
+		Put(c.appConfigURLPath())
 }
 
 // PatchConfigFromBody patches the existing app configuration from the given body producing a merged configuration
-func (c *Client) PatchConfigFromBody(body interface{}, apply bool) (interface{}, error) {
-	var result map[string]interface{}
-	var apiError APIError
-	resp, err := c.restyClient.R().
+func (c *Client) PatchConfigFromBody(body interface{}, apply bool) (*resty.Response, error) {
+	return c.newRequest().
 		SetHeader("Content-Type", "application/merge-patch+json").
 		SetQueryParams(map[string]string{
 			"reset": strconv.FormatBool(apply),
 			"patch": "true",
 		}).
 		SetBody(body).
-		SetResult(&result).
-		SetError(&apiError).
-		Put(c.configURLPath())
-	return c.responseOutcome(resp, err)
+		Put(c.appConfigURLPath())
 }
 
 /**
@@ -175,95 +136,44 @@ type APIError struct {
 }
 
 func (c *Client) stateURLPath() string {
-	return c.resourceURLPath("state")
-}
-
-func (c *Client) responseOutcome(resp *resty.Response, respErr error) (interface{}, error) {
-	if respErr != nil {
-		return nil, respErr
-	}
-
-	if resp.IsSuccess() {
-		if r := resp.Result(); r != nil {
-			return r, nil
-		}
-	} else if resp.IsError() {
-		if e := resp.Error(); e != nil {
-			return e, nil
-		}
-	}
-	var result map[string]interface{}
-	err := json.Unmarshal(resp.Body(), result)
-	return result, err
+	return c.appResourceURLPath("state")
 }
 
 // StartApp starts a stopped Opsani app
-func (c *Client) StartApp() (interface{}, error) {
-	var result map[string]interface{}
-	var apiError APIError
-	resp, err := c.restyClient.R().
+func (c *Client) StartApp() (*resty.Response, error) {
+	return c.newRequest().
 		SetBody(`{"target_state": "running"}`).
-		SetResult(&result).
-		SetError(&apiError).
 		Patch(c.stateURLPath())
-	return c.responseOutcome(resp, err)
 }
 
 // StopApp stops a running Opsani app
-func (c *Client) StopApp() (interface{}, error) {
-	var result map[string]interface{}
-	var apiError APIError
-	resp, err := c.restyClient.R().
+func (c *Client) StopApp() (*resty.Response, error) {
+	return c.newRequest().
 		SetBody(`{"target_state": "stopped"}`).
-		SetResult(&result).
-		SetError(&apiError).
 		Patch(c.stateURLPath())
-	return c.responseOutcome(resp, err)
 }
 
 // RestartApp stops a running Opsani app
-func (c *Client) RestartApp() (interface{}, error) {
-	var result map[string]interface{}
-	var apiError APIError
-	resp, err := c.restyClient.R().
+func (c *Client) RestartApp() (*resty.Response, error) {
+	return c.newRequest().
 		SetHeader("Content-Type", "application/merge-patch+json").
 		SetQueryParams(map[string]string{
 			"reset": "true",
 			"patch": "true",
 		}).
 		SetBody(`{}`).
-		SetResult(&result).
-		SetError(&apiError).
-		Put(c.configURLPath())
-	return c.responseOutcome(resp, err)
+		Put(c.appConfigURLPath())
 }
 
 // GetAppStatus retrieves the status of the Opsani app from the API
-func (c *Client) GetAppStatus() (interface{}, error) {
-	var result map[string]interface{}
-	var apiError APIError
-	resp, err := c.restyClient.R().
-		SetResult(&result).
-		SetError(&apiError).
+func (c *Client) GetAppStatus() (*resty.Response, error) {
+	return c.newRequest().
 		Get(c.stateURLPath())
-	return c.responseOutcome(resp, err)
 }
 
 /**
 Authentication actions
 */
-
-// func (c *Client) LoginWithCredentials(username string, password string) {
-
-// }
-
-// func (c *Client) LoginWithLink(link string) {
-
-// }
-
-// func (c *Client) Logout() {
-
-// }
 
 // IsAuthenticated returns true if an authentication token has been set.
 func (c *Client) IsAuthenticated() bool {
@@ -325,10 +235,88 @@ func (c *Client) SetOutputDirectory(dir string) {
 	c.restyClient.SetOutputDirectory(dir)
 }
 
-// WriteOutputToFile configures a request handler to write responses to the specified file
-func (c *Client) WriteOutputToFile(filename string) {
+// AfterResponseWriteBodyToFile configures a request handler to write responses to the specified file
+func (c *Client) AfterResponseWriteBodyToFile(filename string) {
 	c.restyClient.OnBeforeRequest(func(c *resty.Client, r *resty.Request) error {
 		r.SetOutput(filename)
-		return nil // if its success otherwise return error
+		return nil
 	})
+}
+
+// AfterResponseWritePrettyJSONBodyToFile appends response middleware to write pretty JSON responses to the specified file
+func (c *Client) AfterResponseWritePrettyJSONBodyToFile(filename string) {
+	c.restyClient.OnAfterResponse(func(rc *resty.Client, resp *resty.Response) error {
+		return WritePrettyJSONBytesToFile(resp.Body(), filename)
+	})
+}
+
+// WritePrettyJSONBytesToFile writes an array of unformmated JSON bytes in pretty printed formatted to the target file
+func WritePrettyJSONBytesToFile(body []byte, file string) error {
+	outputPath := ""
+
+	if !filepath.IsAbs(file) {
+		pwd, err := os.Getwd()
+		if err != nil {
+			return err
+		}
+		outputPath += pwd + string(filepath.Separator)
+	}
+
+	outputPath = filepath.Clean(outputPath + file)
+	outFile, err := os.Create(outputPath)
+	if err != nil {
+		return err
+	}
+
+	var formattedJSON bytes.Buffer
+	err = json.Indent(&formattedJSON, body, "", "    ")
+	if err != nil {
+		return err
+	}
+	reader := bufio.NewReader(&formattedJSON)
+	_, err = io.Copy(outFile, reader)
+	if err != nil {
+		return err
+	}
+
+	return err
+}
+
+// WritePrettyJSONStringsToFile writes an array of unformatted JSON strings in pretty printed formatted to the target file
+func WritePrettyJSONStringsToFile(strings []string, filename string) error {
+	outputPath := ""
+
+	if !filepath.IsAbs(filename) {
+		pwd, err := os.Getwd()
+		if err != nil {
+			return err
+		}
+		outputPath += pwd + string(filepath.Separator)
+	}
+
+	outputPath = filepath.Clean(outputPath + filename)
+
+	file, err := os.OpenFile(outputPath, os.O_TRUNC|os.O_CREATE|os.O_WRONLY, 0666)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	datawriter := bufio.NewWriter(file)
+	for _, jsonString := range strings {
+		var formattedJSON bytes.Buffer
+		err = json.Indent(&formattedJSON, []byte(jsonString), "", "    ")
+		if err != nil {
+			return err
+		}
+		formattedJSON.WriteString("\n")
+		reader := bufio.NewReader(&formattedJSON)
+		_, err = datawriter.ReadFrom(reader)
+		if err != nil {
+			return err
+		}
+	}
+
+	datawriter.Flush()
+	return nil
 }

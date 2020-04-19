@@ -22,16 +22,14 @@ THE SOFTWARE.
 package cmd
 
 import (
-	"fmt"
 	"io/ioutil"
 	"os"
 	"os/exec"
 	"strings"
 
-	"github.com/hokaccha/go-prettyjson"
 	"github.com/opsani/cli/opsani"
 	"github.com/spf13/cobra"
-	"github.com/tidwall/sjson"
+	"github.com/tidwall/gjson"
 )
 
 // NewAPIClientFromConfig returns an Opsani API client configured using the active configuration
@@ -54,12 +52,6 @@ func NewAPIClientFromConfig() *opsani.Client {
 	return c
 }
 
-// PrettyPrintJSON prints the given object as pretty printed JSON
-func PrettyPrintJSON(obj interface{}) {
-	s, _ := prettyjson.Marshal(obj)
-	fmt.Println(string(s))
-}
-
 /**
 Lifecycle commands
 */
@@ -68,11 +60,11 @@ var appStartCmd = &cobra.Command{
 	Short: "Start the app",
 	Run: func(cmd *cobra.Command, args []string) {
 		client := NewAPIClientFromConfig()
-		status, err := client.StartApp()
+		resp, err := client.StartApp()
 		if err != nil {
 			panic(err)
 		}
-		PrettyPrintJSON(status)
+		PrettyPrintJSONResponse(resp)
 	},
 }
 
@@ -81,11 +73,11 @@ var appStopCmd = &cobra.Command{
 	Short: "Stop the app",
 	Run: func(cmd *cobra.Command, args []string) {
 		client := NewAPIClientFromConfig()
-		status, err := client.StopApp()
+		resp, err := client.StopApp()
 		if err != nil {
 			panic(err)
 		}
-		PrettyPrintJSON(status)
+		PrettyPrintJSONResponse(resp)
 	},
 }
 
@@ -94,11 +86,11 @@ var appRestartCmd = &cobra.Command{
 	Short: "Restart the app",
 	Run: func(cmd *cobra.Command, args []string) {
 		client := NewAPIClientFromConfig()
-		status, err := client.RestartApp()
+		resp, err := client.RestartApp()
 		if err != nil {
 			panic(err)
 		}
-		PrettyPrintJSON(status)
+		PrettyPrintJSONResponse(resp)
 	},
 }
 
@@ -107,11 +99,11 @@ var appStatusCmd = &cobra.Command{
 	Short: "Check app status",
 	Run: func(cmd *cobra.Command, args []string) {
 		client := NewAPIClientFromConfig()
-		status, err := client.GetAppStatus()
+		resp, err := client.GetAppStatus()
 		if err != nil {
 			panic(err)
 		}
-		PrettyPrintJSON(status)
+		PrettyPrintJSONResponse(resp)
 	},
 }
 
@@ -149,7 +141,11 @@ var appConfigEditCmd = &cobra.Command{
 
 		// Download config to temp
 		client := NewAPIClientFromConfig()
-		err = client.GetConfigToOutput(filename)
+		resp, err := client.GetConfig()
+		if err != nil {
+			panic(err)
+		}
+		opsani.WritePrettyJSONBytesToFile(resp.Body(), filename)
 		if err != nil {
 			panic(err)
 		}
@@ -163,22 +159,17 @@ var appConfigEditCmd = &cobra.Command{
 
 		// Apply any inline path edits
 		if len(args) > 0 {
-			configDoc, err := ioutil.ReadFile(filename)
+			config, err := ioutil.ReadFile(filename)
 			if err != nil {
 				panic(err)
 			}
 
-			for _, exp := range args {
-				// Split expression and apply
-				components := strings.SplitN(exp, "=", 2)
-				path, value := components[0], components[1:]
-				configDoc, err = sjson.SetBytes(configDoc, path, value[0])
-				if err != nil {
-					panic(err)
-				}
+			config, err = SetJSONKeyPathValuesFromStringsOnBytes(args, config)
+			if err != nil {
+				panic(err)
 			}
 
-			err = ioutil.WriteFile(filename, configDoc, 0755)
+			err = ioutil.WriteFile(filename, config, 0755)
 			if err != nil {
 				panic(err)
 			}
@@ -197,11 +188,53 @@ var appConfigEditCmd = &cobra.Command{
 		}
 
 		// Send it back
-		status, err := client.SetConfigFromBody(body, appConfig.ApplyNow)
+		resp, err = client.SetConfigFromBody(body, appConfig.ApplyNow)
 		if err != nil {
 			panic(err)
 		}
-		PrettyPrintJSON(status)
+		PrettyPrintJSONResponse(resp)
+	},
+}
+
+var appConfigGetCmd = &cobra.Command{
+	Use:   "get [PATH]",
+	Short: "Get app config",
+	Run: func(cmd *cobra.Command, args []string) {
+		client := NewAPIClientFromConfig()
+		resp, err := client.GetConfig()
+		if err != nil {
+			panic(err)
+		}
+
+		// Non-filtered invocation
+		if len(args) == 0 {
+			if appConfig.OutputFile == "" {
+				// Print to stdout
+				PrettyPrintJSONResponse(resp)
+			} else {
+				// Write to file
+				opsani.WritePrettyJSONBytesToFile(resp.Body(), appConfig.OutputFile)
+			}
+		} else {
+			// Handle filtered invocation
+			var jsonStrings []string
+			results := gjson.GetManyBytes(resp.Body(), args...)
+			for _, result := range results {
+				if appConfig.OutputFile == "" {
+					PrettyPrintJSONString(result.String())
+				} else {
+					jsonStrings = append(jsonStrings, result.String())
+				}
+			}
+
+			// Handle file output
+			if appConfig.OutputFile != "" {
+				err := opsani.WritePrettyJSONStringsToFile(jsonStrings, appConfig.OutputFile)
+				if err != nil {
+					panic(err)
+				}
+			}
+		}
 	},
 }
 
@@ -220,11 +253,11 @@ var appConfigSetCmd = &cobra.Command{
 		} else {
 			body = args[0]
 		}
-		status, err := client.SetConfigFromBody(body, appConfig.ApplyNow)
+		resp, err := client.SetConfigFromBody(body, appConfig.ApplyNow)
 		if err != nil {
 			panic(err)
 		}
-		PrettyPrintJSON(status)
+		PrettyPrintJSONResponse(resp)
 	},
 }
 
@@ -244,11 +277,11 @@ var appConfigPatchCmd = &cobra.Command{
 		} else {
 			body = args[0]
 		}
-		status, err := client.PatchConfigFromBody(body, appConfig.ApplyNow)
+		resp, err := client.PatchConfigFromBody(body, appConfig.ApplyNow)
 		if err != nil {
 			panic(err)
 		}
-		PrettyPrintJSON(status)
+		PrettyPrintJSONResponse(resp)
 	},
 }
 
@@ -263,23 +296,7 @@ var appConfig = struct {
 var appConfigCmd = &cobra.Command{
 	Use:   "config",
 	Short: "Manage app config",
-	Run: func(cmd *cobra.Command, args []string) {
-		client := NewAPIClientFromConfig()
-		if appConfig.OutputFile == "" {
-			config, err := client.GetConfig()
-			if err != nil {
-				panic(err)
-			}
-			PrettyPrintJSON(config)
-		} else {
-			err := client.GetConfigToOutput(appConfig.OutputFile)
-			if err == nil {
-				fmt.Printf("Output written to \"%s\"\n", appConfig.OutputFile)
-			} else {
-				panic(err)
-			}
-		}
-	},
+	Run:   appConfigGetCmd.Run, // Alias for app config get
 }
 
 var appCmd = &cobra.Command{
@@ -298,9 +315,10 @@ func init() {
 
 	// Config
 	appCmd.AddCommand(appConfigCmd)
-	appConfigCmd.AddCommand(appConfigEditCmd)
+	appConfigCmd.AddCommand(appConfigGetCmd)
 	appConfigCmd.AddCommand(appConfigSetCmd)
 	appConfigCmd.AddCommand(appConfigPatchCmd)
+	appConfigCmd.AddCommand(appConfigEditCmd)
 
 	// app config flags
 	appConfigCmd.Flags().StringVarP(&appConfig.OutputFile, "output", "o", "", "Write output to file instead of stdout")
