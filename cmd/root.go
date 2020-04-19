@@ -82,11 +82,7 @@ func Execute() {
 			os.Exit(0)
 		}
 
-		if rootCmd != cmd {
-			fmt.Fprintf(os.Stderr, "%q %s\n", subCommandPath(rootCmd, cmd), err)
-		} else {
-			fmt.Fprintln(os.Stderr, err)
-		}
+		fmt.Fprintf(os.Stderr, "%s: %s\n", rootCmd.Name(), err)
 
 		// Display usage for invalid command and flag errors
 		var flagError *FlagError
@@ -103,7 +99,7 @@ func Execute() {
 // InitRequiredToExecute returns a command errorif the client is not initialized
 func InitRequiredToExecute(cmd *cobra.Command, args []string) error {
 	if !opsani.IsInitialized() {
-		return fmt.Errorf("command failed because client is not initialized. Run %q and try again", subCommandPath(rootCmd, initCmd))
+		return fmt.Errorf("command failed because client is not initialized. Run %q and try again", initCmd.CommandPath())
 	}
 
 	return nil
@@ -127,6 +123,12 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&opsani.ConfigFile, "config", "", fmt.Sprintf("Location of config file (default \"%s\")", opsani.DefaultConfigFile()))
 	rootCmd.MarkPersistentFlagFilename("config", "*.yaml", "*.yml")
 	rootCmd.SetVersionTemplate("Opsani CLI version {{.Version}}\n")
+	rootCmd.Flags().Bool("version", false, "Display version and exit")
+	rootCmd.PersistentFlags().Bool("help", false, "Display help and exit")
+	rootCmd.PersistentFlags().MarkHidden("help")
+	rootCmd.SetHelpCommand(&cobra.Command{
+		Hidden: true,
+	})
 
 	// See Execute()
 	rootCmd.SetFlagErrorFunc(func(cmd *cobra.Command, err error) error {
