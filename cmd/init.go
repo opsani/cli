@@ -33,6 +33,8 @@ import (
 	"github.com/spf13/viper"
 )
 
+var confirmed bool
+
 // initCmd represents the init command
 var initCmd = &cobra.Command{
 	Use:   "init",
@@ -75,12 +77,13 @@ var initCmd = &cobra.Command{
 		opsani.SetAccessToken(token)
 
 		fmt.Printf("\nOpsani config initialized:\n")
-		PrettyPrintJSONObject(opsani.GetAllSettings)
-		confirmed := false
-		prompt := &survey.Confirm{
-			Message: fmt.Sprintf("Write to %s?", opsani.ConfigFile),
+		PrettyPrintJSONObject(opsani.GetAllSettings())
+		if !confirmed {
+			prompt := &survey.Confirm{
+				Message: fmt.Sprintf("Write to %s?", opsani.ConfigFile),
+			}
+			survey.AskOne(prompt, &confirmed)
 		}
-		survey.AskOne(prompt, &confirmed)
 		if confirmed {
 			configDir := filepath.Dir(opsani.ConfigFile)
 			if _, err := os.Stat(configDir); os.IsNotExist(err) {
@@ -100,4 +103,6 @@ var initCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(initCmd)
+
+	initCmd.Flags().BoolVar(&confirmed, "confirmed", false, "Write config without asking for confirmation")
 }
