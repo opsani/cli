@@ -67,7 +67,7 @@ func PrettyPrintJSONResponse(resp *resty.Response) error {
 		}
 	}
 	var result map[string]interface{}
-	err := json.Unmarshal(resp.Body(), result)
+	err := json.Unmarshal(resp.Body(), &result)
 	if err != nil {
 		return err
 	}
