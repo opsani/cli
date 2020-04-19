@@ -16,32 +16,24 @@ limitations under the License.
 package cmd
 
 import (
-	"encoding/json"
 	"fmt"
-	"strings"
 
+	"github.com/AlecAivazis/survey/v2"
 	"github.com/spf13/cobra"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/clientcmd"
 
 	"context"
-	"io"
-	"net/http"
 	"os"
 	"path/filepath"
 
-	"github.com/AlecAivazis/survey/v2"
-	"github.com/docker/cli/cli/connhelper"
-	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/mount"
-	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/archive"
-	"github.com/docker/docker/pkg/stdcopy"
 	"github.com/kr/pretty"
 	"github.com/mitchellh/go-homedir"
-	"golang.org/x/crypto/ssh/terminal"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/tools/clientcmd"
 )
 
 const imbImageName string = "opsani/k8s-imb"
@@ -54,126 +46,17 @@ var discoverConfig = struct {
 	Kubeconfig     string
 }{}
 
-// Struct representing events returned from image pulling
-type pullEvent struct {
-	ID             string `json:"id"`
-	Status         string `json:"status"`
-	Error          string `json:"error,omitempty"`
-	Progress       string `json:"progress,omitempty"`
-	ProgressDetail struct {
-		Current int `json:"current"`
-		Total   int `json:"total"`
-	} `json:"progressDetail"`
-}
-
-// Cursor structure that implements some methods
-// for manipulating command line's cursor
-type Cursor struct{}
-
-func (cursor *Cursor) hide() {
-	fmt.Printf("\033[?25l")
-}
-
-func (cursor *Cursor) show() {
-	fmt.Printf("\033[?25h")
-}
-
-func (cursor *Cursor) moveUp(rows int) {
-	fmt.Printf("\033[%dF", rows)
-}
-
-func (cursor *Cursor) moveDown(rows int) {
-	fmt.Printf("\033[%dE", rows)
-}
-
-func (cursor *Cursor) clearLine() {
-	fmt.Printf("\033[2K")
-}
-
-func pullDockerImageWithProgressReporting(ctx context.Context, cli *client.Client, imageRef string) error {
-	out, err := cli.ImagePull(ctx, imageRef, types.ImagePullOptions{})
+func runIntelligentManifestBuilderContainer(ctx context.Context) {
+	di, err := NewDockerInterface()
 	if err != nil {
-		pretty.Printf("WARNING: Unable to pull Intelligent Manifest Builder image (%s): %s\n", imageRef, err.Error())
-		return err
-	}
-	defer out.Close()
-
-	cursor := Cursor{}
-	layers := make([]string, 0)
-	oldIndex := len(layers)
-
-	var event *pullEvent
-	decoder := json.NewDecoder(out)
-
-	fmt.Printf("\n")
-	cursor.hide()
-
-	for {
-		if err := decoder.Decode(&event); err != nil {
-			if err == io.EOF {
-				break
-			}
-
-			panic(err)
-		}
-
-		imageID := event.ID
-
-		// Check if the line is one of the final two ones
-		if strings.HasPrefix(event.Status, "Digest:") || strings.HasPrefix(event.Status, "Status:") {
-			fmt.Printf("%s\n", event.Status)
-			continue
-		}
-
-		// Check if ID has already passed once
-		index := 0
-		for i, v := range layers {
-			if v == imageID {
-				index = i + 1
-				break
-			}
-		}
-
-		// Move the cursor
-		if index > 0 {
-			diff := index - oldIndex
-
-			if diff > 1 {
-				down := diff - 1
-				cursor.moveDown(down)
-			} else if diff < 1 {
-				up := diff*(-1) + 1
-				cursor.moveUp(up)
-			}
-
-			oldIndex = index
-		} else {
-			layers = append(layers, event.ID)
-			diff := len(layers) - oldIndex
-
-			if diff > 1 {
-				cursor.moveDown(diff) // Return to the last row
-			}
-
-			oldIndex = len(layers)
-		}
-
-		cursor.clearLine()
-
-		if event.Status == "Pull complete" {
-			fmt.Printf("%s: %s\n", event.ID, event.Status)
-		} else {
-			fmt.Printf("%s: %s %s\n", event.ID, event.Status, event.Progress)
-		}
-
+		panic(err)
 	}
 
-	cursor.show()
-	return nil
-}
+	err = di.PullImageWithProgressReporting(ctx, discoverConfig.DockerImageRef)
+	if err != nil {
+		panic(err)
+	}
 
-func runManifestBuilderContainer(ctx context.Context, cli *client.Client) {
-	imageRef := fmt.Sprintf("%s:%s", imbImageName, imbTargetVersion)
 	// FIXME: These paths are expanded locally but over an ssh transport
 	// will resolve locally rather than on the remote host
 	kubeDir, err := homedir.Expand("~/.kube")
@@ -215,74 +98,31 @@ func runManifestBuilderContainer(ctx context.Context, cli *client.Client) {
 		}
 	}
 
-	resp, err := cli.ContainerCreate(ctx, &container.Config{
-		Image:        imageRef,
-		AttachStdin:  true,
-		AttachStdout: true,
-		AttachStderr: true,
-		Tty:          true,
-		OpenStdin:    true,
-		StdinOnce:    false,
-	}, &hostConfig, nil, "")
+	icc := NewInteractiveContainerConfigWithImageRef(discoverConfig.DockerImageRef)
+	icc.HostConfig = &hostConfig
+	icc.CompletionCallback = copyArtifactsFromContainerToHost
+	err = di.RunInteractiveContainer(ctx, icc)
 	if err != nil {
 		panic(err)
 	}
-
-	// Start and attach to the container
-	// The terminal/TTY hackery is necessary to enable interactive CLI applications
-	if err := cli.ContainerStart(ctx, resp.ID, types.ContainerStartOptions{}); err != nil {
-		panic(err)
-	}
-
-	fd := int(os.Stdin.Fd())
-	oldState, err := terminal.MakeRaw(fd)
-	if err != nil {
-		panic(err)
-	}
-
-	termWidth, termHeight, err := terminal.GetSize(fd)
-	if err != nil {
-		panic(err)
-	}
-
-	if err = cli.ContainerResize(ctx, resp.ID, types.ResizeOptions{Width: uint(termWidth), Height: uint(termHeight)}); err != nil {
-		panic(err)
-	}
-
-	waiter, err := cli.ContainerAttach(ctx, resp.ID, types.ContainerAttachOptions{
-		Stderr: true,
-		Stdout: true,
-		Stdin:  true,
-		Stream: true,
-	})
-	defer cli.Close()
-	go io.Copy(os.Stdout, waiter.Reader)
-	go io.Copy(waiter.Conn, os.Stdin)
-
-	statusCh, errCh := cli.ContainerWait(ctx, resp.ID, container.WaitConditionNextExit)
-	select {
-	case err := <-errCh:
-		if err != nil {
-			panic(err)
-		}
-	case s := <-statusCh:
-		if s.StatusCode == 0 {
-			copyArtifactsFromContainerToHost(ctx, cli, resp.ID)
-		}
-	}
-	terminal.Restore(fd, oldState)
-
-	out, err := cli.ContainerLogs(ctx, resp.ID, types.ContainerLogsOptions{ShowStdout: true})
-	if err != nil {
-		panic(err)
-	}
-
-	stdcopy.StdCopy(os.Stdout, os.Stderr, out)
 }
 
-func copyArtifactsFromContainerToHost(ctx context.Context, cli *client.Client, containerID string) {
-	srcPath := "/app/servo-manifests"
-	content, _, err := cli.CopyFromContainer(ctx, containerID, srcPath)
+func copyArtifactsFromContainerToHost(ctx context.Context, di *DockerInterface, cnt container.ContainerCreateCreatedBody, result container.ContainerWaitOKBody) {
+	if result.StatusCode != 0 {
+		return
+	}
+
+	// Check that the assets are there
+	srcPath := "/work/servo-manifests"
+	_, err := di.dockerClient.ContainerStatPath(ctx, cnt.ID, srcPath)
+	if err != nil {
+		fmt.Println("Unable to find manifests in container, skipping...")
+		return
+	}
+
+	// Copy them out
+	fmt.Println("Copying artifacts...")
+	content, _, err := di.dockerClient.CopyFromContainer(ctx, cnt.ID, srcPath)
 	if err != nil {
 		panic(err)
 	}
@@ -300,13 +140,6 @@ func copyArtifactsFromContainerToHost(ctx context.Context, cli *client.Client, c
 		panic(err)
 	}
 	archive.CopyTo(content, srcInfo, pwd)
-}
-
-func homeDir() string {
-	if h := os.Getenv("HOME"); h != "" {
-		return h
-	}
-	return os.Getenv("USERPROFILE") // windows
 }
 
 func runDiscovery(args []string) {
@@ -397,94 +230,25 @@ func runDiscovery(args []string) {
 		fmt.Println(err.Error())
 		return
 	}
-
-	var clientOpts []client.Opt
-	clientOpts = append(clientOpts,
-		client.FromEnv,
-		client.WithAPIVersionNegotiation(),
-	)
-
-	// Resolve the Docker host using the connection helpers
-	// This supports the resolution of ssh:// URL schemes for tunneled execution
-	if discoverConfig.DockerHost != "" {
-		helper, err := connhelper.GetConnectionHelper(discoverConfig.DockerHost)
-		if err != nil {
-			return
-		}
-
-		httpClient := &http.Client{
-			// No tls
-			// No proxy
-			Transport: &http.Transport{
-				DialContext: helper.Dialer,
-			},
-		}
-
-		clientOpts = append(clientOpts,
-			client.WithHTTPClient(httpClient),
-			client.WithHost(helper.Host),
-			client.WithDialContext(helper.Dialer),
-		)
-	}
-
-	cli, err := client.NewClientWithOpts(clientOpts...)
-	if err != nil {
-		pretty.Println("Unable to create docker client")
-		panic(err)
-	}
-
-	pullDockerImageWithProgressReporting(ctx, cli, discoverConfig.DockerImageRef)
-	runManifestBuilderContainer(ctx, cli)
 }
 
 var pullCmd = &cobra.Command{
 	Use:   "pull",
-	Short: "Pull an image",
+	Short: "Pull a Docker image",
 	Run: func(cmd *cobra.Command, args []string) {
 		if len(args) == 0 {
 			panic("Must specify an image to pull")
 		}
 
-		if discoverConfig.Kubeconfig == "" {
-			discoverConfig.Kubeconfig = pathToDefaultKubeconfig()
-		}
-
-		var clientOpts []client.Opt
-		clientOpts = append(clientOpts,
-			client.FromEnv,
-			client.WithAPIVersionNegotiation(),
-		)
-
-		// Resolve the Docker host using the connection helpers
-		// This supports the resolution of ssh:// URL schemes for tunneled execution
-		if discoverConfig.DockerHost != "" {
-			helper, err := connhelper.GetConnectionHelper(discoverConfig.DockerHost)
-			if err != nil {
-				return
-			}
-
-			httpClient := &http.Client{
-				// No tls
-				// No proxy
-				Transport: &http.Transport{
-					DialContext: helper.Dialer,
-				},
-			}
-
-			clientOpts = append(clientOpts,
-				client.WithHTTPClient(httpClient),
-				client.WithHost(helper.Host),
-				client.WithDialContext(helper.Dialer),
-			)
-		}
-
-		cli, err := client.NewClientWithOpts(clientOpts...)
+		di, err := NewDockerInterface()
 		if err != nil {
-			pretty.Println("Unable to create docker client")
 			panic(err)
 		}
 
-		pullDockerImageWithProgressReporting(context.Background(), cli, args[0])
+		err = di.PullImageWithProgressReporting(context.Background(), args[0])
+		if err != nil {
+			panic(err)
+		}
 	},
 }
 
@@ -505,6 +269,14 @@ used to build a Servo assembly image and deploy it to Kubernetes.`,
 	},
 }
 
+var imbCmd = &cobra.Command{
+	Use:   "imb",
+	Short: "Run the intelligent manifest builder under Docker",
+	Run: func(cmd *cobra.Command, args []string) {
+		runIntelligentManifestBuilderContainer(context.Background())
+	},
+}
+
 func pathToDefaultKubeconfig() string {
 	home, err := homedir.Dir()
 	if err != nil {
@@ -516,12 +288,11 @@ func pathToDefaultKubeconfig() string {
 
 func init() {
 	rootCmd.AddCommand(discoverCmd)
+	rootCmd.AddCommand(imbCmd)
 	rootCmd.AddCommand(pullCmd)
 
 	defaultImageRef := fmt.Sprintf("%s:%s", imbImageName, imbTargetVersion)
-	discoverCmd.Flags().StringVarP(&discoverConfig.DockerImageRef, "image", "i", defaultImageRef, "Docker image ref to use for discovery")
-	discoverCmd.Flags().StringVarP(&discoverConfig.DockerHost, "host", "H", "", "Docket host to connect to (overriding DOCKER_HOST)")
+	imbCmd.Flags().StringVarP(&discoverConfig.DockerImageRef, "image", "i", defaultImageRef, "Docker image ref to run")
+	imbCmd.Flags().StringVarP(&discoverConfig.DockerHost, "host", "H", "", "Docket host to connect to (overriding DOCKER_HOST)")
 	discoverCmd.Flags().StringVar(&discoverConfig.Kubeconfig, "kubeconfig", "", fmt.Sprintf("Location of the kubeconfig file (default is \"%s\")", pathToDefaultKubeconfig()))
-
-	pullCmd.Flags().StringVarP(&discoverConfig.DockerImageRef, "image", "i", defaultImageRef, "Docker image ref to use for discovery")
 }
