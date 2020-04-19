@@ -58,16 +58,35 @@ func (fe FlagError) Unwrap() error {
 	return fe.Err
 }
 
+func subCommandPath(rootCmd *cobra.Command, cmd *cobra.Command) string {
+	path := make([]string, 0, 1)
+	currentCmd := cmd
+	if rootCmd == cmd {
+		return ""
+	}
+	for {
+		path = append([]string{currentCmd.Name()}, path...)
+		if currentCmd.Parent() == rootCmd {
+			return strings.Join(path, " ")
+		}
+		currentCmd = currentCmd.Parent()
+	}
+}
+
 // Execute is the entry point for executing all commands from main
 // All commands with RunE will bubble errors back here
 func Execute() {
-	if err := rootCmd.Execute(); err != nil {
+	if cmd, err := rootCmd.ExecuteC(); err != nil {
 		// Exit silently if the user bailed with control-c
 		if err == terminal.InterruptErr {
 			os.Exit(0)
 		}
 
-		fmt.Fprintln(os.Stderr, err)
+		if rootCmd != cmd {
+			fmt.Fprintf(os.Stderr, "%q %s\n", subCommandPath(rootCmd, cmd), err)
+		} else {
+			fmt.Fprintln(os.Stderr, err)
+		}
 
 		// Display usage for invalid command and flag errors
 		var flagError *FlagError
@@ -75,7 +94,7 @@ func Execute() {
 			if !strings.HasSuffix(err.Error(), "\n") {
 				fmt.Fprintln(os.Stderr)
 			}
-			fmt.Fprintln(os.Stderr, rootCmd.UsageString())
+			fmt.Fprintln(os.Stderr, cmd.UsageString())
 		}
 		os.Exit(1)
 	}

@@ -48,9 +48,6 @@ func DefaultConfigType() string {
 	return "yaml"
 }
 
-// The Config struct wraps Viper configuration
-type Config struct{}
-
 // GetBaseURL returns the Opsani API base URL
 func GetBaseURL() string {
 	return viper.GetString(KeyBaseURL)

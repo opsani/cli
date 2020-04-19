@@ -22,9 +22,12 @@ THE SOFTWARE.
 package cmd
 
 import (
+	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"regexp"
 	"strings"
 
 	"github.com/opsani/cli/opsani"
@@ -50,6 +53,40 @@ func NewAPIClientFromConfig() *opsani.Client {
 		c.SetOutputDirectory(dir)
 	}
 	return c
+}
+
+// ValidSetJSONKeyPathArgs checks that positional arguments are valid key paths for setting values
+func ValidSetJSONKeyPathArgs(cmd *cobra.Command, args []string) error {
+	if len(args) == 0 {
+		return nil
+	}
+
+	for _, arg := range args {
+		matched, err := regexp.Match("^(.+)=(.+)$", []byte(arg))
+		if err != nil {
+			return err
+		}
+		if !matched {
+			return fmt.Errorf("argument '%s' is not of the form [PATH]=[VALUE]", arg)
+		}
+	}
+	return nil
+}
+
+// RangeOfValidJSONArgs ensures that the number of args are within the range and are all valid JSON
+func RangeOfValidJSONArgs(min int, max int) cobra.PositionalArgs {
+	return func(cmd *cobra.Command, args []string) error {
+		if len(args) < min || len(args) > max {
+			return fmt.Errorf("accepts between %d and %d arg(s), received %d", min, max, len(args))
+		}
+		for i, arg := range args {
+			err := json.Unmarshal([]byte(arg), &map[string]interface{}{})
+			if err != nil {
+				return fmt.Errorf("argument %v (\"%s\") is not valid JSON: %w", i, arg, err)
+			}
+		}
+		return nil
+	}
 }
 
 /**
@@ -135,7 +172,7 @@ func openFileInEditor(filename string, editor string) error {
 var appConfigEditCmd = &cobra.Command{
 	Use:   "edit [PATH=VALUE ...]",
 	Short: "Edit app config",
-	Args:  cobra.ArbitraryArgs,
+	Args:  ValidSetJSONKeyPathArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// Create temp file
 		tempFile, err := ioutil.TempFile(os.TempDir(), "*.json")
@@ -246,22 +283,37 @@ var appConfigGetCmd = &cobra.Command{
 	},
 }
 
+func bodyForConfigUpdateWithArgs(args []string) (interface{}, error) {
+	if filename := appConfig.InputFile; filename != "" {
+		bytes, err := ioutil.ReadFile(filename)
+		if err != nil {
+			return nil, err
+		}
+
+		err = json.Unmarshal(bytes, &map[string]interface{}{})
+		if err != nil {
+			return nil, fmt.Errorf("file %v is not valid JSON: %w", filename, err)
+		}
+		return bytes, nil
+	} else {
+		if len(args) == 0 {
+			return nil, fmt.Errorf("cannot patch without a JSON config argument")
+		}
+		return args[0], nil
+	}
+}
+
 var appConfigSetCmd = &cobra.Command{
 	Use:   "set [CONFIG]",
 	Short: "Set app config",
-	Args:  cobra.MaximumNArgs(1),
+	Args:  RangeOfValidJSONArgs(0, 1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		client := NewAPIClientFromConfig()
-		var body interface{}
-		if filename := appConfig.InputFile; filename != "" {
-			bytes, err := ioutil.ReadFile(filename)
-			if err != nil {
-				return err
-			}
-			body = bytes
-		} else {
-			body = args[0]
+		body, err := bodyForConfigUpdateWithArgs(args)
+		if err != nil {
+			return err
 		}
+
 		resp, err := client.SetConfigFromBody(body, appConfig.ApplyNow)
 		if err != nil {
 			return err
@@ -274,19 +326,14 @@ var appConfigPatchCmd = &cobra.Command{
 	Use:   "patch [CONFIG]",
 	Short: "Patch app config",
 	Long:  "Patch merges the incoming change into the existing configuration.",
-	Args:  cobra.MaximumNArgs(1),
+	Args:  RangeOfValidJSONArgs(0, 1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		client := NewAPIClientFromConfig()
-		var body interface{}
-		if filename := appConfig.InputFile; filename != "" {
-			bytes, err := ioutil.ReadFile(filename)
-			if err != nil {
-				return err
-			}
-			body = bytes
-		} else {
-			body = args[0]
+		body, err := bodyForConfigUpdateWithArgs(args)
+		if err != nil {
+			return err
 		}
+
 		resp, err := client.PatchConfigFromBody(body, appConfig.ApplyNow)
 		if err != nil {
 			return err
