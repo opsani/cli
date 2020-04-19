@@ -30,7 +30,6 @@ import (
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/stdcopy"
-	"github.com/kr/pretty"
 	"golang.org/x/crypto/ssh/terminal"
 )
 
@@ -128,7 +127,6 @@ func (cursor *Cursor) clearLine() {
 func (di *DockerInterface) PullImageWithProgressReporting(ctx context.Context, imageRef string) error {
 	out, err := di.dockerClient.ImagePull(ctx, imageRef, types.ImagePullOptions{})
 	if err != nil {
-		pretty.Printf("WARNING: Unable to pull Intelligent Manifest Builder image (%s): %s\n", imageRef, err.Error())
 		return err
 	}
 	defer out.Close()
@@ -242,7 +240,6 @@ func NewInteractiveContainerConfigWithImageRef(imageRef string) *InteractiveCont
 }
 
 // RunInteractiveContainer starts and runs a container interactively, allowing user interaction with console applications
-// func (di *DockerInterface) RunInteractiveContainer(ctx context.Context, imageRef string, hostConfig container.HostConfig) (container.ContainerCreateCreatedBody, container.ContainerWaitOKBody, error) {
 func (di *DockerInterface) RunInteractiveContainer(ctx context.Context, icc *InteractiveContainerConfig) error {
 	resp, err := di.dockerClient.ContainerCreate(ctx, icc.ContainerConfig, icc.HostConfig, nil, "")
 	if err != nil {
