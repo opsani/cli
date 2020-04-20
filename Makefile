@@ -1,11 +1,11 @@
 BIN="./bin"
 SRC=$(shell find . -name "*.go")
 
-ifeq (, $(shell which richgo))
-$(warning "could not find richgo in $(PATH), run: go get github.com/kyoh86/richgo")
+ifeq (, $(shell which addlicense))
+$(warning "could not find addlicense in $(PATH), run: go get -u github.com/google/addlicense")
 endif
 
-.PHONY: build run fmt vet test deps clean
+.PHONY: build run fmt vet test deps clean license
 
 default: all
 
@@ -44,3 +44,7 @@ install: build
 completion:
 	$(info ******************** completion ********************)
 	go run . completion --shell zsh > /usr/local/share/zsh-completions/_opsani
+
+license:
+	$(info ******************** licensing ********************)
+	addlicense -c "Opsani" -l apache -v Dockerfile *.go ./**/*.go
