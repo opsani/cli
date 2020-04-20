@@ -4,6 +4,9 @@ SRC=$(shell find . -name "*.go")
 ifeq (, $(shell which addlicense))
 $(warning "could not find addlicense in $(PATH), run: go get -u github.com/google/addlicense")
 endif
+ifeq (, $(shell which richgo))
+$(warning "could not find richgo in $(PATH), run: go get -u github.com/kyoh86/richgo")
+endif
 
 .PHONY: build run fmt vet test deps clean license
 
@@ -24,7 +27,7 @@ fmt:
 
 test: deps vet
 	$(info ******************** running tests ********************)
-	ginkgo -r -skipPackage vendor --randomizeAllSpecs --randomizeSuites --failOnPending
+	richgo test ./...
 
 deps:
 	$(info ******************** downloading dependencies ********************)
