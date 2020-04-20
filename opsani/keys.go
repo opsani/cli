@@ -14,8 +14,8 @@
 
 package opsani
 
+// Configuration keys (Cobra and Viper)
 const (
-	// Configuration keys (Cobra and Viper)
 	KeyBaseURL        = "base-url"
 	KeyApp            = "app"
 	KeyToken          = "token"

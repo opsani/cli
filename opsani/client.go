@@ -59,20 +59,25 @@ func NewWithRestyClient(rc *resty.Client) *Client {
 	return createClientWithRestyClient(rc)
 }
 
+func createClientWithHTTPClient(hc *http.Client) *Client {
+	restyClient := resty.NewWithClient(hc)
+	return createClientWithRestyClient(restyClient)
+}
+
 func createClientWithRestyClient(rc *resty.Client) *Client {
 	return &Client{
 		restyClient: rc,
 	}
 }
 
-func createClientWithHTTPClient(hc *http.Client) *Client {
-	restyClient := resty.NewWithClient(hc)
-	return createClientWithRestyClient(restyClient)
+// GetRestyClient returns the current `resty.Client` used by the opsani client.
+func (c *Client) GetRestyClient() *resty.Client {
+	return c.restyClient
 }
 
-// GetClient returns the current `resty.Client` used by the opsani client.
-func (c *Client) GetClient() *resty.Client {
-	return c.restyClient
+// GetHeaders returns the HTTP headers set on the client
+func (c *Client) GetHeaders() http.Header {
+	return c.restyClient.Header
 }
 
 // SetApp sets the Opsani app that the client is interacting with
@@ -198,6 +203,11 @@ func (c *Client) IsAuthenticated() bool {
 func (c *Client) SetBaseURL(URL string) *Client {
 	c.restyClient.HostURL = strings.TrimRight(URL, "/")
 	return c
+}
+
+// GetBaseURL method returns the base URL against which all requests are executed
+func (c *Client) GetBaseURL() string {
+	return c.restyClient.HostURL
 }
 
 // SetAuthToken method sets the auth token of the `Authorization` header for all API requests.
