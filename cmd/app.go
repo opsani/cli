@@ -35,14 +35,12 @@ func NewAPIClientFromConfig() *opsani.Client {
 		SetApp(opsani.GetApp()).
 		SetAuthToken(opsani.GetAccessToken()).
 		SetDebug(opsani.GetDebugModeEnabled())
-	tracingEnabled := opsani.GetRequestTracingEnabled()
-	if tracingEnabled {
+	if opsani.GetRequestTracingEnabled() {
 		c.EnableTrace()
 	}
 
 	// Set the output directory to pwd by default
-	dir, err := os.Getwd()
-	if err == nil {
+	if dir, err := os.Getwd(); err == nil {
 		c.SetOutputDirectory(dir)
 	}
 	return c
@@ -55,11 +53,9 @@ func ValidSetJSONKeyPathArgs(cmd *cobra.Command, args []string) error {
 	}
 
 	for _, arg := range args {
-		matched, err := regexp.Match("^(.+)=(.+)$", []byte(arg))
-		if err != nil {
+		if matched, err := regexp.Match("^(.+)=(.+)$", []byte(arg)); err != nil {
 			return err
-		}
-		if !matched {
+		} else if !matched {
 			return fmt.Errorf("argument '%s' is not of the form [PATH]=[VALUE]", arg)
 		}
 	}
@@ -73,8 +69,7 @@ func RangeOfValidJSONArgs(min int, max int) cobra.PositionalArgs {
 			return fmt.Errorf("accepts between %d and %d arg(s), received %d", min, max, len(args))
 		}
 		for i, arg := range args {
-			err := json.Unmarshal([]byte(arg), &map[string]interface{}{})
-			if err != nil {
+			if err := json.Unmarshal([]byte(arg), &map[string]interface{}{}); err != nil {
 				return fmt.Errorf("argument %v (\"%s\") is not valid JSON: %w", i, arg, err)
 			}
 		}
@@ -91,11 +86,11 @@ var appStartCmd = &cobra.Command{
 	Args:  cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		client := NewAPIClientFromConfig()
-		resp, err := client.StartApp()
-		if err != nil {
+		if resp, err := client.StartApp(); err == nil {
+			return PrettyPrintJSONResponse(resp)
+		} else {
 			return err
 		}
-		return PrettyPrintJSONResponse(resp)
 	},
 }
 
@@ -180,8 +175,7 @@ var appConfigEditCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		opsani.WritePrettyJSONBytesToFile(resp.Body(), filename)
-		if err != nil {
+		if err = opsani.WritePrettyJSONBytesToFile(resp.Body(), filename); err != nil {
 			return err
 		}
 
@@ -204,8 +198,7 @@ var appConfigEditCmd = &cobra.Command{
 				return err
 			}
 
-			err = ioutil.WriteFile(filename, config, 0755)
-			if err != nil {
+			if err = ioutil.WriteFile(filename, config, 0755); err != nil {
 				return err
 			}
 		}
@@ -246,10 +239,14 @@ var appConfigGetCmd = &cobra.Command{
 		if len(args) == 0 {
 			if appConfig.OutputFile == "" {
 				// Print to stdout
-				PrettyPrintJSONResponse(resp)
+				if err = PrettyPrintJSONResponse(resp); err != nil {
+					return err
+				}
 			} else {
 				// Write to file
-				opsani.WritePrettyJSONBytesToFile(resp.Body(), appConfig.OutputFile)
+				if err = opsani.WritePrettyJSONBytesToFile(resp.Body(), appConfig.OutputFile); err != nil {
+					return err
+				}
 			}
 		} else {
 			// Handle filtered invocation
@@ -257,7 +254,9 @@ var appConfigGetCmd = &cobra.Command{
 			results := gjson.GetManyBytes(resp.Body(), args...)
 			for _, result := range results {
 				if appConfig.OutputFile == "" {
-					PrettyPrintJSONString(result.String())
+					if err = PrettyPrintJSONString(result.String()); err != nil {
+						return err
+					}
 				} else {
 					jsonStrings = append(jsonStrings, result.String())
 				}
@@ -265,8 +264,7 @@ var appConfigGetCmd = &cobra.Command{
 
 			// Handle file output
 			if appConfig.OutputFile != "" {
-				err := opsani.WritePrettyJSONStringsToFile(jsonStrings, appConfig.OutputFile)
-				if err != nil {
+				if err := opsani.WritePrettyJSONStringsToFile(jsonStrings, appConfig.OutputFile); err != nil {
 					return err
 				}
 			}
