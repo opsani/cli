@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package cmd
+package command
 
 import (
 	"fmt"
@@ -60,17 +60,18 @@ func runLoginCommand(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-var loginCmd = &cobra.Command{
-	Use:   "login",
-	Short: "Login to the Opsani API",
-	Long:  `Login to the Opsani API and persist access credentials.`,
-	Args:  cobra.NoArgs,
-	RunE:  runLoginCommand,
-}
-
-func init() {
-	rootCmd.AddCommand(loginCmd)
+// NewLoginCommand returns a new `opani login` command instance
+func NewLoginCommand() *cobra.Command {
+	loginCmd := &cobra.Command{
+		Use:   "login",
+		Short: "Login to the Opsani API",
+		Long:  `Login to the Opsani API and persist access credentials.`,
+		Args:  cobra.NoArgs,
+		RunE:  runLoginCommand,
+	}
 
 	loginCmd.Flags().StringP(usernameArg, "u", "", "Opsani Username")
 	loginCmd.Flags().StringP(passwordArg, "p", "", "Password")
+
+	return loginCmd
 }

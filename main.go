@@ -14,8 +14,8 @@
 
 package main
 
-import "github.com/opsani/cli/cmd"
+import "github.com/opsani/cli/command"
 
 func main() {
-	cmd.Execute()
+	command.Execute()
 }

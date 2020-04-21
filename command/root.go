@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package cmd
+package command
 
 import (
 	"errors"
@@ -28,20 +28,80 @@ import (
 	"github.com/spf13/viper"
 )
 
-// rootCmd represents the base command when called without any subcommands
-var rootCmd = &cobra.Command{
-	Use:   "opsani",
-	Short: "The official CLI for Opsani",
-	Long: `Work with Opsani from the command line.
-
+// NewRootCommand returns a new instance of the root command for Opsani CLI
+func NewRootCommand() *cobra.Command {
+	rootCmd := &cobra.Command{
+		Use:   "opsani",
+		Short: "The official CLI for Opsani",
+		Long: `Work with Opsani from the command line.
+	
 Opsani CLI is in early stages of development. 
 We'd love to hear your feedback at <https://github.com/opsani/cli>`,
-	RunE: func(cmd *cobra.Command, args []string) error {
-		return cmd.Help()
-	},
-	SilenceUsage:  true,
-	SilenceErrors: true,
-	Version:       "0.0.1",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return cmd.Help()
+		},
+		SilenceUsage:  true,
+		SilenceErrors: true,
+		Version:       "0.0.1",
+	}
+
+	rootCmd.PersistentFlags().String(opsani.KeyBaseURL, opsani.DefaultBaseURL, "Base URL for accessing the Opsani API")
+	rootCmd.PersistentFlags().MarkHidden(opsani.KeyBaseURL)
+	viper.BindPFlag(opsani.KeyBaseURL, rootCmd.PersistentFlags().Lookup(opsani.KeyBaseURL))
+	rootCmd.PersistentFlags().String(opsani.KeyApp, "", "App to control (overrides config file and OPSANI_APP)")
+	viper.BindPFlag(opsani.KeyApp, rootCmd.PersistentFlags().Lookup(opsani.KeyApp))
+	rootCmd.PersistentFlags().String(opsani.KeyToken, "", "API token to authenticate with (overrides config file and OPSANI_TOKEN)")
+	viper.BindPFlag(opsani.KeyToken, rootCmd.PersistentFlags().Lookup(opsani.KeyToken))
+	rootCmd.PersistentFlags().BoolP(opsani.KeyDebugMode, "D", false, "Enable debug mode")
+	viper.BindPFlag(opsani.KeyDebugMode, rootCmd.PersistentFlags().Lookup(opsani.KeyDebugMode))
+	rootCmd.PersistentFlags().Bool(opsani.KeyRequestTracing, false, "Enable request tracing")
+	viper.BindPFlag(opsani.KeyRequestTracing, rootCmd.PersistentFlags().Lookup(opsani.KeyRequestTracing))
+
+	rootCmd.PersistentFlags().StringVar(&opsani.ConfigFile, "config", "", fmt.Sprintf("Location of config file (default \"%s\")", opsani.DefaultConfigFile()))
+	rootCmd.MarkPersistentFlagFilename("config", "*.yaml", "*.yml")
+	rootCmd.SetVersionTemplate("Opsani CLI version {{.Version}}\n")
+	rootCmd.Flags().Bool("version", false, "Display version and exit")
+	rootCmd.PersistentFlags().Bool("help", false, "Display help and exit")
+	rootCmd.PersistentFlags().MarkHidden("help")
+	rootCmd.SetHelpCommand(&cobra.Command{
+		Hidden: true,
+	})
+
+	// Add all sub-commands
+	rootCmd.AddCommand(NewLoginCommand())
+	rootCmd.AddCommand(NewInitCommand())
+
+	discoverCmd := newDiscoverCommand()
+	imbCmd := newIMBCommand()
+	pullCmd := newPullCommand()
+
+	rootCmd.AddCommand(discoverCmd)
+	rootCmd.AddCommand(imbCmd)
+	rootCmd.AddCommand(pullCmd)
+
+	rootCmd.AddCommand(newIMBCommand())
+
+	configCmd := NewConfigCommand()
+	rootCmd.AddCommand(configCmd.Command)
+
+	completionCmd := NewCompletionCommand()
+	rootCmd.AddCommand(completionCmd)
+
+	appCmd := NewAppCommand()
+	rootCmd.AddCommand(appCmd)
+
+	// See Execute()
+	rootCmd.SetFlagErrorFunc(func(cmd *cobra.Command, err error) error {
+		if err == pflag.ErrHelp {
+			return err
+		}
+		return &FlagError{Err: err}
+	})
+
+	// Load configuration before execution of every action
+	rootCmd.PersistentPreRunE = ReduceRunEFuncs(InitConfigRunE, RequireConfigFileFlagToExistRunE)
+
+	return rootCmd
 }
 
 // FlagError is the kind of error raised in flag processing
@@ -75,6 +135,13 @@ func subCommandPath(rootCmd *cobra.Command, cmd *cobra.Command) string {
 // Execute is the entry point for executing all commands from main
 // All commands with RunE will bubble errors back here
 func Execute() (cmd *cobra.Command, err error) {
+	rootCmd := NewRootCommand()
+
+	if err := initConfig(); err != nil {
+		rootCmd.PrintErr(err)
+		return rootCmd, err
+	}
+
 	executedCmd, err := rootCmd.ExecuteC()
 	if err != nil {
 		// Exit silently if the user bailed with control-c
@@ -82,7 +149,7 @@ func Execute() (cmd *cobra.Command, err error) {
 			return executedCmd, err
 		}
 
-		executedCmd.PrintErrf("%s: %s\n", rootCmd.Name(), err)
+		executedCmd.PrintErrf("%s: %s\n", executedCmd.Name(), err)
 
 		// Display usage for invalid command and flag errors
 		var flagError *FlagError
@@ -90,7 +157,7 @@ func Execute() (cmd *cobra.Command, err error) {
 			if !strings.HasSuffix(err.Error(), "\n") {
 				executedCmd.PrintErrln()
 			}
-			executedCmd.PrintErrln(cmd.UsageString())
+			executedCmd.PrintErrln(executedCmd.UsageString())
 		}
 	}
 	return executedCmd, err
@@ -145,50 +212,10 @@ func RequireConfigFileFlagToExistRunE(cmd *cobra.Command, args []string) error {
 // RequireInitRunE aborts command execution with an error if the client is not initialized
 func RequireInitRunE(cmd *cobra.Command, args []string) error {
 	if !opsani.IsInitialized() {
-		return fmt.Errorf("command failed because client is not initialized. Run %q and try again", initCmd.CommandPath())
+		return fmt.Errorf("command failed because client is not initialized. Run %q and try again", "opsani init")
 	}
 
 	return nil
-}
-
-func init() {
-	rootCmd.PersistentFlags().String(opsani.KeyBaseURL, opsani.DefaultBaseURL, "Base URL for accessing the Opsani API")
-	rootCmd.PersistentFlags().MarkHidden(opsani.KeyBaseURL)
-	viper.BindPFlag(opsani.KeyBaseURL, rootCmd.PersistentFlags().Lookup(opsani.KeyBaseURL))
-	rootCmd.PersistentFlags().String(opsani.KeyApp, "", "App to control (overrides config file and OPSANI_APP)")
-	viper.BindPFlag(opsani.KeyApp, rootCmd.PersistentFlags().Lookup(opsani.KeyApp))
-	rootCmd.PersistentFlags().String(opsani.KeyToken, "", "API token to authenticate with (overrides config file and OPSANI_TOKEN)")
-	viper.BindPFlag(opsani.KeyToken, rootCmd.PersistentFlags().Lookup(opsani.KeyToken))
-	rootCmd.PersistentFlags().BoolP(opsani.KeyDebugMode, "D", false, "Enable debug mode")
-	viper.BindPFlag(opsani.KeyDebugMode, rootCmd.PersistentFlags().Lookup(opsani.KeyDebugMode))
-	rootCmd.PersistentFlags().Bool(opsani.KeyRequestTracing, false, "Enable request tracing")
-	viper.BindPFlag(opsani.KeyRequestTracing, rootCmd.PersistentFlags().Lookup(opsani.KeyRequestTracing))
-
-	rootCmd.PersistentFlags().StringVar(&opsani.ConfigFile, "config", "", fmt.Sprintf("Location of config file (default \"%s\")", opsani.DefaultConfigFile()))
-	rootCmd.MarkPersistentFlagFilename("config", "*.yaml", "*.yml")
-	rootCmd.SetVersionTemplate("Opsani CLI version {{.Version}}\n")
-	rootCmd.Flags().Bool("version", false, "Display version and exit")
-	rootCmd.PersistentFlags().Bool("help", false, "Display help and exit")
-	rootCmd.PersistentFlags().MarkHidden("help")
-	rootCmd.SetHelpCommand(&cobra.Command{
-		Hidden: true,
-	})
-
-	// See Execute()
-	rootCmd.SetFlagErrorFunc(func(cmd *cobra.Command, err error) error {
-		if err == pflag.ErrHelp {
-			return err
-		}
-		return &FlagError{Err: err}
-	})
-
-	// Load configuration before execution of every action
-	rootCmd.PersistentPreRunE = ReduceRunEFuncs(InitConfigRunE, RequireConfigFileFlagToExistRunE)
-
-	if err := initConfig(); err != nil {
-		rootCmd.PrintErr(err)
-		os.Exit(1)
-	}
 }
 
 func initConfig() error {
@@ -222,4 +249,22 @@ func initConfig() error {
 		}
 	}
 	return nil
+}
+
+// NewAPIClientFromConfig returns an Opsani API client configured using the active configuration
+func NewAPIClientFromConfig() *opsani.Client {
+	c := opsani.NewClient().
+		SetBaseURL(opsani.GetBaseURL()).
+		SetApp(opsani.GetApp()).
+		SetAuthToken(opsani.GetAccessToken()).
+		SetDebug(opsani.GetDebugModeEnabled())
+	if opsani.GetRequestTracingEnabled() {
+		c.EnableTrace()
+	}
+
+	// Set the output directory to pwd by default
+	if dir, err := os.Getwd(); err == nil {
+		c.SetOutputDirectory(dir)
+	}
+	return c
 }

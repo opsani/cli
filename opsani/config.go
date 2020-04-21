@@ -25,7 +25,7 @@ import (
 )
 
 // ConfigFile stores the path to the active Opsani configuration file
-var ConfigFile string = DefaultConfigFile()
+var ConfigFile string
 
 // DefaultConfigFile returns the full path to the default Opsani configuration file
 func DefaultConfigFile() string {

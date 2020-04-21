@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package cmd
+package command
 
 import (
 	"encoding/json"
@@ -91,6 +91,18 @@ func (cmd *Command) PrettyPrintJSONResponse(resp *resty.Response) error {
 		return err
 	}
 	return PrettyPrintJSONObject(result)
+}
+
+// ReduceRunEFuncsO reduces a list of Cobra run functions that return an error into a single aggregate run function
+func ReduceRunEFuncsO(runFuncs ...RunEFunc) func(cmd *Command, args []string) error {
+	return func(cmd *Command, args []string) error {
+		for _, runFunc := range runFuncs {
+			if err := runFunc(cmd.Command, args); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
 }
 
 // NewCommandWithCobraCommand returns a new Opsani CLI command with a given Cobra command

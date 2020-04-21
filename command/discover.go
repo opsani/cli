@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package cmd
+package command
 
 import (
 	"fmt"
@@ -240,43 +240,64 @@ func runDiscoveryCommand(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-var pullCmd = &cobra.Command{
-	Use:   "pull",
-	Short: "Pull a Docker image",
-	Args:  cobra.ExactArgs(1),
-	RunE: func(cmd *cobra.Command, args []string) error {
-		dockerHost, err := cmd.Flags().GetString(hostArg)
-		if err != nil {
-			return err
-		}
+func newPullCommand() *cobra.Command {
+	pullCmd := &cobra.Command{
+		Use:   "pull",
+		Short: "Pull a Docker image",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			dockerHost, err := cmd.Flags().GetString(hostArg)
+			if err != nil {
+				return err
+			}
 
-		di, err := NewDockerInterface(dockerHost)
-		if err != nil {
-			return err
-		}
+			di, err := NewDockerInterface(dockerHost)
+			if err != nil {
+				return err
+			}
 
-		return di.PullImageWithProgressReporting(context.Background(), args[0])
-	},
+			return di.PullImageWithProgressReporting(context.Background(), args[0])
+		},
+	}
+
+	pullCmd.Flags().StringP(hostArg, "H", "", "Docket host to connect to (overriding DOCKER_HOST)")
+
+	return pullCmd
 }
 
-var discoverCmd = &cobra.Command{
-	Use:   "discover",
-	Short: "Build Servo assets through Kubernetes discovery",
-	Long: `The discover command introspects your Kubernetes and Prometheus
-clusters to auto-detect configuration necessary to build a Servo.
+func newDiscoverCommand() *cobra.Command {
+	discoverCmd := &cobra.Command{
+		Use:   "discover",
+		Short: "Build Servo assets through Kubernetes discovery",
+		Long: `The discover command introspects your Kubernetes and Prometheus
+	clusters to auto-detect configuration necessary to build a Servo.
 
-Upon completion of discovery, manifests will be generated that can be
-used to build a Servo assembly image and deploy it to Kubernetes.`,
-	Args:              cobra.NoArgs,
-	PersistentPreRunE: InitConfigRunE,
-	RunE:              runDiscoveryCommand,
+	Upon completion of discovery, manifests will be generated that can be
+	used to build a Servo assembly image and deploy it to Kubernetes.`,
+		Args:              cobra.NoArgs,
+		PersistentPreRunE: InitConfigRunE,
+		RunE:              runDiscoveryCommand,
+	}
+
+	discoverCmd.Flags().String(kubeconfigArg, pathToDefaultKubeconfig(), "Location of the kubeconfig file")
+	discoverCmd.MarkFlagFilename(kubeconfigArg)
+
+	return discoverCmd
 }
 
-var imbCmd = &cobra.Command{
-	Use:   "imb",
-	Short: "Run the intelligent manifest builder under Docker",
-	Args:  cobra.NoArgs,
-	RunE:  runIntelligentManifestBuilderCommand,
+func newIMBCommand() *cobra.Command {
+	imbCmd := &cobra.Command{
+		Use:   "imb",
+		Short: "Run the intelligent manifest builder under Docker",
+		Args:  cobra.NoArgs,
+		RunE:  runIntelligentManifestBuilderCommand,
+	}
+
+	defaultImageRef := fmt.Sprintf("%s:%s", imbImageName, imbTargetVersion)
+	imbCmd.Flags().StringP(imageArg, "i", defaultImageRef, "Docker image ref to run")
+	imbCmd.Flags().StringP(hostArg, "H", "", "Docket host to connect to (overriding DOCKER_HOST)")
+
+	return imbCmd
 }
 
 func pathToDefaultKubeconfig() string {
@@ -286,16 +307,4 @@ func pathToDefaultKubeconfig() string {
 		os.Exit(1)
 	}
 	return filepath.Join(home, ".kube", "config")
-}
-
-func init() {
-	rootCmd.AddCommand(discoverCmd)
-	rootCmd.AddCommand(imbCmd)
-	rootCmd.AddCommand(pullCmd)
-
-	defaultImageRef := fmt.Sprintf("%s:%s", imbImageName, imbTargetVersion)
-	imbCmd.Flags().StringP(imageArg, "i", defaultImageRef, "Docker image ref to run")
-	imbCmd.Flags().StringP(hostArg, "H", "", "Docket host to connect to (overriding DOCKER_HOST)")
-	discoverCmd.Flags().String(kubeconfigArg, pathToDefaultKubeconfig(), "Location of the kubeconfig file")
-	discoverCmd.MarkFlagFilename(kubeconfigArg)
 }

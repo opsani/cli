@@ -12,13 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package cmd
+package command_test
 
 import (
 	"fmt"
 	"os"
 	"testing"
 
+	"github.com/opsani/cli/command"
 	"github.com/opsani/cli/test"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/suite"
@@ -33,12 +34,13 @@ func TestConfigTestSuite(t *testing.T) {
 	suite.Run(t, new(ConfigTestSuite))
 }
 
-func (s *ConfigTestSuite) SetupSuite() {
-	s.OpsaniCommandExecutor = test.NewOpsaniCommandExecutor(rootCmd)
-}
-
 func (s *ConfigTestSuite) SetupTest() {
 	viper.Reset()
+	rootCmd := command.NewRootCommand()
+	configCmd := command.NewConfigCommand()
+	rootCmd.AddCommand(configCmd.Command)
+
+	s.OpsaniCommandExecutor = test.NewOpsaniCommandExecutor(rootCmd)
 }
 
 func TestMain(m *testing.M) {
@@ -65,6 +67,7 @@ func (s *ConfigTestSuite) TestRunningConfigFileEmpty() {
 func (s *ConfigTestSuite) TestRunningConfigWithInvalidFile() {
 	configFile := test.TempConfigFileWithString("malformed:yaml:ysdsfsd")
 	defer os.Remove(configFile.Name())
+
 	_, err := s.ExecuteWithConfig(configFile, "config")
 	s.Require().Error(err)
 	s.Require().EqualError(err, "error parsing configuration file: While parsing config: yaml: unmarshal errors:\n  line 1: cannot unmarshal !!str `malform...` into map[string]interface {}")
@@ -73,6 +76,7 @@ func (s *ConfigTestSuite) TestRunningConfigWithInvalidFile() {
 func (s *ConfigTestSuite) TestRunningWithInitializedConfig() {
 	configFile := test.TempConfigFileWithObj(map[string]interface{}{"app": "example.com/app1", "token": "123456"})
 	defer os.Remove(configFile.Name())
+
 	output, err := s.ExecuteWithConfig(configFile, "config")
 	s.Require().NoError(err)
 	s.Require().Contains(output, `"app": "example.com/app1"`)

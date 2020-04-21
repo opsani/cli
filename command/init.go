@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package cmd
+package command
 
 import (
 	"fmt"
@@ -108,20 +108,19 @@ func runInitCommand(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-var initCmd = &cobra.Command{
-	Use:   "init",
-	Short: "Initialize Opsani config",
-	Long: `Initializes an Opsani config file and acquires the required settings:
-
-  * 'app':   Opsani app to control (OPSANI_APP).
-  * 'token': API token to authenticate with (OPSANI_TOKEN).
-`,
-	Args: cobra.NoArgs,
-	RunE: runInitCommand,
-}
-
-func init() {
-	rootCmd.AddCommand(initCmd)
-
+// NewInitCommand returns a new `opani init` command instance
+func NewInitCommand() *cobra.Command {
+	initCmd := &cobra.Command{
+		Use:   "init",
+		Short: "Initialize Opsani config",
+		Long: `Initializes an Opsani config file and acquires the required settings:
+	
+	  * 'app':   Opsani app to control (OPSANI_APP).
+	  * 'token': API token to authenticate with (OPSANI_TOKEN).
+	`,
+		Args: cobra.NoArgs,
+		RunE: runInitCommand,
+	}
 	initCmd.Flags().Bool(confirmedArg, false, "Write config without asking for confirmation")
+	return initCmd
 }
