@@ -25,8 +25,8 @@ import (
 )
 
 // NewCompletionCommand returns a new Opsani CLI cmpletion command instance
-func NewCompletionCommand() *cobra.Command {
-	completionCmd := &cobra.Command{
+func NewCompletionCommand() *Command {
+	completionCmd := NewCommandWithCobraCommand(&cobra.Command{
 		Use:   "completion",
 		Short: "Generate shell completion scripts",
 		Long: `Generate shell completion scripts for Opsani CLI commands.
@@ -42,7 +42,9 @@ func NewCompletionCommand() *cobra.Command {
 	no additional shell configuration is necessary to gain completion support. For
 	Homebrew, see <https://docs.brew.sh/Shell-Completion>
 	`,
-		RunE: func(cmd *cobra.Command, args []string) error {
+	}, func(command *Command) {
+		command.PersistentPreRunE = nil
+		command.RunE = func(cmd *Command, args []string) error {
 			shellType, err := cmd.Flags().GetString("shell")
 			if err != nil {
 				return err
@@ -73,8 +75,8 @@ func NewCompletionCommand() *cobra.Command {
 			default:
 				return fmt.Errorf("unsupported shell type %q", shellType)
 			}
-		},
-	}
+		}
+	})
 
 	completionCmd.Flags().StringP("shell", "s", "", "Shell type: {bash|zsh|fish|powershell}")
 

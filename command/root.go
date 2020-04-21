@@ -77,7 +77,7 @@ We'd love to hear your feedback at <https://github.com/opsani/cli>`,
 	rootCmd.AddCommand(newPullCommand())
 
 	rootCmd.AddCommand(NewConfigCommand().Command)
-	rootCmd.AddCommand(NewCompletionCommand())
+	rootCmd.AddCommand(NewCompletionCommand().Command)
 
 	// See Execute()
 	rootCmd.SetFlagErrorFunc(func(cmd *cobra.Command, err error) error {

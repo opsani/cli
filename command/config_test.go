@@ -37,8 +37,6 @@ func TestConfigTestSuite(t *testing.T) {
 func (s *ConfigTestSuite) SetupTest() {
 	viper.Reset()
 	rootCmd := command.NewRootCommand()
-	configCmd := command.NewConfigCommand()
-	rootCmd.AddCommand(configCmd.Command)
 
 	s.OpsaniCommandExecutor = test.NewOpsaniCommandExecutor(rootCmd)
 }
