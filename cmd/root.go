@@ -28,11 +28,6 @@ import (
 	"github.com/spf13/viper"
 )
 
-// Command is a wrapper around cobra.Command that adds Opsani functionality
-// type Command struct {
-// 	*cobra.Command
-// }
-
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "opsani",
