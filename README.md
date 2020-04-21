@@ -45,7 +45,34 @@ Cobra, Viper, and Resty. Anyone reasonably well versed in Go should have no trou
 
 There is a Makefile for running typical tasks but `go run .` is a great way to poke around.
 
-The code is in pretty decent shape but factoring is very much a moving target.
+## Testing
+
+Opsani CLI has extensive automated test coverage. Unit tests exist
+alongside the code under test and there are integration tests in 
+the `integration` directory.
+
+Testing assertions and mocks are provided by the [Testify](https://github.com/stretchr/testify) library. Tests are organized using the 
+`testify.suite` package to provide familiar xUnit testing primitives.
+
+The local test package contains shared testing helpers useful in both
+unit and integration test scenarios.
+
+Tests can be run via the Makefile:
+
+* `make test` - Run unit & integration tests.
+* `make test_unit` - Run unit tests.
+* `make test_integration` - Run integration tests.
+
+### Integration Tests
+
+The integration test harness functions by building the `opsani` binary,
+copying it into a temp directory, and then interacting with it as a 
+subprocess and evaluating stdout, stderr, and exit code status.
+
+API interactions are mocked locally via an `http.httptest` server that
+runs in the test executor parent process. The `--base-url` flag is used
+to direct the CLI to interact with the test API server rather than the 
+Opsani API.
 
 ## License
 

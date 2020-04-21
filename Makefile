@@ -4,8 +4,11 @@ SRC=$(shell find . -name "*.go")
 ifeq (, $(shell which addlicense))
 $(warning "could not find addlicense in $(PATH), run: go get -u github.com/google/addlicense")
 endif
+
+TEST_RUNNER="richgo"
 ifeq (, $(shell which richgo))
 $(warning "could not find richgo in $(PATH), run: go get -u github.com/kyoh86/richgo")
+TEST_RUNNER="go"
 endif
 
 .PHONY: build run fmt vet test deps clean license
@@ -28,12 +31,12 @@ fmt:
 .PHONY: test_unit
 test_unit:
 	$(info ******************** running unit tests ********************)
-	richgo test ./command/... ./opsani/...
+	$(TEST_RUNNER) test -v ./command/... ./opsani/...
 
 .PHONY: test_integration
 test_integration:
 	$(info ******************** running integration tests ********************)
-	richgo test ./integration/...
+	$(TEST_RUNNER) test -v ./integration/...
 
 .PHONY: test
 test: test_unit test_integration
