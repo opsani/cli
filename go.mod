@@ -51,6 +51,7 @@ require (
 	k8s.io/apimachinery v0.18.1
 	k8s.io/client-go v0.18.1
 	k8s.io/utils v0.0.0-20200411171748-3d5a2fe318e4 // indirect
+	sigs.k8s.io/yaml v1.2.0
 )
 
 replace github.com/docker/docker => github.com/docker/engine v17.12.0-ce-rc1.0.20200309214505-aa6a9891b09c+incompatible

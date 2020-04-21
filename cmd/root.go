@@ -28,6 +28,11 @@ import (
 	"github.com/spf13/viper"
 )
 
+// Command is a wrapper around cobra.Command that adds Opsani functionality
+// type Command struct {
+// 	*cobra.Command
+// }
+
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "opsani",
@@ -74,29 +79,76 @@ func subCommandPath(rootCmd *cobra.Command, cmd *cobra.Command) string {
 
 // Execute is the entry point for executing all commands from main
 // All commands with RunE will bubble errors back here
-func Execute() {
-	if cmd, err := rootCmd.ExecuteC(); err != nil {
+func Execute() (cmd *cobra.Command, err error) {
+	executedCmd, err := rootCmd.ExecuteC()
+	if err != nil {
 		// Exit silently if the user bailed with control-c
-		if err == terminal.InterruptErr {
-			os.Exit(0)
+		if errors.Is(err, terminal.InterruptErr) {
+			return executedCmd, err
 		}
 
-		fmt.Fprintf(os.Stderr, "%s: %s\n", rootCmd.Name(), err)
+		executedCmd.PrintErrf("%s: %s\n", rootCmd.Name(), err)
 
 		// Display usage for invalid command and flag errors
 		var flagError *FlagError
 		if errors.As(err, &flagError) || strings.HasPrefix(err.Error(), "unknown command ") {
 			if !strings.HasSuffix(err.Error(), "\n") {
-				fmt.Fprintln(os.Stderr)
+				executedCmd.PrintErrln()
 			}
-			fmt.Fprintln(os.Stderr, cmd.UsageString())
+			executedCmd.PrintErrln(cmd.UsageString())
 		}
-		os.Exit(1)
+	}
+	return executedCmd, err
+}
+
+// RunFunc is a Cobra Run function
+type RunFunc func(cmd *cobra.Command, args []string)
+
+// RunEFunc is a Cobra Run function that returns an error
+type RunEFunc func(cmd *cobra.Command, args []string) error
+
+// ReduceRunFuncs reduces a list of Cobra run functions into a single aggregate run function
+func ReduceRunFuncs(runFuncs ...RunFunc) RunFunc {
+	return func(cmd *cobra.Command, args []string) {
+		for _, runFunc := range runFuncs {
+			runFunc(cmd, args)
+		}
 	}
 }
 
-// InitRequiredToExecute returns a command errorif the client is not initialized
-func InitRequiredToExecute(cmd *cobra.Command, args []string) error {
+// ReduceRunEFuncs reduces a list of Cobra run functions that return an error into a single aggregate run function
+func ReduceRunEFuncs(runFuncs ...RunEFunc) RunEFunc {
+	return func(cmd *cobra.Command, args []string) error {
+		for _, runFunc := range runFuncs {
+			if err := runFunc(cmd, args); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+}
+
+// InitConfigRunE initializes client configuration and aborts execution if an error is encountered
+func InitConfigRunE(cmd *cobra.Command, args []string) error {
+	return initConfig()
+}
+
+// RequireConfigFileFlagToExistRunE aborts command execution with an error if the config file specified via a flag does not exist
+func RequireConfigFileFlagToExistRunE(cmd *cobra.Command, args []string) error {
+	if configFilePath, err := cmd.Root().PersistentFlags().GetString("config"); err == nil {
+		if configFilePath != "" {
+			if _, err := os.Stat(opsani.ConfigFile); os.IsNotExist(err) {
+				return err
+			}
+		}
+	} else {
+		return err
+	}
+	return nil
+}
+
+// RequireInitRunE aborts command execution with an error if the client is not initialized
+func RequireInitRunE(cmd *cobra.Command, args []string) error {
 	if !opsani.IsInitialized() {
 		return fmt.Errorf("command failed because client is not initialized. Run %q and try again", initCmd.CommandPath())
 	}
@@ -105,8 +157,6 @@ func InitRequiredToExecute(cmd *cobra.Command, args []string) error {
 }
 
 func init() {
-	cobra.OnInitialize(initConfig)
-
 	rootCmd.PersistentFlags().String(opsani.KeyBaseURL, opsani.DefaultBaseURL, "Base URL for accessing the Opsani API")
 	rootCmd.PersistentFlags().MarkHidden(opsani.KeyBaseURL)
 	viper.BindPFlag(opsani.KeyBaseURL, rootCmd.PersistentFlags().Lookup(opsani.KeyBaseURL))
@@ -136,9 +186,17 @@ func init() {
 		}
 		return &FlagError{Err: err}
 	})
+
+	// Load configuration before execution of every action
+	rootCmd.PersistentPreRunE = ReduceRunEFuncs(InitConfigRunE, RequireConfigFileFlagToExistRunE)
+
+	if err := initConfig(); err != nil {
+		rootCmd.PrintErr(err)
+		os.Exit(1)
+	}
 }
 
-func initConfig() {
+func initConfig() error {
 	if opsani.ConfigFile != "" {
 		// Use config file from the flag. (TODO: Should we check if the file exists unless we are running init?)
 		viper.SetConfigFile(opsani.ConfigFile)
@@ -147,6 +205,7 @@ func initConfig() {
 		viper.AddConfigPath(opsani.DefaultConfigPath())
 		viper.SetConfigName("config")
 		viper.SetConfigType(opsani.DefaultConfigType())
+		opsani.ConfigFile = opsani.DefaultConfigFile()
 	}
 
 	// Set up environment variables
@@ -158,12 +217,14 @@ func initConfig() {
 	if err := viper.ReadInConfig(); err == nil {
 		opsani.ConfigFile = viper.ConfigFileUsed()
 	} else {
-		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
-			// Config file not found; ignore error if desired
-			opsani.ConfigFile = opsani.DefaultConfigFile()
-		} else {
-			fmt.Fprintln(os.Stderr, fmt.Errorf("error parsing configuration file: %s", err))
-			os.Exit(1)
+
+		switch err.(type) {
+		case *os.PathError:
+		case *viper.ConfigFileNotFoundError:
+			// Ignore missing config files
+		default:
+			return fmt.Errorf("error parsing configuration file: %w", err)
 		}
 	}
+	return nil
 }

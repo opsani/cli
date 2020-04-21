@@ -15,27 +15,37 @@
 package cmd
 
 import (
-	"fmt"
-	"os"
-
 	"github.com/opsani/cli/opsani"
 	"github.com/spf13/cobra"
 )
 
-var configCmd = &cobra.Command{
-	Use:               "config",
-	Short:             "Manages client configuration",
-	Args:              cobra.NoArgs,
-	PersistentPreRunE: InitRequiredToExecute,
-	RunE: func(cmd *cobra.Command, args []string) error {
-		if _, err := os.Stat(opsani.ConfigFile); os.IsNotExist(err) {
-			return err
+// ReduceRunEFuncsO reduces a list of Cobra run functions that return an error into a single aggregate run function
+func ReduceRunEFuncsO(runFuncs ...RunEFunc) func(cmd *Command, args []string) error {
+	return func(cmd *Command, args []string) error {
+		for _, runFunc := range runFuncs {
+			if err := runFunc(cmd.Command, args); err != nil {
+				return err
+			}
 		}
-		fmt.Println("Using config from:", opsani.ConfigFile)
-		return PrettyPrintJSONObject(opsani.GetAllSettings())
-	},
+		return nil
+	}
+}
+
+var configCmd = NewCommandWithCobraCommand(&cobra.Command{
+	Use:   "config",
+	Short: "Manages client configuration",
+	Args:  cobra.NoArgs,
+}, func(cmd *Command) {
+	cmd.RunE = RunConfig
+	cmd.PersistentPreRunE = ReduceRunEFuncsO(InitConfigRunE, RequireConfigFileFlagToExistRunE, RequireInitRunE)
+})
+
+// RunConfig displays Opsani CLI config info
+func RunConfig(cmd *Command, args []string) error {
+	cmd.Println("Using config from:", opsani.ConfigFile)
+	return cmd.PrettyPrintJSONObject(opsani.GetAllSettings())
 }
 
 func init() {
-	rootCmd.AddCommand(configCmd)
+	rootCmd.AddCommand(configCmd.Command)
 }

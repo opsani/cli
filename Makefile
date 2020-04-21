@@ -25,9 +25,19 @@ fmt:
 	$(info ******************** checking formatting ********************)
 	@test -z $(shell gofmt -l $(SRC)) || (gofmt -d $(SRC); exit 1)
 
-test: deps vet
-	$(info ******************** running tests ********************)
-	richgo test ./...
+# test: deps vet
+# 	$(info ******************** running tests ********************)
+# 	richgo test ./...
+.PHONY: test_unit
+test_unit:
+	richgo test ./cmd/... ./opsani/...
+
+.PHONY: test_integration
+test_integration:
+	richgo test ./integration/...
+
+.PHONY: test
+test: test_unit test_integration
 
 deps:
 	$(info ******************** downloading dependencies ********************)

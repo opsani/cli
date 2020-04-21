@@ -22,53 +22,81 @@ import (
 	"encoding/json"
 
 	"github.com/opsani/cli/opsani"
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/suite"
 )
 
-func TestSomething(t *testing.T) {
-	client := opsani.NewClient()
-	assert.NotNil(t, client)
+type ClientTestSuite struct {
+	suite.Suite
+}
+
+func TestClientTestSuite(t *testing.T) {
+	suite.Run(t, new(ClientTestSuite))
 }
 
 // Test Initialization Behaviors
 
-func TestThatNewClientSetsJSONContentTypeHeader(t *testing.T) {
+func (s *ClientTestSuite) TestThatNewClientSetsJSONContentTypeHeader() {
 	client := opsani.NewClient()
-	assert.Equal(t, "application/json", client.GetHeaders().Get("Content-Type"))
+	s.Require().Equal("application/json", client.GetHeaders().Get("Content-Type"))
 }
 
-func TestThatNewClientSetsJSONAcceptHeader(t *testing.T) {
+func (s *ClientTestSuite) TestThatNewClientSetsJSONAcceptHeader() {
 	client := opsani.NewClient()
-	assert.Equal(t, "application/json", client.GetHeaders().Get("Accept"))
+	s.Require().Equal("application/json", client.GetHeaders().Get("Accept"))
 }
 
-func TestThatNewClientSetsBaseURL(t *testing.T) {
+func (s *ClientTestSuite) TestThatNewClientSetsBaseURL() {
 	client := opsani.NewClient()
-	assert.Equal(t, "https://api.opsani.com", client.GetBaseURL())
+	s.Require().Equal("https://api.opsani.com", client.GetBaseURL())
 }
 
-func TestThatSettingBaseURLTrimsTrailingSlash(t *testing.T) {
+func (s *ClientTestSuite) TestThatSettingBaseURLTrimsTrailingSlash() {
 	client := opsani.NewClient()
 	client.SetBaseURL("https://api.opsani.com/")
-	assert.Equal(t, "https://api.opsani.com", client.GetBaseURL())
+	s.Require().Equal("https://api.opsani.com", client.GetBaseURL())
 }
 
 // Test API Interactions
 
-func TestStartApp(t *testing.T) {
-	okResponse := map[string]interface{}{"status": "ok"}
-	okJSON, _ := json.Marshal(okResponse)
-	ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+func (s *ClientTestSuite) TestStartAppSuccess() {
+	responseObj := map[string]interface{}{"status": "ok"}
+	JSON, _ := json.Marshal(responseObj)
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("content-type", "application/json")
-		w.Write(okJSON)
+		w.Write(JSON)
 	}))
 	defer ts.Close()
 
-	client := opsani.NewWithHTTPClient(ts.Client())
+	client := opsani.NewClient()
 	client.SetBaseURL(ts.URL)
 	resp, err := client.StartApp()
-	assert.Nil(t, err)
+	s.Require().Nil(err)
 	result := resp.Result()
-	assert.NotNil(t, result)
-	assert.Equal(t, &okResponse, result)
+	s.Require().NotNil(result)
+	s.Require().Equal(&responseObj, result)
+}
+
+func (s *ClientTestSuite) TestStartAppAlreadyStartedError() {
+	responseObj := opsani.APIError{
+		Message:   "Server can only be started if it is in stopped or final state",
+		Status:    "400 Bad Request",
+		Traceback: "...",
+		Version:   "18.4.0"}
+	JSON, _ := json.Marshal(responseObj)
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Add("content-type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write(JSON)
+	}))
+	defer ts.Close()
+
+	client := opsani.NewClient()
+	client.SetBaseURL(ts.URL)
+	resp, err := client.StartApp()
+	s.Require().Nil(err)
+	result := resp.Result()
+	s.Require().Empty(result)
+	respErr := resp.Error()
+	s.Require().NotNil(respErr)
+	s.Require().Equal(&responseObj, respErr)
 }

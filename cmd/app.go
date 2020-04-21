@@ -355,7 +355,7 @@ var appCmd = &cobra.Command{
 	Short: "Manage apps",
 
 	// All commands require an initialized client
-	PersistentPreRunE: InitRequiredToExecute,
+	PersistentPreRunE: InitConfigRunE,
 }
 
 func init() {
