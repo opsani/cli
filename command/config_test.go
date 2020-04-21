@@ -56,16 +56,12 @@ func (s *ConfigTestSuite) TestRunningConfigFileDoesntExist() {
 
 func (s *ConfigTestSuite) TestRunningConfigFileEmpty() {
 	configFile := test.TempConfigFileWithBytes([]byte{})
-	defer os.Remove(configFile.Name())
-
 	_, err := s.ExecuteWithConfig(configFile, "config")
 	s.Require().EqualError(err, "command failed because client is not initialized. Run \"opsani init\" and try again")
 }
 
 func (s *ConfigTestSuite) TestRunningConfigWithInvalidFile() {
 	configFile := test.TempConfigFileWithString("malformed:yaml:ysdsfsd")
-	defer os.Remove(configFile.Name())
-
 	_, err := s.ExecuteWithConfig(configFile, "config")
 	s.Require().Error(err)
 	s.Require().EqualError(err, "error parsing configuration file: While parsing config: yaml: unmarshal errors:\n  line 1: cannot unmarshal !!str `malform...` into map[string]interface {}")
@@ -73,8 +69,6 @@ func (s *ConfigTestSuite) TestRunningConfigWithInvalidFile() {
 
 func (s *ConfigTestSuite) TestRunningWithInitializedConfig() {
 	configFile := test.TempConfigFileWithObj(map[string]interface{}{"app": "example.com/app1", "token": "123456"})
-	defer os.Remove(configFile.Name())
-
 	output, err := s.ExecuteWithConfig(configFile, "config")
 	s.Require().NoError(err)
 	s.Require().Contains(output, `"app": "example.com/app1"`)

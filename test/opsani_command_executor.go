@@ -32,5 +32,13 @@ func (oce *OpsaniCommandExecutor) ExecuteWithConfig(configFile *os.File, args ..
 
 // ExecuteCWithConfig runs an Opsani CLI command with the given config file and arguments and returns the Opsani CLI command invoked
 func (oce *OpsaniCommandExecutor) ExecuteCWithConfig(configFile *os.File, args ...string) (c *cobra.Command, output string, err error) {
+	defer os.Remove(configFile.Name())
 	return oce.ExecuteC(append([]string{"--config", configFile.Name()}, args...)...)
+}
+
+// NewOpsaniCommandExecutor returns an executor for testing Opsani CLI commands
+func NewOpsaniCommandExecutor(rootCmd *cobra.Command) *OpsaniCommandExecutor {
+	return &OpsaniCommandExecutor{
+		CommandExecutor: NewCommandExecutor(rootCmd),
+	}
 }

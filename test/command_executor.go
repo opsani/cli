@@ -49,10 +49,3 @@ func (ce *CommandExecutor) ExecuteC(args ...string) (c *cobra.Command, output st
 
 	return c, buf.String(), err
 }
-
-// NewOpsaniCommandExecutor returns an executor for testing Opsani CLI commands
-func NewOpsaniCommandExecutor(rootCmd *cobra.Command) *OpsaniCommandExecutor {
-	return &OpsaniCommandExecutor{
-		CommandExecutor: NewCommandExecutor(rootCmd),
-	}
-}
