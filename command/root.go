@@ -68,27 +68,16 @@ We'd love to hear your feedback at <https://github.com/opsani/cli>`,
 	})
 
 	// Add all sub-commands
-	rootCmd.AddCommand(NewLoginCommand())
 	rootCmd.AddCommand(NewInitCommand())
+	rootCmd.AddCommand(NewAppCommand())
+	rootCmd.AddCommand(NewLoginCommand())
 
-	discoverCmd := newDiscoverCommand()
-	imbCmd := newIMBCommand()
-	pullCmd := newPullCommand()
-
-	rootCmd.AddCommand(discoverCmd)
-	rootCmd.AddCommand(imbCmd)
-	rootCmd.AddCommand(pullCmd)
-
+	rootCmd.AddCommand(newDiscoverCommand())
 	rootCmd.AddCommand(newIMBCommand())
+	rootCmd.AddCommand(newPullCommand())
 
-	configCmd := NewConfigCommand()
-	rootCmd.AddCommand(configCmd.Command)
-
-	completionCmd := NewCompletionCommand()
-	rootCmd.AddCommand(completionCmd)
-
-	appCmd := NewAppCommand()
-	rootCmd.AddCommand(appCmd)
+	rootCmd.AddCommand(NewConfigCommand().Command)
+	rootCmd.AddCommand(NewCompletionCommand())
 
 	// See Execute()
 	rootCmd.SetFlagErrorFunc(func(cmd *cobra.Command, err error) error {
