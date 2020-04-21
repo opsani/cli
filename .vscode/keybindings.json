@@ -1,0 +1,28 @@
+// Add these bindings to VSCode to make executing tests a joy
+[
+    {
+        "key": "cmd+r",
+        "command": "go.test.file",
+        "when": "editorLangId == go"
+    },
+    {
+        "key": "shift+alt+cmd+t",
+        "command": "go.test.workspace",
+        "when": "editorLangId == 'go'"
+    },
+    {
+        "key": "shift+alt+cmd+r",
+        "command": "go.debug.cursor",
+        "when": "editorLangId == 'go'"
+    },
+    {
+        "key": "shift+cmd+r",
+        "command": "go.test.cursor",
+        "when": "editorLangId == 'go'"
+    },
+    {
+        "key": "alt+cmd+up",
+        "command": "go.toggle.test.file",
+        "when": "editorLangId == 'go'"
+    }
+]
