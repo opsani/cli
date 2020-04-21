@@ -25,15 +25,14 @@ fmt:
 	$(info ******************** checking formatting ********************)
 	@test -z $(shell gofmt -l $(SRC)) || (gofmt -d $(SRC); exit 1)
 
-# test: deps vet
-# 	$(info ******************** running tests ********************)
-# 	richgo test ./...
 .PHONY: test_unit
 test_unit:
-	richgo test ./cmd/... ./opsani/...
+	$(info ******************** running unit tests ********************)
+	richgo test ./command/... ./opsani/...
 
 .PHONY: test_integration
 test_integration:
+	$(info ******************** running integration tests ********************)
 	richgo test ./integration/...
 
 .PHONY: test
