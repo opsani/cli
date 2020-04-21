@@ -19,13 +19,14 @@ import (
 	"os"
 	"testing"
 
+	"github.com/opsani/cli/test"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/suite"
 )
 
 type ConfigTestSuite struct {
 	suite.Suite
-	*OpsaniCommandExecutor
+	*test.OpsaniCommandExecutor
 }
 
 func TestConfigTestSuite(t *testing.T) {
@@ -33,7 +34,7 @@ func TestConfigTestSuite(t *testing.T) {
 }
 
 func (s *ConfigTestSuite) SetupSuite() {
-	s.OpsaniCommandExecutor = NewOpsaniCommandExecutor(rootCmd)
+	s.OpsaniCommandExecutor = test.NewOpsaniCommandExecutor(rootCmd)
 }
 
 func (s *ConfigTestSuite) SetupTest() {
@@ -45,7 +46,7 @@ func TestMain(m *testing.M) {
 }
 
 func (s *ConfigTestSuite) TestRunningConfigFileDoesntExist() {
-	configFile := TempConfigFileWithBytes([]byte{})
+	configFile := test.TempConfigFileWithBytes([]byte{})
 	os.Remove(configFile.Name())
 
 	_, err := s.ExecuteWithConfig(configFile, "config")
@@ -54,7 +55,7 @@ func (s *ConfigTestSuite) TestRunningConfigFileDoesntExist() {
 }
 
 func (s *ConfigTestSuite) TestRunningConfigFileEmpty() {
-	configFile := TempConfigFileWithBytes([]byte{})
+	configFile := test.TempConfigFileWithBytes([]byte{})
 	defer os.Remove(configFile.Name())
 
 	_, err := s.ExecuteWithConfig(configFile, "config")
@@ -62,7 +63,7 @@ func (s *ConfigTestSuite) TestRunningConfigFileEmpty() {
 }
 
 func (s *ConfigTestSuite) TestRunningConfigWithInvalidFile() {
-	configFile := TempConfigFileWithString("malformed:yaml:ysdsfsd")
+	configFile := test.TempConfigFileWithString("malformed:yaml:ysdsfsd")
 	defer os.Remove(configFile.Name())
 	_, err := s.ExecuteWithConfig(configFile, "config")
 	s.Require().Error(err)
@@ -70,7 +71,7 @@ func (s *ConfigTestSuite) TestRunningConfigWithInvalidFile() {
 }
 
 func (s *ConfigTestSuite) TestRunningWithInitializedConfig() {
-	configFile := TempConfigFileWithObj(map[string]interface{}{"app": "example.com/app1", "token": "123456"})
+	configFile := test.TempConfigFileWithObj(map[string]interface{}{"app": "example.com/app1", "token": "123456"})
 	defer os.Remove(configFile.Name())
 	output, err := s.ExecuteWithConfig(configFile, "config")
 	s.Require().NoError(err)

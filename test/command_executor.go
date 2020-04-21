@@ -12,15 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package cmd
+package test
 
 import (
 	"bytes"
-	"io/ioutil"
-	"os"
 
 	"github.com/spf13/cobra"
-	"sigs.k8s.io/yaml"
 )
 
 // NewCommandExecutor returns an executor for testing Cobra commands
@@ -58,46 +55,4 @@ func NewOpsaniCommandExecutor(rootCmd *cobra.Command) *OpsaniCommandExecutor {
 	return &OpsaniCommandExecutor{
 		CommandExecutor: NewCommandExecutor(rootCmd),
 	}
-}
-
-// OpsaniCommandExecutor provides an interface for executing Opsani CLI commands in tests
-type OpsaniCommandExecutor struct {
-	*CommandExecutor
-}
-
-// ExecuteWithConfig runs an Opsani CLI command with the given config file and arguments and returns the output captured
-func (oce *OpsaniCommandExecutor) ExecuteWithConfig(configFile *os.File, args ...string) (output string, err error) {
-	return oce.Execute(append([]string{"--config", configFile.Name()}, args...)...)
-}
-
-// ExecuteCWithConfig runs an Opsani CLI command with the given config file and arguments and returns the Opsani CLI command invoked
-func (oce *OpsaniCommandExecutor) ExecuteCWithConfig(configFile *os.File, args ...string) (c *cobra.Command, output string, err error) {
-	return oce.ExecuteC(append([]string{"--config", configFile.Name()}, args...)...)
-}
-
-// TempConfigFileWithBytes returns a temporary YAML config file with the given byte array content
-func TempConfigFileWithBytes(bytes []byte) *os.File {
-	tmpFile, err := ioutil.TempFile("", "*.yaml")
-	if err != nil {
-		panic("failed to create temp file")
-	}
-	if _, err = tmpFile.Write(bytes); err != nil {
-		panic("failed writing to temp file")
-	}
-	return tmpFile
-}
-
-// TempConfigFileWithString returns a temporary YAML config file with the given string content
-func TempConfigFileWithString(str string) *os.File {
-	return TempConfigFileWithBytes([]byte(str))
-}
-
-// TempConfigFileWithObj returns a temporary YAML config file with the given object serialized to YAML
-func TempConfigFileWithObj(obj interface{}) *os.File {
-	if data, err := yaml.Marshal(obj); data != nil {
-		return TempConfigFileWithBytes(data)
-	} else if err != nil {
-		panic("failed serializing config to YAML")
-	}
-	return nil
 }
