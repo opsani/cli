@@ -97,7 +97,6 @@ func (s *FakeFileReader) Fd() uintptr {
 }
 
 func (s *InitTestSuite) TestTerminalConfirm() {
-	// s.T().Parallel()
 	var confirmed bool = true
 	test.RunTestInInteractiveTerminal(s.T(), func(context *test.InteractiveExecutionContext) error {
 		file := os.NewFile(context.GetStdin().Fd(), "pipe")
@@ -108,16 +107,15 @@ func (s *InitTestSuite) TestTerminalConfirm() {
 			PassthroughPipe: pipe,
 		}
 		return survey.AskOne(&survey.Confirm{
-			Message: "Delete  file?",
+			Message: "Delete file?",
 		}, &confirmed, survey.WithStdio(mock, context.GetStdout(), context.GetStderr()))
 	}, func(_ *test.InteractiveExecutionContext, c *expect.Console) error {
-		// c.Expect(expect.RegexpPattern("Delete file?"))
-		c.ExpectString("? Delete file?")
+		c.Expect(expect.RegexpPattern("Delete file?"))
 		c.SendLine("N")
 		c.ExpectEOF()
 		return nil
 	})
-	panic("adass")
+	// panic("adass")
 	s.Require().False(confirmed)
 }
 
