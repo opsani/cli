@@ -114,7 +114,7 @@ func ExecuteInInteractiveTerminal(
 	console, terminalState, err := vt10x.NewVT10XConsole(
 		append([]expect.ConsoleOpt{
 			expect.WithStdout(outputBuffer),
-			expect.WithDefaultTimeout(300 * time.Millisecond),
+			expect.WithDefaultTimeout(100 * time.Millisecond),
 		}, consoleOpts...)...)
 	if err != nil {
 		return nil, err

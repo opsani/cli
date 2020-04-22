@@ -57,16 +57,10 @@ func (s *InitTestSuite) TestRunningInitHelp() {
 func (s *InitTestSuite) TestTerminalInteraction() {
 	var name string
 	test.RunTestInInteractiveTerminal(s.T(), func(context *test.InteractiveExecutionContext) error {
-		file := os.NewFile(context.GetStdin().Fd(), "pipe")
-		pipe, _ := expect.NewPassthroughPipe(context.GetStdin())
-		pipe.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
-		mock := &FakeFileReader{
-			file:            file,
-			PassthroughPipe: pipe,
-		}
+		proxy := NewPassthroughPipeFile(context.GetStdin())
 		return survey.AskOne(&survey.Input{
 			Message: "What is your name?",
-		}, &name, survey.WithStdio(mock, context.GetStdout(), context.GetStderr()))
+		}, &name, survey.WithStdio(proxy, context.GetStdout(), context.GetStderr()))
 	}, func(_ *test.InteractiveExecutionContext, c *expect.Console) error {
 		s.RequireNoErr2(c.ExpectString("What is your name?"))
 		c.SendLine("Blake Watters")
@@ -80,31 +74,33 @@ func (s *InitTestSuite) RequireNoErr2(_ interface{}, err error) {
 	s.Require().NoError(err)
 }
 
-type FakeFileReader struct {
+type PassthroughPipeFile struct {
 	*expect.PassthroughPipe
 	file *os.File
 }
 
-// TODO: These can alias to temp files
-func (s *FakeFileReader) Fd() uintptr {
+func (s *PassthroughPipeFile) Fd() uintptr {
 	return s.file.Fd()
+}
+
+func NewPassthroughPipeFile(stdin *os.File) *PassthroughPipeFile {
+	file := os.NewFile(stdin.Fd(), "pipe")
+	pipe, _ := expect.NewPassthroughPipe(stdin)
+	pipe.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
+	return &PassthroughPipeFile{
+		file:            file,
+		PassthroughPipe: pipe,
+	}
 }
 
 func (s *InitTestSuite) TestTerminalConfirm() {
 	var confirmed bool = true
 	test.RunTestInInteractiveTerminal(s.T(), func(context *test.InteractiveExecutionContext) error {
-		file := os.NewFile(context.GetStdin().Fd(), "pipe")
-		pipe, _ := expect.NewPassthroughPipe(context.GetStdin())
-		pipe.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
-		mock := &FakeFileReader{
-			file:            file,
-			PassthroughPipe: pipe,
-		}
 		return survey.AskOne(&survey.Confirm{
 			Message: "Delete file?",
-		}, &confirmed, survey.WithStdio(mock, context.GetStdout(), context.GetStderr()))
+		}, &confirmed, survey.WithStdio(NewPassthroughPipeFile(context.GetStdin()), context.GetStdout(), context.GetStderr()))
 	}, func(_ *test.InteractiveExecutionContext, c *expect.Console) error {
-		c.Expect(expect.RegexpPattern("Delete file?"))
+		s.RequireNoErr2(c.Expect(expect.RegexpPattern("Delete file?")))
 		c.SendLine("N")
 		c.ExpectEOF()
 		return nil
