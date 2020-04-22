@@ -119,7 +119,7 @@ func (s *InitTestSuite) TestInitWithExistingConfig() {
 	ice.PreExecutionFunc = func(context *test.InteractiveExecutionContext) error {
 		// Attach the survey library to the console
 		// This is necessary because of type safety fun with modeling around file readers
-		command.Stdio = terminal.Stdio{context.GetStdin(), context.GetStdout(), context.GetStderr()}
+		command.Stdio = terminal.Stdio{NewPassthroughPipeFile(context.GetStdin()), context.GetStdout(), context.GetStderr()}
 		return nil
 	}
 	_, err := ice.Execute(test.Args("--config", configFile.Name(), "init"), func(_ *test.InteractiveExecutionContext, console *expect.Console) error {
@@ -127,11 +127,11 @@ func (s *InitTestSuite) TestInitWithExistingConfig() {
 			return err
 		}
 		str := fmt.Sprintf("? Existing config found. Overwrite %s?", configFile.Name())
-		if _, err := console.ExpectString(str); err != nil {
-			return err
-		}
-		console.SendLine("N")
-		console.ExpectEOF()
+		_, err := console.ExpectString(str)
+		s.NoError(err)
+		_, err = console.SendLine("N")
+		s.NoError(err)
+		_, err = console.ExpectEOF()
 		return nil
 	})
 	s.Require().Error(err)
