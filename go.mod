@@ -7,8 +7,10 @@ require (
 	github.com/Azure/go-ansiterm v0.0.0-20170929234023-d6e3b3328b78 // indirect
 	github.com/Microsoft/go-winio v0.4.14 // indirect
 	github.com/Microsoft/hcsshim v0.8.6 // indirect
+	github.com/Netflix/go-expect v0.0.0-20200312175327-da48e75238e2
 	github.com/containerd/containerd v1.3.3 // indirect
 	github.com/containerd/continuity v0.0.0-20200228182428-0f16d7a0959c // indirect
+	github.com/creack/pty v1.1.9 // indirect
 	github.com/docker/cli v0.0.0-00010101000000-000000000000
 	github.com/docker/distribution v2.7.1+incompatible // indirect
 	github.com/docker/docker v1.13.1
@@ -19,9 +21,11 @@ require (
 	github.com/golang/protobuf v1.4.0 // indirect
 	github.com/googleapis/gnostic v0.4.1 // indirect
 	github.com/gorilla/mux v1.7.4 // indirect
+	github.com/hinshun/vt10x v0.0.0-20180616224451-1954e6464174
 	github.com/hokaccha/go-prettyjson v0.0.0-20190818114111-108c894c2c0e
 	github.com/imdario/mergo v0.3.9 // indirect
 	github.com/konsorten/go-windows-terminal-sequences v1.0.2 // indirect
+	github.com/kr/pty v1.1.8 // indirect
 	github.com/mattn/go-isatty v0.0.12
 	github.com/mgutz/ansi v0.0.0-20170206155736-9520e82c474b
 	github.com/mitchellh/go-homedir v1.1.0
@@ -42,7 +46,7 @@ require (
 	github.com/tidwall/sjson v1.1.1
 	golang.org/x/crypto v0.0.0-20200220183623-bac4c82f6975
 	golang.org/x/net v0.0.0-20200324143707-d3edc9973b7e // indirect
-	golang.org/x/sys v0.0.0-20200413165638-669c56c373c4 // indirect
+	golang.org/x/sys v0.0.0-20200420163511-1957bb5e6d1f // indirect
 	golang.org/x/time v0.0.0-20191024005414-555d28b269f0 // indirect
 	google.golang.org/genproto v0.0.0-20200413115906-b5235f65be36 // indirect
 	google.golang.org/grpc v1.28.1 // indirect
