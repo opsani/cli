@@ -68,7 +68,7 @@ We'd love to hear your feedback at <https://github.com/opsani/cli>`,
 	})
 
 	// Add all sub-commands
-	rootCmd.AddCommand(NewInitCommand())
+	rootCmd.AddCommand(NewInitCommand().Command)
 	rootCmd.AddCommand(NewAppCommand())
 	rootCmd.AddCommand(NewLoginCommand())
 

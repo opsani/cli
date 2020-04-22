@@ -29,7 +29,8 @@ import (
 
 const confirmedArg = "confirmed"
 
-func runInitCommand(cmd *cobra.Command, args []string) error {
+// RunInitCommand initializes Opsani CLI config
+func RunInitCommand(cmd *Command, args []string) error {
 	confirmed, err := cmd.Flags().GetBool(confirmedArg)
 	if err != nil {
 		return err
@@ -108,9 +109,9 @@ func runInitCommand(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// NewInitCommand returns a new `opani init` command instance
-func NewInitCommand() *cobra.Command {
-	initCmd := &cobra.Command{
+// NewInitCommand returns a new `opsani init` command instance
+func NewInitCommand() *Command {
+	return NewCommandWithCobraCommand(&cobra.Command{
 		Use:   "init",
 		Short: "Initialize Opsani config",
 		Long: `Initializes an Opsani config file and acquires the required settings:
@@ -119,8 +120,8 @@ func NewInitCommand() *cobra.Command {
 	  * 'token': API token to authenticate with (OPSANI_TOKEN).
 	`,
 		Args: cobra.NoArgs,
-		RunE: runInitCommand,
-	}
-	initCmd.Flags().Bool(confirmedArg, false, "Write config without asking for confirmation")
-	return initCmd
+	}, func(cmd *Command) {
+		cmd.RunE = RunInitCommand
+		cmd.Flags().Bool(confirmedArg, false, "Write config without asking for confirmation")
+	})
 }
