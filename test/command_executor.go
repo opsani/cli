@@ -46,6 +46,5 @@ func (ce *CommandExecutor) ExecuteC(args ...string) (c *cobra.Command, output st
 	ce.rootCmd.SetArgs(args)
 
 	c, err = ce.rootCmd.ExecuteC()
-
 	return c, buf.String(), err
 }

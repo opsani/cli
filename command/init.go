@@ -39,13 +39,13 @@ func RunInitCommand(cmd *Command, args []string) error {
 	// Handle reinitialization case
 	overwrite := false
 	if _, err := os.Stat(opsani.ConfigFile); !os.IsNotExist(err) && !confirmed {
-		fmt.Println("Using config from:", opsani.ConfigFile)
-		PrettyPrintJSONObject(opsani.GetAllSettings())
+		cmd.Println("Using config from:", opsani.ConfigFile)
+		cmd.PrettyPrintJSONObject(opsani.GetAllSettings())
 
 		prompt := &survey.Confirm{
 			Message: fmt.Sprintf("Existing config found. Overwrite %s?", opsani.ConfigFile),
 		}
-		err := survey.AskOne(prompt, &overwrite)
+		err := cmd.AskOne(prompt, &overwrite)
 		if err != nil {
 			return err
 		}
@@ -58,7 +58,7 @@ func RunInitCommand(cmd *Command, args []string) error {
 	whiteBold := ansi.ColorCode("white+b")
 
 	if overwrite || app == "" {
-		err := survey.AskOne(&survey.Input{
+		err := cmd.AskOne(&survey.Input{
 			Message: "Opsani app (i.e. domain.com/app):",
 			Default: opsani.GetApp(),
 		}, &app, survey.WithValidator(survey.Required))
@@ -66,11 +66,11 @@ func RunInitCommand(cmd *Command, args []string) error {
 			return err
 		}
 	} else {
-		fmt.Printf("%si %sApp: %s%s%s%s\n", ansi.Blue, whiteBold, ansi.Reset, ansi.LightCyan, app, ansi.Reset)
+		cmd.Printf("%si %sApp: %s%s%s%s\n", ansi.Blue, whiteBold, ansi.Reset, ansi.LightCyan, app, ansi.Reset)
 	}
 
 	if overwrite || token == "" {
-		err := survey.AskOne(&survey.Input{
+		err := cmd.AskOne(&survey.Input{
 			Message: "API Token:",
 			Default: opsani.GetAccessToken(),
 		}, &token, survey.WithValidator(survey.Required))
@@ -78,20 +78,20 @@ func RunInitCommand(cmd *Command, args []string) error {
 			return err
 		}
 	} else {
-		fmt.Printf("%si %sAPI Token: %s%s%s%s\n", ansi.Blue, whiteBold, ansi.Reset, ansi.LightCyan, token, ansi.Reset)
+		cmd.Printf("%si %sAPI Token: %s%s%s%s\n", ansi.Blue, whiteBold, ansi.Reset, ansi.LightCyan, token, ansi.Reset)
 	}
 
 	// Confirm that the user wants to write this config
 	opsani.SetApp(app)
 	opsani.SetAccessToken(token)
 
-	fmt.Printf("\nOpsani config initialized:\n")
-	PrettyPrintJSONObject(opsani.GetAllSettings())
+	cmd.Printf("\nOpsani config initialized:\n")
+	cmd.PrettyPrintJSONObject(opsani.GetAllSettings())
 	if !confirmed {
 		prompt := &survey.Confirm{
 			Message: fmt.Sprintf("Write to %s?", opsani.ConfigFile),
 		}
-		survey.AskOne(prompt, &confirmed)
+		cmd.AskOne(prompt, &confirmed)
 	}
 	if confirmed {
 		configDir := filepath.Dir(opsani.ConfigFile)
@@ -104,7 +104,7 @@ func RunInitCommand(cmd *Command, args []string) error {
 		if err := viper.WriteConfigAs(opsani.ConfigFile); err != nil {
 			return err
 		}
-		fmt.Println("\nOpsani CLI initialized")
+		cmd.Println("\nOpsani CLI initialized")
 	}
 	return nil
 }

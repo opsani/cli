@@ -17,7 +17,10 @@ package command
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 
+	"github.com/AlecAivazis/survey/v2"
+	"github.com/AlecAivazis/survey/v2/terminal"
 	"github.com/go-resty/resty/v2"
 	"github.com/hokaccha/go-prettyjson"
 	"github.com/spf13/cobra"
@@ -26,6 +29,7 @@ import (
 // Command is a wrapper around cobra.Command that adds Opsani functionality
 type Command struct {
 	*cobra.Command
+	stdio terminal.Stdio
 
 	// Shadow all Cobra functions with Opsani equivalents
 	PersistentPreRun func(cmd *Command, args []string)
@@ -47,6 +51,46 @@ type Command struct {
 	PersistentPostRun func(cmd *Command, args []string)
 	// PersistentPostRunE: PersistentPostRun but returns an error.
 	PersistentPostRunE func(cmd *Command, args []string) error
+}
+
+// Survey method wrappers
+// NOTE: These are necessary because of how the Survey library models in, out, and err
+
+func (cmd *Command) SetStdio(stdio terminal.Stdio) {
+	Stdio = stdio
+	cmd.stdio = stdio
+
+	// When stdio is set, cascade to Cobra
+	cmd.SetIn(stdio.In)
+	cmd.SetOut(stdio.Out)
+	cmd.SetErr(stdio.Err)
+}
+
+// TODO: Temporary global because of type issues
+var Stdio terminal.Stdio
+
+func (cmd *Command) GetStdio() terminal.Stdio {
+	if Stdio != (terminal.Stdio{}) {
+		return Stdio
+	} else if cmd.stdio != (terminal.Stdio{}) {
+		return cmd.stdio
+	} else {
+		return terminal.Stdio{
+			In:  os.Stdin,
+			Out: os.Stdout,
+			Err: os.Stderr,
+		}
+	}
+}
+
+func (cmd *Command) Ask(qs []*survey.Question, response interface{}, opts ...survey.AskOpt) error {
+	stdio := cmd.GetStdio()
+	return survey.Ask(qs, response, append(opts, survey.WithStdio(stdio.In, stdio.Out, stdio.Err))...)
+}
+
+func (cmd *Command) AskOne(p survey.Prompt, response interface{}, opts ...survey.AskOpt) error {
+	stdio := cmd.GetStdio()
+	return survey.AskOne(p, response, append(opts, survey.WithStdio(stdio.In, stdio.Out, stdio.Err))...)
 }
 
 // PrettyPrintJSONObject prints the given object as pretty printed JSON
