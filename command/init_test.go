@@ -73,8 +73,8 @@ func (s *InitTestSuite) TestTerminalInteraction() {
 			Message: "What is your name?",
 		}, &name, survey.WithStdio(mock, context.GetStdout(), context.GetStderr()))
 	}, func(_ *test.InteractiveExecutionContext, c *expect.Console) error {
-		// s.RequireNoErr2(c.ExpectString("? What is your name?"))
-		c.ExpectString("? What is your name?")
+		s.RequireNoErr2(c.ExpectString("What is your name?"))
+		// c.ExpectString("? What is your name?")
 		c.SendLine("Blake Watters")
 		c.ExpectEOF()
 		return nil
