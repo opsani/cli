@@ -16,13 +16,15 @@ package command_test
 
 import (
 	"fmt"
+	"io"
+	"os"
 	"testing"
 	"time"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/AlecAivazis/survey/v2/core"
 	"github.com/AlecAivazis/survey/v2/terminal"
-	expect "github.com/Netflix/go-expect"
+	"github.com/Netflix/go-expect"
 	"github.com/opsani/cli/command"
 	"github.com/opsani/cli/test"
 	"github.com/spf13/viper"
@@ -56,10 +58,22 @@ func (s *InitTestSuite) TestRunningInitHelp() {
 func (s *InitTestSuite) TestTerminalInteraction() {
 	var name string
 	test.RunTestInInteractiveTerminal(s.T(), func(context *test.InteractiveExecutionContext) error {
+		pipe, _ := expect.NewPassthroughPipe(context.GetStdin())
+		pipe.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
+		mock := &FakeFileReader{
+			PassthroughPipe: pipe,
+		}
+		go func(stdin io.Reader) {
+			_, err := io.Copy(context.GetConsole(), stdin)
+			if err != nil {
+				context.GetConsole().Logf("failed to copy stdin: %s", err)
+			}
+		}(pipe)
 		return survey.AskOne(&survey.Input{
 			Message: "What is your name?",
-		}, &name, survey.WithStdio(context.GetStdin(), context.GetStdout(), context.GetStderr()))
+		}, &name, survey.WithStdio(mock, context.GetStdout(), context.GetStderr()))
 	}, func(_ *test.InteractiveExecutionContext, c *expect.Console) error {
+		// s.RequireNoErr2(c.ExpectString("? What is your name?"))
 		c.ExpectString("? What is your name?")
 		c.SendLine("Blake Watters")
 		c.ExpectEOF()
@@ -68,19 +82,43 @@ func (s *InitTestSuite) TestTerminalInteraction() {
 	s.Require().Equal(name, "Blake Watters")
 }
 
+func (s *InitTestSuite) RequireNoErr2(_ interface{}, err error) {
+	s.Require().NoError(err)
+}
+
+type FakeFileReader struct {
+	*expect.PassthroughPipe
+	file *os.File
+}
+
+// TODO: These can alias to temp files
+func (s *FakeFileReader) Fd() uintptr {
+	return s.file.Fd()
+}
+
 func (s *InitTestSuite) TestTerminalConfirm() {
-	var confirmed bool
+	// s.T().Parallel()
+	var confirmed bool = true
 	test.RunTestInInteractiveTerminal(s.T(), func(context *test.InteractiveExecutionContext) error {
+		file := os.NewFile(context.GetStdin().Fd(), "pipe")
+		pipe, _ := expect.NewPassthroughPipe(context.GetStdin())
+		pipe.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
+		mock := &FakeFileReader{
+			file:            file,
+			PassthroughPipe: pipe,
+		}
 		return survey.AskOne(&survey.Confirm{
-			Message: "Delete file?",
-		}, &confirmed, survey.WithStdio(context.GetStdin(), context.GetStdout(), context.GetStderr()))
+			Message: "Delete  file?",
+		}, &confirmed, survey.WithStdio(mock, context.GetStdout(), context.GetStderr()))
 	}, func(_ *test.InteractiveExecutionContext, c *expect.Console) error {
+		// c.Expect(expect.RegexpPattern("Delete file?"))
 		c.ExpectString("? Delete file?")
-		c.SendLine("Y")
+		c.SendLine("N")
 		c.ExpectEOF()
 		return nil
 	})
-	s.Require().True(confirmed)
+	panic("adass")
+	s.Require().False(confirmed)
 }
 
 func (s *InitTestSuite) TestInitWithExistingConfig() {

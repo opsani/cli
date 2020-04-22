@@ -16,6 +16,7 @@ package test
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -33,7 +34,6 @@ func RunTestInInteractiveTerminal(t *testing.T,
 	codeUnderTestFunc InteractiveProcessFunc,
 	testFunc InteractiveUserFunc,
 	consoleOpts ...expect.ConsoleOpt) (*InteractiveExecutionContext, error) {
-
 	context, err := ExecuteInInteractiveTerminal(codeUnderTestFunc, testFunc, consoleOpts...)
 	t.Logf("Raw output: %q", context.GetOutputBuffer().String())
 	t.Logf("\n\nterminal state: %s", expect.StripTrailingEmptyLines(context.GetTerminalState().String()))
@@ -114,7 +114,7 @@ func ExecuteInInteractiveTerminal(
 	console, terminalState, err := vt10x.NewVT10XConsole(
 		append([]expect.ConsoleOpt{
 			expect.WithStdout(outputBuffer),
-			expect.WithDefaultTimeout(60 * time.Second),
+			expect.WithDefaultTimeout(300 * time.Millisecond),
 		}, consoleOpts...)...)
 	if err != nil {
 		return nil, err
@@ -137,6 +137,9 @@ func ExecuteInInteractiveTerminal(
 
 	// Run the process for the user to interact with
 	err = processFunc(executionContext)
+	if err != nil {
+		fmt.Println("Process failed", err)
+	}
 
 	// Close the slave end of the pty, and read the remaining bytes from the master end.
 	console.Tty().Close()
