@@ -16,6 +16,7 @@ package command_test
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"testing"
 	"time"
@@ -28,6 +29,7 @@ import (
 	"github.com/opsani/cli/test"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/suite"
+	"gopkg.in/yaml.v2"
 )
 
 type InitTestSuite struct {
@@ -108,7 +110,7 @@ func (s *InitTestSuite) TestTerminalConfirm() {
 	s.Require().False(confirmed)
 }
 
-func (s *InitTestSuite) TestInitWithExistingConfig() {
+func (s *InitTestSuite) TestInitWithExistingConfigDeclined() {
 	configFile := test.TempConfigFileWithObj(map[string]string{
 		"app":   "example.com/app",
 		"token": "123456",
@@ -136,4 +138,50 @@ func (s *InitTestSuite) TestInitWithExistingConfig() {
 	})
 	s.Require().Error(err)
 	s.Require().EqualError(err, terminal.InterruptErr.Error())
+}
+
+func (s *InitTestSuite) TestInitWithExistingConfigAccepted() {
+	configFile := test.TempConfigFileWithObj(map[string]string{
+		"app":   "example.com/app",
+		"token": "123456",
+	})
+
+	rootCmd := command.NewRootCommand()
+	ice := test.NewInteractiveCommandExecutor(rootCmd, expect.WithDefaultTimeout(10.0*time.Second))
+	ice.PreExecutionFunc = func(context *test.InteractiveExecutionContext) error {
+		// Attach the survey library to the console
+		// This is necessary because of type safety fun with modeling around file readers
+		command.Stdio = terminal.Stdio{NewPassthroughPipeFile(context.GetStdin()), context.GetStdout(), context.GetStderr()}
+		return nil
+	}
+	context, err := ice.Execute(test.Args("--config", configFile.Name(), "init"), func(_ *test.InteractiveExecutionContext, console *expect.Console) error {
+		if _, err := console.ExpectString(fmt.Sprintf("Using config from: %s", configFile.Name())); err != nil {
+			return err
+		}
+		str := fmt.Sprintf("? Existing config found. Overwrite %s?", configFile.Name())
+		_, err := console.ExpectString(str)
+		s.Require().NoError(err)
+		_, err = console.SendLine("Y")
+		s.Require().NoError(err)
+		console.Expect(expect.RegexpPattern("Opsani app"))
+		_, err = console.SendLine("dev.opsani.com/amazing-app")
+		console.Expect(expect.RegexpPattern("API Token"))
+		_, err = console.SendLine("123456")
+		str = fmt.Sprintf("Write to %s?", configFile.Name())
+		console.Expect(expect.RegexpPattern(str))
+		console.ExpectEOF()
+		_, err = console.SendLine("Y")
+		s.Require().NoError(err)
+		console.Expect(expect.RegexpPattern("Opsani config initialized"))
+		console.ExpectEOF()
+		return nil
+	})
+	s.Require().NoError(err, context.GetOutputBuffer())
+
+	// Check the config file
+	var config = &map[string]interface{}{}
+	body, err := ioutil.ReadFile(configFile.Name())
+	err = yaml.Unmarshal(body, &config)
+	s.Require().EqualValues(&map[string]interface{}{"app": "example.com/app", "token": "123456"}, config)
+
 }
