@@ -17,7 +17,6 @@ package command_test
 import (
 	"fmt"
 	"io/ioutil"
-	"os"
 	"testing"
 	"time"
 
@@ -59,10 +58,9 @@ func (s *InitTestSuite) TestRunningInitHelp() {
 func (s *InitTestSuite) TestTerminalInteraction() {
 	var name string
 	test.RunTestInInteractiveTerminal(s.T(), func(context *test.InteractiveExecutionContext) error {
-		proxy := NewPassthroughPipeFile(context.GetStdin())
 		return survey.AskOne(&survey.Input{
 			Message: "What is your name?",
-		}, &name, survey.WithStdio(proxy, context.GetStdout(), context.GetStderr()))
+		}, &name, survey.WithStdio(context.GetStdin(), context.GetStdout(), context.GetStderr()))
 	}, func(_ *test.InteractiveExecutionContext, c *expect.Console) error {
 		s.RequireNoErr2(c.ExpectString("What is your name?"))
 		c.SendLine("Blake Watters")
@@ -76,31 +74,12 @@ func (s *InitTestSuite) RequireNoErr2(_ interface{}, err error) {
 	s.Require().NoError(err)
 }
 
-type PassthroughPipeFile struct {
-	*expect.PassthroughPipe
-	file *os.File
-}
-
-func (s *PassthroughPipeFile) Fd() uintptr {
-	return s.file.Fd()
-}
-
-func NewPassthroughPipeFile(stdin *os.File) *PassthroughPipeFile {
-	file := os.NewFile(stdin.Fd(), "pipe")
-	pipe, _ := expect.NewPassthroughPipe(stdin)
-	pipe.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
-	return &PassthroughPipeFile{
-		file:            file,
-		PassthroughPipe: pipe,
-	}
-}
-
 func (s *InitTestSuite) TestTerminalConfirm() {
 	var confirmed bool = true
 	test.RunTestInInteractiveTerminal(s.T(), func(context *test.InteractiveExecutionContext) error {
 		return survey.AskOne(&survey.Confirm{
 			Message: "Delete file?",
-		}, &confirmed, survey.WithStdio(NewPassthroughPipeFile(context.GetStdin()), context.GetStdout(), context.GetStderr()))
+		}, &confirmed, survey.WithStdio(context.GetStdin(), context.GetStdout(), context.GetStderr()))
 	}, func(_ *test.InteractiveExecutionContext, c *expect.Console) error {
 		s.RequireNoErr2(c.Expect(expect.RegexpPattern("Delete file?")))
 		c.SendLine("N")
@@ -121,7 +100,7 @@ func (s *InitTestSuite) TestInitWithExistingConfigDeclined() {
 	ice.PreExecutionFunc = func(context *test.InteractiveExecutionContext) error {
 		// Attach the survey library to the console
 		// This is necessary because of type safety fun with modeling around file readers
-		command.Stdio = terminal.Stdio{NewPassthroughPipeFile(context.GetStdin()), context.GetStdout(), context.GetStderr()}
+		command.Stdio = terminal.Stdio{context.GetStdin(), context.GetStdout(), context.GetStderr()}
 		return nil
 	}
 	_, err := ice.Execute(test.Args("--config", configFile.Name(), "init"), func(_ *test.InteractiveExecutionContext, console *expect.Console) error {
@@ -151,7 +130,7 @@ func (s *InitTestSuite) TestInitWithExistingConfigAccepted() {
 	ice.PreExecutionFunc = func(context *test.InteractiveExecutionContext) error {
 		// Attach the survey library to the console
 		// This is necessary because of type safety fun with modeling around file readers
-		command.Stdio = terminal.Stdio{NewPassthroughPipeFile(context.GetStdin()), context.GetStdout(), context.GetStderr()}
+		command.Stdio = terminal.Stdio{test.NewPassthroughPipeFile(context.GetStdin()), context.GetStdout(), context.GetStderr()}
 		return nil
 	}
 	context, err := ice.Execute(test.Args("--config", configFile.Name(), "init"), func(_ *test.InteractiveExecutionContext, console *expect.Console) error {

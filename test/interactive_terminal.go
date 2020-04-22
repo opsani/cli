@@ -25,6 +25,7 @@ import (
 	expect "github.com/Netflix/go-expect"
 	"github.com/hinshun/vt10x"
 	"github.com/spf13/cobra"
+	"github.com/kr/pty"
 )
 
 // RunTestInInteractiveTerminal runs a test within an interactive terminal environment
@@ -103,6 +104,48 @@ func NewInteractiveCommandExecutor(command *cobra.Command, consoleOpts ...expect
 // SetTimeout sets the timeout for command execution
 func (ice *InteractiveCommandExecutor) SetTimeout(timeout time.Duration) {
 	ice.consoleOpts = append(ice.consoleOpts, expect.WithDefaultTimeout(timeout))
+}
+
+type PassthroughPipeFile struct {
+	*expect.PassthroughPipe
+	file *os.File
+}
+
+func (s *PassthroughPipeFile) Fd() uintptr {
+	return s.file.Fd()
+}
+
+func NewPassthroughPipeFile(stdin *os.File) *PassthroughPipeFile {
+	file := os.NewFile(stdin.Fd(), "pipe")
+	pipe, _ := expect.NewPassthroughPipe(stdin)
+	pipe.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
+	return &PassthroughPipeFile{
+		file:            file,
+		PassthroughPipe: pipe,
+	}
+}
+
+func buildVT10X(consoleOpts ...expect.ConsoleOpt) (*expect.Console, *vt10x.State, error) {
+	ptm, pts, err := pty.Open()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var state vt10x.State
+	term, err := vt10x.Create(&state, pts)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	c, err := expect.NewConsole(append(consoleOpts, 
+		expect.WithStdin(NewPassthroughPipeFile(ptm)), 
+		expect.WithStdout(term), 
+		expect.WithCloser(pts, ptm, term))...)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return c, &state, nil
 }
 
 // ExecuteInInteractiveTerminal runs a pair of functions connected in an interactive virtual terminal environment
