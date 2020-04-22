@@ -16,7 +16,6 @@ package command_test
 
 import (
 	"fmt"
-	"io"
 	"os"
 	"testing"
 	"time"
@@ -58,17 +57,24 @@ func (s *InitTestSuite) TestRunningInitHelp() {
 func (s *InitTestSuite) TestTerminalInteraction() {
 	var name string
 	test.RunTestInInteractiveTerminal(s.T(), func(context *test.InteractiveExecutionContext) error {
+		// pipe, _ := expect.NewPassthroughPipe(context.GetStdin())
+		// pipe.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
+		// mock := &FakeFileReader{
+		// 	PassthroughPipe: pipe,
+		// }
+		// go func(stdin io.Reader) {
+		// 	_, err := io.Copy(context.GetConsole(), stdin)
+		// 	if err != nil {
+		// 		context.GetConsole().Logf("failed to copy stdin: %s", err)
+		// 	}
+		// }(pipe)
+		file := os.NewFile(context.GetStdin().Fd(), "pipe")
 		pipe, _ := expect.NewPassthroughPipe(context.GetStdin())
-		pipe.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
+		pipe.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
 		mock := &FakeFileReader{
+			file:            file,
 			PassthroughPipe: pipe,
 		}
-		go func(stdin io.Reader) {
-			_, err := io.Copy(context.GetConsole(), stdin)
-			if err != nil {
-				context.GetConsole().Logf("failed to copy stdin: %s", err)
-			}
-		}(pipe)
 		return survey.AskOne(&survey.Input{
 			Message: "What is your name?",
 		}, &name, survey.WithStdio(mock, context.GetStdout(), context.GetStderr()))
@@ -115,7 +121,6 @@ func (s *InitTestSuite) TestTerminalConfirm() {
 		c.ExpectEOF()
 		return nil
 	})
-	// panic("adass")
 	s.Require().False(confirmed)
 }
 
