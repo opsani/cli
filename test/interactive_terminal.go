@@ -52,7 +52,7 @@ func (s *PassthroughPipeFile) Fd() uintptr {
 func NewPassthroughPipeFile(inFile *os.File) (*PassthroughPipeFile, error) {
 	file := os.NewFile(inFile.Fd(), "pipe")
 	if file == nil {
-		fmt.Errorf("os.NewFile failed: is your file descriptor valid?")
+		return nil, fmt.Errorf("os.NewFile failed: is your file descriptor valid?")
 	}
 	pipe, err := expect.NewPassthroughPipe(inFile)
 	if err != nil {
@@ -83,6 +83,7 @@ type InteractiveExecutionContext struct {
 	terminalState  *vt10x.State
 	console        *expect.Console
 	passthroughTty *PassthroughPipeFile
+	closerProxy    *closerProxy
 }
 
 // Tty returns the Tty of the underlying expect.Console instance
@@ -132,6 +133,7 @@ func (ice *InteractiveExecutionContext) PassthroughTty() *PassthroughPipeFile {
 		if err != nil {
 			panic(err)
 		}
+		ice.closerProxy.target = passthroughTty
 		ice.passthroughTty = passthroughTty
 	}
 	return ice.passthroughTty
@@ -172,15 +174,28 @@ func (ice *InteractiveCommandExecutor) SetTimeout(timeout time.Duration) {
 	ice.consoleOpts = append(ice.consoleOpts, expect.WithDefaultTimeout(timeout))
 }
 
+type closerProxy struct {
+	target io.Closer
+}
+
+func (cp *closerProxy) Close() error {
+	if cp.target != nil {
+		return cp.target.Close()
+	}
+	return nil
+}
+
 // ExecuteInInteractiveTerminal runs a pair of functions connected in an interactive virtual terminal environment
 func ExecuteInInteractiveTerminal(
 	processFunc InteractiveProcessFunc, // Represents the process that the user is interacting with via the terminal
 	userFunc InteractiveUserFunc, // Represents the user interacting with the process
 	consoleOpts ...expect.ConsoleOpt) (*InteractiveExecutionContext, error) {
+	closerProxy := new(closerProxy) // Create a proxy object to close our Tty proxy later
 	outputBuffer := new(bytes.Buffer)
 	console, terminalState, err := vt10x.NewVT10XConsole(
 		append([]expect.ConsoleOpt{
 			expect.WithStdout(outputBuffer),
+			expect.WithCloser(closerProxy),
 			expect.WithDefaultTimeout(100 * time.Millisecond),
 		}, consoleOpts...)...)
 	if err != nil {
@@ -193,6 +208,7 @@ func ExecuteInInteractiveTerminal(
 		outputBuffer:  outputBuffer,
 		console:       console,
 		terminalState: terminalState,
+		closerProxy:   closerProxy,
 	}
 
 	// Execute our function within a channel and wait for exit
