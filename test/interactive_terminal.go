@@ -79,11 +79,20 @@ func RunTestInInteractiveTerminal(t *testing.T,
 
 // InteractiveExecutionContext describes the state of an interactive terminal execution
 type InteractiveExecutionContext struct {
-	outputBuffer   *bytes.Buffer
-	terminalState  *vt10x.State
-	console        *expect.Console
-	passthroughTty *PassthroughPipeFile
-	closerProxy    *closerProxy
+	outputBuffer           *bytes.Buffer
+	terminalState          *vt10x.State
+	console                *expect.Console
+	passthroughTty         *PassthroughPipeFile
+	closerProxy            *closerProxy
+	expectDeadlineObserver *expectDeadlineObserver
+}
+
+// ReadTimeout returns the read time for the process side of an interactive execution
+// expect.Console takes care of establishing a proxy pipe on the master side of the Tty
+// but in a unit testing situation we have read failures on the slave side where the process
+// may be waiting for input from the user
+func (ice *InteractiveExecutionContext) ReadTimeout() time.Duration {
+	return *ice.expectDeadlineObserver.readTimeout
 }
 
 // Tty returns the Tty of the underlying expect.Console instance
@@ -128,13 +137,15 @@ func (ice *InteractiveExecutionContext) PassthroughTty() *PassthroughPipeFile {
 	// Wrap the Tty into a PassthroughPipeFile to enable deadline support (NewPassthroughPipeFileReader??)
 	if ice.passthroughTty == nil {
 		passthroughTty, err := NewPassthroughPipeFile(ice.Tty())
-		// TODO: SETTING THE DEADLINE IS CRITICAL
-		passthroughTty.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
 		if err != nil {
 			panic(err)
 		}
-		ice.closerProxy.target = passthroughTty
 		ice.passthroughTty = passthroughTty
+		ice.closerProxy.target = passthroughTty
+		ice.expectDeadlineObserver.passthroughPipe = passthroughTty.PassthroughPipe
+		if readTimeout := ice.ReadTimeout(); readTimeout != 0 {
+			passthroughTty.SetReadDeadline(time.Now().Add(readTimeout))
+		}
 	}
 	return ice.passthroughTty
 }
@@ -174,6 +185,7 @@ func (ice *InteractiveCommandExecutor) SetTimeout(timeout time.Duration) {
 	ice.consoleOpts = append(ice.consoleOpts, expect.WithDefaultTimeout(timeout))
 }
 
+// Closes out the passthrough proxy
 type closerProxy struct {
 	target io.Closer
 }
@@ -185,30 +197,59 @@ func (cp *closerProxy) Close() error {
 	return nil
 }
 
+// Extends the read deadline on the passthrough pipe after expect operations
+type expectDeadlineObserver struct {
+	passthroughPipe *expect.PassthroughPipe
+	readTimeout     *time.Duration
+}
+
+func (eo *expectDeadlineObserver) observeExpect(matchers []expect.Matcher, buf string, err error) {
+	if eo.passthroughPipe == nil || eo.readTimeout == nil || err != nil {
+		return
+	}
+
+	err = eo.passthroughPipe.SetReadDeadline(time.Now().Add(*eo.readTimeout))
+	if err != nil {
+		panic(err)
+	}
+}
+
 // ExecuteInInteractiveTerminal runs a pair of functions connected in an interactive virtual terminal environment
 func ExecuteInInteractiveTerminal(
 	processFunc InteractiveProcessFunc, // Represents the process that the user is interacting with via the terminal
 	userFunc InteractiveUserFunc, // Represents the user interacting with the process
 	consoleOpts ...expect.ConsoleOpt) (*InteractiveExecutionContext, error) {
+	expectDeadlineObserver := new(expectDeadlineObserver)
 	closerProxy := new(closerProxy) // Create a proxy object to close our Tty proxy later
 	outputBuffer := new(bytes.Buffer)
-	console, terminalState, err := vt10x.NewVT10XConsole(
-		append([]expect.ConsoleOpt{
-			expect.WithStdout(outputBuffer),
-			expect.WithCloser(closerProxy),
-			expect.WithDefaultTimeout(100 * time.Millisecond),
-		}, consoleOpts...)...)
+	consoleOpts = append([]expect.ConsoleOpt{
+		expect.WithStdout(outputBuffer),
+		expect.WithExpectObserver(expectDeadlineObserver.observeExpect),
+		expect.WithCloser(closerProxy),
+		expect.WithDefaultTimeout(100 * time.Millisecond),
+	}, consoleOpts...)
+	console, terminalState, err := vt10x.NewVT10XConsole(consoleOpts...)
 	if err != nil {
 		return nil, err
 	}
 	defer console.Close()
 
+	// Use the same timeout in effect on the slave (user) side on the master (process) side pf the PTY
+	timeoutOpts := expect.ConsoleOpts{}
+	for _, opt := range consoleOpts {
+		if err := opt(&timeoutOpts); err != nil {
+			return nil, err
+		}
+	}
+	expectDeadlineObserver.readTimeout = timeoutOpts.ReadTimeout
+
 	// Create the execution context
 	executionContext := &InteractiveExecutionContext{
-		outputBuffer:  outputBuffer,
-		console:       console,
-		terminalState: terminalState,
-		closerProxy:   closerProxy,
+		outputBuffer:           outputBuffer,
+		console:                console,
+		terminalState:          terminalState,
+		closerProxy:            closerProxy,
+		expectDeadlineObserver: expectDeadlineObserver,
 	}
 
 	// Execute our function within a channel and wait for exit
