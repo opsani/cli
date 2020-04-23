@@ -57,10 +57,12 @@ func (s *InitTestSuite) TestRunningInitHelp() {
 func (s *InitTestSuite) TestTerminalInteraction() {
 	var name string
 	test.RunTestInInteractiveTerminal(s.T(), func(context *test.InteractiveExecutionContext) error {
+		fmt.Printf("%v\n", context)
 		return survey.AskOne(&survey.Input{
 			Message: "What is your name?",
-		}, &name, survey.WithStdio(context.GetStdin(), context.GetStdout(), context.GetStderr()))
+		}, &name, survey.WithStdio(context.Tty(), context.Tty(), context.Tty()))
 	}, func(_ *test.InteractiveExecutionContext, c *expect.Console) error {
+		// panic("sdasd")
 		s.RequireNoErr2(c.ExpectString("What is your name?"))
 		c.SendLine("Blake Watters")
 		c.ExpectEOF()
@@ -78,7 +80,7 @@ func (s *InitTestSuite) TestTerminalConfirm() {
 	test.RunTestInInteractiveTerminal(s.T(), func(context *test.InteractiveExecutionContext) error {
 		return survey.AskOne(&survey.Confirm{
 			Message: "Delete file?",
-		}, &confirmed, survey.WithStdio(context.GetStdin(), context.GetStdout(), context.GetStderr()))
+		}, &confirmed, survey.WithStdio(context.Tty(), context.Tty(), context.Tty()))
 	}, func(_ *test.InteractiveExecutionContext, c *expect.Console) error {
 		s.RequireNoErr2(c.Expect(expect.RegexpPattern("Delete file?")))
 		c.SendLine("N")
@@ -99,14 +101,15 @@ func (s *InitTestSuite) TestInitWithExistingConfigDeclined() {
 	ice.PreExecutionFunc = func(context *test.InteractiveExecutionContext) error {
 		// Attach the survey library to the console
 		// This is necessary because of type safety fun with modeling around file readers
-		command.Stdio = terminal.Stdio{In: test.NewPassthroughPipeFile(context.GetStdin()), Out: context.GetStdout(), Err: context.GetStderr()}
+		command.Stdio = terminal.Stdio{In: context.PassthroughTty(), Out: context.PassthroughTty(), Err: context.PassthroughTty()}
+		// command.Stdio = terminal.Stdio{In: test.NewPassthroughPipeFile(context.GetStdin()), Out: context.GetStdout(), Err: context.GetStderr()}
 		return nil
 	}
 	_, err := ice.Execute(test.Args("--config", configFile.Name(), "init"), func(_ *test.InteractiveExecutionContext, console *expect.Console) error {
 		if _, err := console.ExpectString(fmt.Sprintf("Using config from: %s", configFile.Name())); err != nil {
 			return err
 		}
-		str := fmt.Sprintf("? Existing config found. Overwrite %s?", configFile.Name())
+		str := fmt.Sprintf("? Ex isting config found. Overwrite %s?", configFile.Name())
 		_, err := console.ExpectString(str)
 		s.Require().NoErrorf(err, "Failed reading %q: %v", str, err)
 		_, err = console.SendLine("N")
@@ -129,7 +132,7 @@ func (s *InitTestSuite) TestInitWithExistingConfigAccepted() {
 	ice.PreExecutionFunc = func(context *test.InteractiveExecutionContext) error {
 		// Attach the survey library to the console
 		// This is necessary because of type safety fun with modeling around file readers
-		command.Stdio = terminal.Stdio{In: test.NewPassthroughPipeFile(context.GetStdin()), Out: context.GetStdout(), Err: context.GetStderr()}
+		command.Stdio = terminal.Stdio{In: context.PassthroughTty(), Out: context.PassthroughTty(), Err: context.PassthroughTty()}
 		return nil
 	}
 	context, err := ice.Execute(test.Args("--config", configFile.Name(), "init"), func(_ *test.InteractiveExecutionContext, console *expect.Console) error {
@@ -154,7 +157,7 @@ func (s *InitTestSuite) TestInitWithExistingConfigAccepted() {
 		console.ExpectEOF()
 		return nil
 	})
-	s.Require().NoError(err, context.GetOutputBuffer().String())
+	s.Require().NoError(err, context.OutputBuffer().String())
 
 	// Check the config file
 	var config = map[string]interface{}{}
