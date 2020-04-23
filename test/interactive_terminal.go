@@ -65,7 +65,7 @@ func NewPassthroughPipeFile(inFile *os.File) (*PassthroughPipeFile, error) {
 }
 
 // RunTestInInteractiveTerminal runs a test within an interactive terminal environment
-// Executin requires a standard test instance, a pair of functions that execute the code
+// Execution requires a standard test instance, a pair of functions that execute the code
 // under test and the test code, and any desired options for configuring the virtual terminal environment
 func RunTestInInteractiveTerminal(t *testing.T,
 	codeUnderTestFunc InteractiveProcessFunc,
@@ -283,8 +283,8 @@ func ExecuteInInteractiveTerminal(
 	return executionContext, err
 }
 
-// Execute runs the specified command interactively and returns an execution context object upon completion
-func (ice *InteractiveCommandExecutor) Execute(args []string, interactionFunc InteractiveUserFunc) (*InteractiveExecutionContext, error) {
+// ExecuteInteractively runs the specified command interactively and returns an execution context object upon completion
+func (ice *InteractiveCommandExecutor) ExecuteInteractively(args []string, interactionFunc InteractiveUserFunc) (*InteractiveExecutionContext, error) {
 	// Wrap our execution func with setup for Command execution
 	commandExecutionFunc := func(context *InteractiveExecutionContext) error {
 		ice.command.SetIn(context.Stdin())
@@ -307,9 +307,9 @@ func (ice *InteractiveCommandExecutor) Execute(args []string, interactionFunc In
 	return ExecuteInInteractiveTerminal(commandExecutionFunc, interactionFunc, ice.consoleOpts...)
 }
 
-// ExecuteString executes the target command by splitting the args string at space boundaries
+// ExecuteStringInteractively executes the target command by splitting the args string at space boundaries
 // This is a convenience interface suitable only for simple arguments that do not contain quoted values or literals
 // If you need something more advanced please use the Execute() and Args() method to compose from a variadic list of arguments
-func (ice *InteractiveCommandExecutor) ExecuteString(argsStr string, interactionFunc InteractiveUserFunc) (*InteractiveExecutionContext, error) {
-	return ice.Execute(strings.Split(argsStr, " "), interactionFunc)
+func (ice *InteractiveCommandExecutor) ExecuteStringInteractively(argsStr string, interactionFunc InteractiveUserFunc) (*InteractiveExecutionContext, error) {
+	return ice.ExecuteInteractively(strings.Split(argsStr, " "), interactionFunc)
 }

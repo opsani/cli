@@ -34,6 +34,7 @@ import (
 type InitTestSuite struct {
 	suite.Suite
 	*test.OpsaniCommandExecutor
+	*test.InteractiveCommandExecutor
 }
 
 func TestInitTestSuite(t *testing.T) {
@@ -134,11 +135,23 @@ func (ict *InteractiveCommandTest) RequireStringf(format string, args ...interfa
 	return ict.RequireString(fmt.Sprintf(format, args...))
 }
 
-func (s *InitTestSuite) RunTestCommandE(
+func (s *InitTestSuite) ExecuteCommandInteractivelyE(
 	ice *test.InteractiveCommandExecutor,
 	args []string,
 	testFunc func(*InteractiveCommandTest) error) (*test.InteractiveExecutionContext, error) {
-	return ice.Execute(args, func(context *test.InteractiveExecutionContext, console *expect.Console) error {
+	return ice.ExecuteInteractively(args, func(context *test.InteractiveExecutionContext, console *expect.Console) error {
+		return testFunc(&InteractiveCommandTest{
+			console: console,
+			context: context,
+			s:       s,
+		})
+	})
+}
+
+func (s *InitTestSuite) ExecuteCommandInteractively(
+	args []string,
+	testFunc func(*InteractiveCommandTest) error) (*test.InteractiveExecutionContext, error) {
+	return s.ExecuteInteractively(args, func(context *test.InteractiveExecutionContext, console *expect.Console) error {
 		return testFunc(&InteractiveCommandTest{
 			console: console,
 			context: context,
@@ -155,7 +168,7 @@ func (s *InitTestSuite) TestInitWithExistingConfigDeclined() {
 
 	rootCmd := command.NewRootCommand()
 	ice := test.NewInteractiveCommandExecutor(rootCmd)
-	context, err := s.RunTestCommandE(ice, test.Args("--config", configFile.Name(), "init"), func(t *InteractiveCommandTest) error {
+	context, err := s.ExecuteCommandInteractivelyE(ice, test.Args("--config", configFile.Name(), "init"), func(t *InteractiveCommandTest) error {
 		fmt.Printf("? Console = %v, Context = %v, t = %v, require = %v", t.console, t.context, t.s, t.s)
 		t.RequireStringf("Using config from: %s", configFile.Name())
 		t.RequireStringf("? Existing config found. Overwrite %s?", configFile.Name())
@@ -176,7 +189,7 @@ func (s *InitTestSuite) TestInitWithExistingConfigAccepted() {
 
 	rootCmd := command.NewRootCommand()
 	ice := test.NewInteractiveCommandExecutor(rootCmd)
-	context, err := ice.Execute(test.Args("--config", configFile.Name(), "init"), func(_ *test.InteractiveExecutionContext, console *expect.Console) error {
+	context, err := ice.ExecuteInteractively(test.Args("--config", configFile.Name(), "init"), func(_ *test.InteractiveExecutionContext, console *expect.Console) error {
 		if _, err := console.ExpectString(fmt.Sprintf("Using config from: %s", configFile.Name())); err != nil {
 			return err
 		}
