@@ -26,6 +26,7 @@ import (
 	"github.com/opsani/cli/command"
 	"github.com/opsani/cli/test"
 	"github.com/spf13/viper"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"gopkg.in/yaml.v2"
 )
@@ -89,6 +90,63 @@ func (s *InitTestSuite) TestTerminalConfirm() {
 	s.Require().False(confirmed)
 }
 
+type InteractiveCommandTest struct {
+	console *expect.Console
+	context *test.InteractiveExecutionContext
+	s       *InitTestSuite
+}
+
+func (ict *InteractiveCommandTest) Require() *require.Assertions {
+	return ict.s.Require()
+}
+
+func (ict *InteractiveCommandTest) SendLine(s string) (int, error) {
+	l, err := ict.console.SendLine(s)
+	ict.Require().NoError(err)
+	return l, err
+}
+
+func (ict *InteractiveCommandTest) ExpectEOF() (string, error) {
+	return ict.console.ExpectEOF()
+}
+
+func (ict *InteractiveCommandTest) ExpectString(s string) (string, error) {
+	return ict.console.ExpectString(s)
+}
+
+func (ict *InteractiveCommandTest) ExpectStringf(format string, args ...interface{}) (string, error) {
+	return ict.ExpectString(fmt.Sprintf(format, args...))
+}
+
+func (ict *InteractiveCommandTest) RequireEOF() (string, error) {
+	l, err := ict.console.ExpectEOF()
+	ict.Require().NoErrorf(err, "Unexpected error %q: - ", err, ict.context.OutputBuffer().String())
+	return l, err
+}
+
+func (ict *InteractiveCommandTest) RequireString(s string) (string, error) {
+	l, err := ict.console.ExpectString(s)
+	ict.Require().NoErrorf(err, "Failed while attempting to read %q: %v", s, err)
+	return l, err
+}
+
+func (ict *InteractiveCommandTest) RequireStringf(format string, args ...interface{}) (string, error) {
+	return ict.RequireString(fmt.Sprintf(format, args...))
+}
+
+func (s *InitTestSuite) RunTestCommandE(
+	ice *test.InteractiveCommandExecutor,
+	args []string,
+	testFunc func(*InteractiveCommandTest) error) (*test.InteractiveExecutionContext, error) {
+	return ice.Execute(args, func(context *test.InteractiveExecutionContext, console *expect.Console) error {
+		return testFunc(&InteractiveCommandTest{
+			console: console,
+			context: context,
+			s:       s,
+		})
+	})
+}
+
 func (s *InitTestSuite) TestInitWithExistingConfigDeclined() {
 	configFile := test.TempConfigFileWithObj(map[string]string{
 		"app":   "example.com/app",
@@ -97,18 +155,15 @@ func (s *InitTestSuite) TestInitWithExistingConfigDeclined() {
 
 	rootCmd := command.NewRootCommand()
 	ice := test.NewInteractiveCommandExecutor(rootCmd)
-	_, err := ice.Execute(test.Args("--config", configFile.Name(), "init"), func(_ *test.InteractiveExecutionContext, console *expect.Console) error {
-		if _, err := console.ExpectString(fmt.Sprintf("Using config from: %s", configFile.Name())); err != nil {
-			return err
-		}
-		str := fmt.Sprintf("? Existing config found. Overwrite %s?", configFile.Name())
-		_, err := console.ExpectString(str)
-		s.Require().NoErrorf(err, "Failed reading %q: %v", str, err)
-		_, err = console.SendLine("N")
-		s.Require().NoError(err)
-		_, err = console.ExpectEOF()
+	context, err := s.RunTestCommandE(ice, test.Args("--config", configFile.Name(), "init"), func(t *InteractiveCommandTest) error {
+		fmt.Printf("? Console = %v, Context = %v, t = %v, require = %v", t.console, t.context, t.s, t.s)
+		t.RequireStringf("Using config from: %s", configFile.Name())
+		t.RequireStringf("? Existing config found. Overwrite %s?", configFile.Name())
+		t.SendLine("N")
+		t.console.ExpectEOF()
 		return nil
 	})
+	s.T().Logf("%v", context.OutputBuffer().String())
 	s.Require().Error(err)
 	s.Require().EqualError(err, terminal.InterruptErr.Error())
 }
