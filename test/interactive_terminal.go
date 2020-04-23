@@ -30,7 +30,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// TODO: Rename to PassthroughTty
 // PassthroughPipeFile wraps a file with a PassthroughPipe to add read deadline support
 type PassthroughPipeFile struct {
 	*expect.PassthroughPipe
@@ -194,7 +193,6 @@ func ExecuteInInteractiveTerminal(
 		outputBuffer:  outputBuffer,
 		console:       console,
 		terminalState: terminalState,
-		// passthroughTty: passthroughTty,
 	}
 
 	// Execute our function within a channel and wait for exit
