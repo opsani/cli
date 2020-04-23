@@ -62,7 +62,6 @@ func (s *InitTestSuite) TestTerminalInteraction() {
 			Message: "What is your name?",
 		}, &name, survey.WithStdio(context.Tty(), context.Tty(), context.Tty()))
 	}, func(_ *test.InteractiveExecutionContext, c *expect.Console) error {
-		// panic("sdasd")
 		s.RequireNoErr2(c.ExpectString("What is your name?"))
 		c.SendLine("Blake Watters")
 		c.ExpectEOF()
@@ -109,7 +108,7 @@ func (s *InitTestSuite) TestInitWithExistingConfigDeclined() {
 		if _, err := console.ExpectString(fmt.Sprintf("Using config from: %s", configFile.Name())); err != nil {
 			return err
 		}
-		str := fmt.Sprintf("? Ex isting config found. Overwrite %s?", configFile.Name())
+		str := fmt.Sprintf("? Existing config found. Overwrite %s?", configFile.Name())
 		_, err := console.ExpectString(str)
 		s.Require().NoErrorf(err, "Failed reading %q: %v", str, err)
 		_, err = console.SendLine("N")

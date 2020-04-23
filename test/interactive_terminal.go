@@ -49,14 +49,12 @@ func (s *PassthroughPipeFile) Fd() uintptr {
 
 // NewPassthroughPipeFile returns a new PassthroughPipeFile that wraps the input file to enable read deadline support
 func NewPassthroughPipeFile(inFile *os.File) (*PassthroughPipeFile, error) {
-	file := os.NewFile(inFile.Fd(), "pipe") // TODO: Do I need this??
+	file := os.NewFile(inFile.Fd(), "pipe")
 	if file == nil {
-		panic("l;kg;lfdkg;fldkgd")
+		fmt.Errorf("os.NewFile failed: is your file descriptor valid?")
 	}
-	fmt.Printf("The inputFile is %v and the new file is %v", inFile, file)
 	pipe, err := expect.NewPassthroughPipe(inFile)
 	if err != nil {
-		panic(err)
 		return nil, err
 	}
 	return &PassthroughPipeFile{
