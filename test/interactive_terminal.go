@@ -86,35 +86,25 @@ type InteractiveExecutionContext struct {
 	passthroughTty *PassthroughPipeFile
 }
 
-// Tty returns the io.Reader to be used as stdin during execution
-// func (ice *InteractiveExecutionContext) Tty() *PassthroughPipeFile {
-// 	return ice.passthroughTty
-// }
+// Tty returns the Tty of the underlying expect.Console instance
+// You probably want to interact with the PassthroughTty which supports deadline based timeouts
 func (ice *InteractiveExecutionContext) Tty() *os.File {
-	// return ice.passthroughTty
 	return ice.console.Tty()
 }
 
 // Stdin returns the io.Reader to be used as stdin during execution
 func (ice *InteractiveExecutionContext) Stdin() io.Reader {
-	// if ice.passthroughTty == nil {
-
-	// }
-	// return ice.passthroughTty
-	// // return ice.passthroughTty
-	return ice.console.Tty()
+	return ice.PassthroughTty()
 }
 
 // Stdout returns the io.Writer to be used as stdout during execution
 func (ice *InteractiveExecutionContext) Stdout() io.Writer {
-	// return ice.passthroughTty
-	return ice.console.Tty()
+	return ice.PassthroughTty()
 }
 
 // Stderr returns the io.Writer to be used as stdout during execution
 func (ice *InteractiveExecutionContext) Stderr() io.Writer {
-	// return ice.passthroughTty
-	return ice.console.Tty()
+	return ice.PassthroughTty()
 }
 
 // OutputBuffer returns the output buffer read from the tty
@@ -132,6 +122,8 @@ func (ice *InteractiveExecutionContext) Console() *expect.Console {
 	return ice.console
 }
 
+// PassthroughTty returns a wrapper for the Tty that supports deadline based timeouts
+// The Std* family of methods are all aliases for the passthrough tty
 func (ice *InteractiveExecutionContext) PassthroughTty() *PassthroughPipeFile {
 	// Wrap the Tty into a PassthroughPipeFile to enable deadline support (NewPassthroughPipeFileReader??)
 	if ice.passthroughTty == nil {
