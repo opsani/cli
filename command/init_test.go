@@ -18,7 +18,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"testing"
-	"time"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/AlecAivazis/survey/v2/core"
@@ -96,11 +95,11 @@ func (s *InitTestSuite) TestInitWithExistingConfigDeclined() {
 	})
 
 	rootCmd := command.NewRootCommand()
-	ice := test.NewInteractiveCommandExecutor(rootCmd, expect.WithDefaultTimeout(1.0*time.Second))
+	ice := test.NewInteractiveCommandExecutor(rootCmd)
 	ice.PreExecutionFunc = func(context *test.InteractiveExecutionContext) error {
 		// Attach the survey library to the console
 		// This is necessary because of type safety fun with modeling around file readers
-		command.Stdio = terminal.Stdio{context.GetStdin(), context.GetStdout(), context.GetStderr()}
+		command.Stdio = terminal.Stdio{In: test.NewPassthroughPipeFile(context.GetStdin()), Out: context.GetStdout(), Err: context.GetStderr()}
 		return nil
 	}
 	_, err := ice.Execute(test.Args("--config", configFile.Name(), "init"), func(_ *test.InteractiveExecutionContext, console *expect.Console) error {
@@ -109,9 +108,9 @@ func (s *InitTestSuite) TestInitWithExistingConfigDeclined() {
 		}
 		str := fmt.Sprintf("? Existing config found. Overwrite %s?", configFile.Name())
 		_, err := console.ExpectString(str)
-		s.NoError(err)
+		s.Require().NoErrorf(err, "Failed reading %q: %v", str, err)
 		_, err = console.SendLine("N")
-		s.NoError(err)
+		s.Require().NoError(err)
 		_, err = console.ExpectEOF()
 		return nil
 	})
@@ -126,11 +125,11 @@ func (s *InitTestSuite) TestInitWithExistingConfigAccepted() {
 	})
 
 	rootCmd := command.NewRootCommand()
-	ice := test.NewInteractiveCommandExecutor(rootCmd, expect.WithDefaultTimeout(10.0*time.Second))
+	ice := test.NewInteractiveCommandExecutor(rootCmd)
 	ice.PreExecutionFunc = func(context *test.InteractiveExecutionContext) error {
 		// Attach the survey library to the console
 		// This is necessary because of type safety fun with modeling around file readers
-		command.Stdio = terminal.Stdio{test.NewPassthroughPipeFile(context.GetStdin()), context.GetStdout(), context.GetStderr()}
+		command.Stdio = terminal.Stdio{In: test.NewPassthroughPipeFile(context.GetStdin()), Out: context.GetStdout(), Err: context.GetStderr()}
 		return nil
 	}
 	context, err := ice.Execute(test.Args("--config", configFile.Name(), "init"), func(_ *test.InteractiveExecutionContext, console *expect.Console) error {
@@ -139,28 +138,28 @@ func (s *InitTestSuite) TestInitWithExistingConfigAccepted() {
 		}
 		str := fmt.Sprintf("? Existing config found. Overwrite %s?", configFile.Name())
 		_, err := console.ExpectString(str)
-		s.Require().NoError(err)
+		s.Require().NoErrorf(err, "Failed reading %q: %v", str, err)
 		_, err = console.SendLine("Y")
 		s.Require().NoError(err)
-		console.Expect(expect.RegexpPattern("Opsani app"))
+		_, err = console.Expect(expect.RegexpPattern("Opsani app"))
 		_, err = console.SendLine("dev.opsani.com/amazing-app")
 		console.Expect(expect.RegexpPattern("API Token"))
 		_, err = console.SendLine("123456")
 		str = fmt.Sprintf("Write to %s?", configFile.Name())
 		console.Expect(expect.RegexpPattern(str))
-		console.ExpectEOF()
+
 		_, err = console.SendLine("Y")
 		s.Require().NoError(err)
 		console.Expect(expect.RegexpPattern("Opsani config initialized"))
 		console.ExpectEOF()
 		return nil
 	})
-	s.Require().NoError(err, context.GetOutputBuffer())
+	s.Require().NoError(err, context.GetOutputBuffer().String())
 
 	// Check the config file
-	var config = &map[string]interface{}{}
+	var config = map[string]interface{}{}
 	body, err := ioutil.ReadFile(configFile.Name())
-	err = yaml.Unmarshal(body, &config)
-	s.Require().EqualValues(&map[string]interface{}{"app": "example.com/app", "token": "123456"}, config)
-
+	yaml.Unmarshal(body, &config)
+	s.Require().Equal("dev.opsani.com/amazing-app", config["app"])
+	s.Require().Equal("123456", config["token"])
 }
