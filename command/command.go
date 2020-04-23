@@ -29,7 +29,6 @@ import (
 // Command is a wrapper around cobra.Command that adds Opsani functionality
 type Command struct {
 	*cobra.Command
-	stdio terminal.Stdio
 
 	// Shadow all Cobra functions with Opsani equivalents
 	PersistentPreRun func(cmd *Command, args []string)
@@ -56,24 +55,15 @@ type Command struct {
 // Survey method wrappers
 // NOTE: These are necessary because of how the Survey library models in, out, and err
 
-func (cmd *Command) SetStdio(stdio terminal.Stdio) {
-	Stdio = stdio
-	cmd.stdio = stdio
+var globalStdio terminal.Stdio
 
-	// When stdio is set, cascade to Cobra
-	cmd.SetIn(stdio.In)
-	cmd.SetOut(stdio.Out)
-	cmd.SetErr(stdio.Err)
+func SetStdio(stdio terminal.Stdio) {
+	globalStdio = stdio
 }
 
-// TODO: Temporary global because of type issues
-var Stdio terminal.Stdio
-
-func (cmd *Command) GetStdio() terminal.Stdio {
-	if Stdio != (terminal.Stdio{}) {
-		return Stdio
-	} else if cmd.stdio != (terminal.Stdio{}) {
-		return cmd.stdio
+func (cmd *Command) Stdio() terminal.Stdio {
+	if globalStdio != (terminal.Stdio{}) {
+		return globalStdio
 	} else {
 		return terminal.Stdio{
 			In:  os.Stdin,
@@ -83,13 +73,15 @@ func (cmd *Command) GetStdio() terminal.Stdio {
 	}
 }
 
+// Ask is a wrapper for survey.AskOne that executes with the command's stdio
 func (cmd *Command) Ask(qs []*survey.Question, response interface{}, opts ...survey.AskOpt) error {
-	stdio := cmd.GetStdio()
+	stdio := cmd.Stdio()
 	return survey.Ask(qs, response, append(opts, survey.WithStdio(stdio.In, stdio.Out, stdio.Err))...)
 }
 
+// AskOne is a wrapper for survey.AskOne that executes with the command's stdio
 func (cmd *Command) AskOne(p survey.Prompt, response interface{}, opts ...survey.AskOpt) error {
-	stdio := cmd.GetStdio()
+	stdio := cmd.Stdio()
 	return survey.AskOne(p, response, append(opts, survey.WithStdio(stdio.In, stdio.Out, stdio.Err))...)
 }
 

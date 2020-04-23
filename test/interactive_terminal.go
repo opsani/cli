@@ -234,7 +234,7 @@ func (ice *InteractiveCommandExecutor) Execute(args []string, interactionFunc In
 		ice.command.SetErr(context.Stderr())
 		ice.command.SetArgs(args)
 
-		command.Stdio = terminal.Stdio{In: context.PassthroughTty(), Out: context.PassthroughTty(), Err: context.PassthroughTty()}
+		command.SetStdio(terminal.Stdio{In: context.PassthroughTty(), Out: context.PassthroughTty(), Err: context.PassthroughTty()})
 
 		if ice.PreExecutionFunc != nil {
 			ice.PreExecutionFunc(context)
