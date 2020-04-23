@@ -53,15 +53,18 @@ type Command struct {
 }
 
 // Survey method wrappers
-// NOTE: These are necessary because of how the Survey library models in, out, and err
-
+// Survey needs access to a file descriptor for configuring the terminal but Cobra wants to model
+// stdio as streams.
 var globalStdio terminal.Stdio
 
+// SetStdio is global package helper for testing where access to a file
+// descriptor for the TTY is required
 func SetStdio(stdio terminal.Stdio) {
 	globalStdio = stdio
 }
 
-func (cmd *Command) Stdio() terminal.Stdio {
+// stdio is a test helper for returning terminal file descriptors usable by Survey
+func (cmd *Command) stdio() terminal.Stdio {
 	if globalStdio != (terminal.Stdio{}) {
 		return globalStdio
 	} else {
@@ -75,13 +78,13 @@ func (cmd *Command) Stdio() terminal.Stdio {
 
 // Ask is a wrapper for survey.AskOne that executes with the command's stdio
 func (cmd *Command) Ask(qs []*survey.Question, response interface{}, opts ...survey.AskOpt) error {
-	stdio := cmd.Stdio()
+	stdio := cmd.stdio()
 	return survey.Ask(qs, response, append(opts, survey.WithStdio(stdio.In, stdio.Out, stdio.Err))...)
 }
 
 // AskOne is a wrapper for survey.AskOne that executes with the command's stdio
 func (cmd *Command) AskOne(p survey.Prompt, response interface{}, opts ...survey.AskOpt) error {
-	stdio := cmd.Stdio()
+	stdio := cmd.stdio()
 	return survey.AskOne(p, response, append(opts, survey.WithStdio(stdio.In, stdio.Out, stdio.Err))...)
 }
 
