@@ -48,6 +48,7 @@ func (s *InitTestSuite) SetupTest() {
 	rootCmd := command.NewRootCommand()
 
 	s.OpsaniCommandExecutor = test.NewOpsaniCommandExecutor(rootCmd)
+	s.InteractiveCommandExecutor = test.NewInteractiveCommandExecutor(rootCmd)
 }
 
 func (s *InitTestSuite) TestRunningInitHelp() {
@@ -119,6 +120,14 @@ func (ict *InteractiveCommandTest) ExpectStringf(format string, args ...interfac
 	return ict.ExpectString(fmt.Sprintf(format, args...))
 }
 
+func (ict *InteractiveCommandTest) ExpectMatch(opts ...expect.ExpectOpt) (string, error) {
+	return ict.console.Expect(opts...)
+}
+
+func (ict *InteractiveCommandTest) ExpectMatches(opts ...expect.ExpectOpt) (string, error) {
+	return ict.console.Expect(opts...)
+}
+
 func (ict *InteractiveCommandTest) RequireEOF() (string, error) {
 	l, err := ict.console.ExpectEOF()
 	ict.Require().NoErrorf(err, "Unexpected error %q: - ", err, ict.context.OutputBuffer().String())
@@ -133,6 +142,18 @@ func (ict *InteractiveCommandTest) RequireString(s string) (string, error) {
 
 func (ict *InteractiveCommandTest) RequireStringf(format string, args ...interface{}) (string, error) {
 	return ict.RequireString(fmt.Sprintf(format, args...))
+}
+
+func (ict *InteractiveCommandTest) RequireMatch(opts ...expect.ExpectOpt) (string, error) {
+	l, err := ict.console.Expect(opts...)
+	ict.Require().NoErrorf(err, "Failed while attempting to find a matcher for %q: %v", l, err)
+	return l, err
+}
+
+func (ict *InteractiveCommandTest) RequireMatches(opts ...expect.ExpectOpt) (string, error) {
+	l, err := ict.console.Expect(opts...)
+	ict.Require().NoErrorf(err, "Failed while attempting to find a matcher for %q: %v", l, err)
+	return l, err
 }
 
 func (s *InitTestSuite) ExecuteCommandInteractivelyE(
@@ -160,20 +181,36 @@ func (s *InitTestSuite) ExecuteCommandInteractively(
 	})
 }
 
+func (s *InitTestSuite) TestInitWithExistingConfigDeclinedL() {
+	configFile := test.TempConfigFileWithObj(map[string]string{
+		"app":   "example.com/app",
+		"token": "123456",
+	})
+
+	context, err := s.ExecuteCommandInteractively(test.Args("--config", configFile.Name(), "init"), func(t *InteractiveCommandTest) error {
+		fmt.Printf("? Console = %v, Context = %v, t = %v, require = %v", t.console, t.context, t.s, t.s)
+		t.RequireStringf("Using config from: %s", configFile.Name())
+		t.RequireStringf("? Existing config found. Overwrite %s?", configFile.Name())
+		t.SendLine("N")
+		t.console.ExpectEOF()
+		return nil
+	})
+	s.T().Logf("%v", context.OutputBuffer().String())
+	s.Require().Error(err)
+	s.Require().EqualError(err, terminal.InterruptErr.Error())
+}
+
 func (s *InitTestSuite) TestInitWithExistingConfigDeclined() {
 	configFile := test.TempConfigFileWithObj(map[string]string{
 		"app":   "example.com/app",
 		"token": "123456",
 	})
 
-	rootCmd := command.NewRootCommand()
-	ice := test.NewInteractiveCommandExecutor(rootCmd)
-	context, err := s.ExecuteCommandInteractivelyE(ice, test.Args("--config", configFile.Name(), "init"), func(t *InteractiveCommandTest) error {
-		fmt.Printf("? Console = %v, Context = %v, t = %v, require = %v", t.console, t.context, t.s, t.s)
+	context, err := s.ExecuteCommandInteractively(test.Args("--config", configFile.Name(), "init"), func(t *InteractiveCommandTest) error {
 		t.RequireStringf("Using config from: %s", configFile.Name())
 		t.RequireStringf("? Existing config found. Overwrite %s?", configFile.Name())
 		t.SendLine("N")
-		t.console.ExpectEOF()
+		t.ExpectEOF()
 		return nil
 	})
 	s.T().Logf("%v", context.OutputBuffer().String())
@@ -187,28 +224,18 @@ func (s *InitTestSuite) TestInitWithExistingConfigAccepted() {
 		"token": "123456",
 	})
 
-	rootCmd := command.NewRootCommand()
-	ice := test.NewInteractiveCommandExecutor(rootCmd)
-	context, err := ice.ExecuteInteractively(test.Args("--config", configFile.Name(), "init"), func(_ *test.InteractiveExecutionContext, console *expect.Console) error {
-		if _, err := console.ExpectString(fmt.Sprintf("Using config from: %s", configFile.Name())); err != nil {
-			return err
-		}
-		str := fmt.Sprintf("? Existing config found. Overwrite %s?", configFile.Name())
-		_, err := console.ExpectString(str)
-		s.Require().NoErrorf(err, "Failed reading %q: %v", str, err)
-		_, err = console.SendLine("Y")
-		s.Require().NoError(err)
-		_, err = console.Expect(expect.RegexpPattern("Opsani app"))
-		_, err = console.SendLine("dev.opsani.com/amazing-app")
-		console.Expect(expect.RegexpPattern("API Token"))
-		_, err = console.SendLine("123456")
-		str = fmt.Sprintf("Write to %s?", configFile.Name())
-		console.Expect(expect.RegexpPattern(str))
+	context, err := s.ExecuteCommandInteractively(test.Args("--config", configFile.Name(), "init"), func(t *InteractiveCommandTest) error {
+		t.RequireStringf("Using config from: %s", configFile.Name())
+		t.RequireStringf("? Existing config found. Overwrite %s?", configFile.Name())
+		t.SendLine("Y")
+		t.ExpectMatch(expect.RegexpPattern("Opsani app"))
+		t.SendLine("dev.opsani.com/amazing-app")
+		t.RequireMatch(expect.RegexpPattern("API Token"))
+		t.SendLine("123456")
+		t.RequireMatch(expect.RegexpPattern(fmt.Sprintf("Write to %s?", configFile.Name())))
 
-		_, err = console.SendLine("Y")
-		s.Require().NoError(err)
-		console.Expect(expect.RegexpPattern("Opsani config initialized"))
-		console.ExpectEOF()
+		t.SendLine("Y")
+		t.RequireMatch(expect.RegexpPattern("Opsani CLI initialized"))
 		return nil
 	})
 	s.Require().NoError(err, context.OutputBuffer().String())

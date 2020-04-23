@@ -216,7 +216,6 @@ func (eo *consoleObserver) observeSend(msg string, num int, err error) {
 
 func (eo *consoleObserver) extendDeadline() {
 	if readTimeout := eo.readTimeout; readTimeout != nil {
-		fmt.Printf("Read timeout is %v", *readTimeout)
 		err := eo.passthroughPipe.SetReadDeadline(time.Now().Add(*readTimeout))
 		if err != nil {
 			panic(err)
