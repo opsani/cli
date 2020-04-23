@@ -23,8 +23,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/AlecAivazis/survey/v2/terminal"
 	expect "github.com/Netflix/go-expect"
 	"github.com/hinshun/vt10x"
+	"github.com/opsani/cli/command"
 	"github.com/spf13/cobra"
 )
 
@@ -232,7 +234,7 @@ func (ice *InteractiveCommandExecutor) Execute(args []string, interactionFunc In
 		ice.command.SetErr(context.Stderr())
 		ice.command.SetArgs(args)
 
-		// TODO: Add the hook for survey
+		command.Stdio = terminal.Stdio{In: context.PassthroughTty(), Out: context.PassthroughTty(), Err: context.PassthroughTty()}
 
 		if ice.PreExecutionFunc != nil {
 			ice.PreExecutionFunc(context)

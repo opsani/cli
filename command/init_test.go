@@ -97,13 +97,6 @@ func (s *InitTestSuite) TestInitWithExistingConfigDeclined() {
 
 	rootCmd := command.NewRootCommand()
 	ice := test.NewInteractiveCommandExecutor(rootCmd)
-	ice.PreExecutionFunc = func(context *test.InteractiveExecutionContext) error {
-		// Attach the survey library to the console
-		// This is necessary because of type safety fun with modeling around file readers
-		command.Stdio = terminal.Stdio{In: context.PassthroughTty(), Out: context.PassthroughTty(), Err: context.PassthroughTty()}
-		// command.Stdio = terminal.Stdio{In: test.NewPassthroughPipeFile(context.GetStdin()), Out: context.GetStdout(), Err: context.GetStderr()}
-		return nil
-	}
 	_, err := ice.Execute(test.Args("--config", configFile.Name(), "init"), func(_ *test.InteractiveExecutionContext, console *expect.Console) error {
 		if _, err := console.ExpectString(fmt.Sprintf("Using config from: %s", configFile.Name())); err != nil {
 			return err
@@ -128,12 +121,6 @@ func (s *InitTestSuite) TestInitWithExistingConfigAccepted() {
 
 	rootCmd := command.NewRootCommand()
 	ice := test.NewInteractiveCommandExecutor(rootCmd)
-	ice.PreExecutionFunc = func(context *test.InteractiveExecutionContext) error {
-		// Attach the survey library to the console
-		// This is necessary because of type safety fun with modeling around file readers
-		command.Stdio = terminal.Stdio{In: context.PassthroughTty(), Out: context.PassthroughTty(), Err: context.PassthroughTty()}
-		return nil
-	}
 	context, err := ice.Execute(test.Args("--config", configFile.Name(), "init"), func(_ *test.InteractiveExecutionContext, console *expect.Console) error {
 		if _, err := console.ExpectString(fmt.Sprintf("Using config from: %s", configFile.Name())); err != nil {
 			return err
