@@ -25,7 +25,7 @@ require (
 	github.com/hokaccha/go-prettyjson v0.0.0-20190818114111-108c894c2c0e
 	github.com/imdario/mergo v0.3.9 // indirect
 	github.com/konsorten/go-windows-terminal-sequences v1.0.2 // indirect
-	github.com/kr/pty v1.1.8 // indirect
+	github.com/kr/pty v1.1.8
 	github.com/mattn/go-isatty v0.0.12
 	github.com/mgutz/ansi v0.0.0-20170206155736-9520e82c474b
 	github.com/mitchellh/go-homedir v1.1.0
@@ -51,6 +51,7 @@ require (
 	google.golang.org/genproto v0.0.0-20200413115906-b5235f65be36 // indirect
 	google.golang.org/grpc v1.28.1 // indirect
 	gopkg.in/ini.v1 v1.55.0 // indirect
+	gopkg.in/yaml.v2 v2.2.8
 	gotest.tools v2.2.0+incompatible // indirect
 	k8s.io/apimachinery v0.18.1
 	k8s.io/client-go v0.18.1
