@@ -26,8 +26,7 @@ import (
 )
 
 type ConfigTestSuite struct {
-	suite.Suite
-	*test.OpsaniCommandExecutor
+	test.OpsaniTestSuite
 }
 
 func TestConfigTestSuite(t *testing.T) {
@@ -36,9 +35,7 @@ func TestConfigTestSuite(t *testing.T) {
 
 func (s *ConfigTestSuite) SetupTest() {
 	viper.Reset()
-	rootCmd := command.NewRootCommand()
-
-	s.OpsaniCommandExecutor = test.NewOpsaniCommandExecutor(rootCmd)
+	s.OpsaniTestSuite.SetRootCommand(command.NewRootCommand())
 }
 
 func TestMain(m *testing.M) {

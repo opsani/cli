@@ -19,13 +19,11 @@ import (
 
 	"github.com/opsani/cli/command"
 	"github.com/opsani/cli/test"
-	"github.com/spf13/viper"
 	"github.com/stretchr/testify/suite"
 )
 
 type DiscoverTestSuite struct {
-	suite.Suite
-	*test.OpsaniCommandExecutor
+	test.OpsaniTestSuite
 }
 
 func TestDiscoverTestSuite(t *testing.T) {
@@ -33,26 +31,23 @@ func TestDiscoverTestSuite(t *testing.T) {
 }
 
 func (s *DiscoverTestSuite) SetupTest() {
-	viper.Reset()
-	rootCmd := command.NewRootCommand()
-
-	s.OpsaniCommandExecutor = test.NewOpsaniCommandExecutor(rootCmd)
+	s.OpsaniTestSuite.SetRootCommand(command.NewRootCommand())
 }
 
 func (s *DiscoverTestSuite) TestRunningDiscoverHelp() {
-	output, err := s.Execute("discover", "--help")
+	output, err := s.ExecuteCommand("discover", "--help")
 	s.Require().NoError(err)
 	s.Require().Contains(output, "The discover command introspects")
 }
 
 func (s *DiscoverTestSuite) TestRunningIMBHelp() {
-	output, err := s.Execute("imb", "--help")
+	output, err := s.ExecuteCommand("imb", "--help")
 	s.Require().NoError(err)
 	s.Require().Contains(output, "Run the intelligent manifest builder")
 }
 
 func (s *DiscoverTestSuite) TestRunningPullHelp() {
-	output, err := s.Execute("pull", "--help")
+	output, err := s.ExecuteCommand("pull", "--help")
 	s.Require().NoError(err)
 	s.Require().Contains(output, "Pull a Docker image")
 }

@@ -12,32 +12,27 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package command_test
+package test
 
 import (
-	"testing"
-
-	"github.com/opsani/cli/command"
-	"github.com/opsani/cli/test"
-	"github.com/spf13/viper"
+	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/suite"
 )
 
-type LoginTestSuite struct {
-	test.OpsaniTestSuite
+// OpsaniTestSuite defines a struct usable for all Opsani API tests suites
+type OpsaniTestSuite struct {
+	suite.Suite
+	*CommandExecutor
+	*OpsaniCommandExecutor
+	*InteractiveCommandTests
 }
 
-func TestLoginTestSuite(t *testing.T) {
-	suite.Run(t, new(LoginTestSuite))
-}
-
-func (s *LoginTestSuite) SetupTest() {
-	viper.Reset()
-	s.OpsaniTestSuite.SetRootCommand(command.NewRootCommand())
-}
-
-func (s *LoginTestSuite) TestRunningInitHelp() {
-	output, err := s.ExecuteCommand("login", "--help")
-	s.Require().NoError(err)
-	s.Require().Contains(output, "Login to the Opsani API")
+// SetRootCommand sets the root command on the tests, hydrating all Cobra
+// dependent objects
+func (ts *OpsaniTestSuite) SetRootCommand(rootCmd *cobra.Command) {
+	ts.CommandExecutor = NewCommandExecutor(rootCmd)
+	ts.OpsaniCommandExecutor = NewOpsaniCommandExecutor(rootCmd)
+	ts.InteractiveCommandTests = &InteractiveCommandTests{
+		InteractiveCommandExecutor: NewInteractiveCommandExecutor(rootCmd),
+	}
 }

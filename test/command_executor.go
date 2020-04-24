@@ -17,6 +17,7 @@ package test
 import (
 	"bytes"
 
+	"github.com/prometheus/common/log"
 	"github.com/spf13/cobra"
 )
 
@@ -32,14 +33,20 @@ type CommandExecutor struct {
 	rootCmd *cobra.Command
 }
 
-// Execute runs a Cobra command with the given arguments and returns the output captured
-func (ce *CommandExecutor) Execute(args ...string) (output string, err error) {
-	_, output, err = ce.ExecuteC(args...)
+// ExecuteCommand runs a Cobra command with the given arguments and returns the output captured
+func (ce *CommandExecutor) ExecuteCommand(args ...string) (output string, err error) {
+	if ce.rootCmd == nil {
+		log.Fatalln("Cannot execute command: the rootCmd instance is nil")
+	}
+	_, output, err = ce.ExecuteCommandC(args...)
 	return output, err
 }
 
-// ExecuteC runs a Cobra command with the given arguments and returns the Cobra command invoked and the output captured
-func (ce *CommandExecutor) ExecuteC(args ...string) (c *cobra.Command, output string, err error) {
+// ExecuteCommandC runs a Cobra command with the given arguments and returns the Cobra command invoked and the output captured
+func (ce *CommandExecutor) ExecuteCommandC(args ...string) (c *cobra.Command, output string, err error) {
+	if ce.rootCmd == nil {
+		log.Fatalln("Cannot execute command: the rootCmd instance is nil")
+	}
 	buf := new(bytes.Buffer)
 	ce.rootCmd.SetOut(buf)
 	ce.rootCmd.SetErr(buf)

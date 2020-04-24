@@ -25,9 +25,11 @@ import (
 
 	"github.com/AlecAivazis/survey/v2/terminal"
 	expect "github.com/Netflix/go-expect"
+	"github.com/alecthomas/assert"
 	"github.com/hinshun/vt10x"
 	"github.com/opsani/cli/command"
 	"github.com/spf13/cobra"
+	"github.com/stretchr/testify/require"
 )
 
 // PassthroughPipeFile wraps a file with a PassthroughPipe to add read deadline support
@@ -62,19 +64,6 @@ func NewPassthroughPipeFile(inFile *os.File) (*PassthroughPipeFile, error) {
 		file:            file,
 		PassthroughPipe: pipe,
 	}, nil
-}
-
-// RunTestInInteractiveTerminal runs a test within an interactive terminal environment
-// Execution requires a standard test instance, a pair of functions that execute the code
-// under test and the test code, and any desired options for configuring the virtual terminal environment
-func RunTestInInteractiveTerminal(t *testing.T,
-	codeUnderTestFunc InteractiveProcessFunc,
-	testFunc InteractiveUserFunc,
-	consoleOpts ...expect.ConsoleOpt) (*InteractiveExecutionContext, error) {
-	context, err := ExecuteInInteractiveTerminal(codeUnderTestFunc, testFunc, consoleOpts...)
-	t.Logf("Raw output: %q", context.OutputBuffer().String())
-	t.Logf("\n\nterminal state: %s", expect.StripTrailingEmptyLines(context.TerminalState().String()))
-	return context, err
 }
 
 // InteractiveExecutionContext describes the state of an interactive terminal execution
@@ -311,4 +300,160 @@ func (ice *InteractiveCommandExecutor) ExecuteInteractively(args []string, inter
 // If you need something more advanced please use the Execute() and Args() method to compose from a variadic list of arguments
 func (ice *InteractiveCommandExecutor) ExecuteStringInteractively(argsStr string, interactionFunc InteractiveUserFunc) (*InteractiveExecutionContext, error) {
 	return ice.ExecuteInteractively(strings.Split(argsStr, " "), interactionFunc)
+}
+
+// InteractiveTestContext instances are vended when an interactive test is run
+type InteractiveTestContext struct {
+	console *expect.Console
+	context *InteractiveExecutionContext
+
+	*assert.Assertions
+	require *require.Assertions
+
+	t *testing.T
+}
+
+// Console returns the the underlying terminal for direct interaction
+func (ict *InteractiveTestContext) Console() *expect.Console {
+	return ict.console
+}
+
+// T retrieves the current *testing.T context.
+func (ict *InteractiveTestContext) T() *testing.T {
+	return ict.t
+}
+
+// Require returns a require context for suite.
+func (ict *InteractiveTestContext) Require() *require.Assertions {
+	if ict.require == nil {
+		ict.require = require.New(ict.T())
+	}
+	return ict.require
+}
+
+// Assert returns an assert context for suite.  Normally, you can call
+// `suite.NoError(expected, actual)`, but for situations where the embedded
+// methods are overridden (for example, you might want to override
+// assert.Assertions with require.Assertions), this method is provided so you
+// can call `suite.Assert().NoError()`.
+func (ict *InteractiveTestContext) Assert() *assert.Assertions {
+	if ict.Assertions == nil {
+		ict.Assertions = assert.New(ict.T())
+	}
+	return ict.Assertions
+}
+
+// SendLine sends a line of text to the console
+func (ict *InteractiveTestContext) SendLine(s string) (int, error) {
+	return ict.console.SendLine(s)
+}
+
+// ExpectEOF waits for an EOF or an error to be emitted on the console
+func (ict *InteractiveTestContext) ExpectEOF() (string, error) {
+	return ict.console.ExpectEOF()
+}
+
+// ExpectString waits for a string of text to ebe written to the console
+func (ict *InteractiveTestContext) ExpectString(s string) (string, error) {
+	return ict.console.ExpectString(s)
+}
+
+// ExpectStringf waits for a string of formatted text to ebe written to the console
+func (ict *InteractiveTestContext) ExpectStringf(format string, args ...interface{}) (string, error) {
+	return ict.ExpectString(fmt.Sprintf(format, args...))
+}
+
+// ExpectMatch waits for a matcher to evaluate to true against content on the console
+func (ict *InteractiveTestContext) ExpectMatch(opts ...expect.ExpectOpt) (string, error) {
+	return ict.console.Expect(opts...)
+}
+
+// ExpectMatches waits for a series of matchers to evaluate to true against content on the console
+func (ict *InteractiveTestContext) ExpectMatches(opts ...expect.ExpectOpt) (string, error) {
+	return ict.console.Expect(opts...)
+}
+
+// RequireEOF waits for an EOF to be written to the console and terminates the test on timeout
+func (ict *InteractiveTestContext) RequireEOF() (string, error) {
+	l, err := ict.console.ExpectEOF()
+	ict.Require().NoErrorf(err, "Unexpected error %q: - ", err, ict.context.OutputBuffer().String())
+	return l, err
+}
+
+// RequireString waits for a string of text to be written to the console and terminates the test on timeout
+func (ict *InteractiveTestContext) RequireString(s string) (string, error) {
+	l, err := ict.console.ExpectString(s)
+	ict.Require().NoErrorf(err, "Failed while attempting to read %q: %v", s, err)
+	return l, err
+}
+
+// RequireStringf waits for a formatted string of text to be written to the console and terminates the test on timeout
+func (ict *InteractiveTestContext) RequireStringf(format string, args ...interface{}) (string, error) {
+	return ict.RequireString(fmt.Sprintf(format, args...))
+}
+
+// RequireMatch waits for a matcher to evaluate truthfully to be written to the console and terminates the test on timeout
+func (ict *InteractiveTestContext) RequireMatch(opts ...expect.ExpectOpt) (string, error) {
+	l, err := ict.console.Expect(opts...)
+	ict.Require().NoErrorf(err, "Failed while attempting to find a matcher for %q: %v", l, err)
+	return l, err
+}
+
+// RequireMatches waits for a series if matcher to evaluate truthfully to be written to the console and terminates the test on timeout
+func (ict *InteractiveTestContext) RequireMatches(opts ...expect.ExpectOpt) (string, error) {
+	l, err := ict.console.Expect(opts...)
+	ict.Require().NoErrorf(err, "Failed while attempting to find a matcher for %q: %v", l, err)
+	return l, err
+}
+
+// InteractiveCommandTests instances are yielded while executing
+// a command via ExecuteCommandInteractively and ExecuteCommandInteractivelyE
+// and provide information about the virtual terminal execution environment
+type InteractiveCommandTests struct {
+	// Test suite local command executor. Needs to be set up and torn down between tests
+	InteractiveCommandExecutor *InteractiveCommandExecutor
+}
+
+// RunTestCommandInteractively((E runs a Cobra command interactively using the given executor and yields control to a func
+// for interacting with the TTY
+func (s *InteractiveCommandTests) RunTestCommandInteractivelyE(
+	t *testing.T,
+	ice *InteractiveCommandExecutor,
+	args []string,
+	testFunc func(*InteractiveTestContext) error) (*InteractiveExecutionContext, error) {
+	return ice.ExecuteInteractively(args, func(context *InteractiveExecutionContext, console *expect.Console) error {
+		return testFunc(&InteractiveTestContext{
+			console: console,
+			context: context,
+			t:       t,
+		})
+	})
+}
+
+// RunTestCommandInteractively(( runs a Cobra command interactively and yields control to a func
+// for interacting with the TTY
+func (s *InteractiveCommandTests) RunTestCommandInteractively(
+	t *testing.T,
+	args []string,
+	testFunc func(*InteractiveTestContext) error) (*InteractiveExecutionContext, error) {
+	return s.InteractiveCommandExecutor.ExecuteInteractively(args, func(context *InteractiveExecutionContext, console *expect.Console) error {
+		return testFunc(&InteractiveTestContext{
+			console: console,
+			context: context,
+			t:       t,
+		})
+	})
+}
+
+// RunTestInInteractiveTerminal runs a test within an interactive terminal environment
+// Execution requires a standard test instance, a pair of functions that execute the code
+// under test and the test code, and any desired options for configuring the virtual terminal environment
+func RunTestInInteractiveTerminal(t *testing.T,
+	codeUnderTestFunc InteractiveProcessFunc,
+	testFunc InteractiveUserFunc,
+	consoleOpts ...expect.ConsoleOpt) (*InteractiveExecutionContext, error) {
+	context, err := ExecuteInInteractiveTerminal(codeUnderTestFunc, testFunc, consoleOpts...)
+	t.Logf("Raw output: %q", context.OutputBuffer().String())
+	t.Logf("\n\nterminal state: %s", expect.StripTrailingEmptyLines(context.TerminalState().String()))
+	return context, err
 }
