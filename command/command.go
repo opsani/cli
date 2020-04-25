@@ -171,17 +171,19 @@ func NewCommandWithCobraCommand(cobraCommand *cobra.Command, configFunc func(*Co
 		}
 		return nil
 	}
-	cobraCommand.Run = func(cmd *cobra.Command, args []string) {
-		if opsaniCommand.Run != nil {
-			opsaniCommand.Run(opsaniCommand, args)
-		}
-	}
-	cobraCommand.RunE = func(cmd *cobra.Command, args []string) error {
+	// NOTE: We expect errors
+	cobraCommand.Run = nil
+	defer func() {
 		if opsaniCommand.RunE != nil {
-			return opsaniCommand.RunE(opsaniCommand, args)
+			cobraCommand.RunE = func(cmd *cobra.Command, args []string) error {
+				if opsaniCommand.RunE != nil {
+					return opsaniCommand.RunE(opsaniCommand, args)
+				}
+				return cobraCommand.Usage()
+			}
 		}
-		return nil
-	}
+	}()
+
 	cobraCommand.PostRun = func(cmd *cobra.Command, args []string) {
 		if opsaniCommand.PostRun != nil {
 			opsaniCommand.PostRun(opsaniCommand, args)
