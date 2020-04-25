@@ -22,6 +22,7 @@ import (
 	"strings"
 
 	"github.com/mitchellh/go-homedir"
+	"github.com/olekukonko/tablewriter"
 	"github.com/prometheus/common/log"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -84,6 +85,14 @@ func NewServoCommand() *Command {
 		Args:  cobra.ExactArgs(1),
 	}, func(cmd *Command) {
 		cmd.RunE = RunServoRestart
+	}).Command)
+	servoCmd.AddCommand(NewCommandWithCobraCommand(&cobra.Command{
+		Use:     "list",
+		Aliases: []string{"ls"},
+		Short:   "List Servos",
+		Args:    cobra.NoArgs,
+	}, func(cmd *Command) {
+		cmd.RunE = RunServoList
 	}).Command)
 
 	servoCmd.AddCommand(logsCmd.Command)
@@ -195,6 +204,41 @@ func runInSSHSession(ctx context.Context, name string, runIt func(context.Contex
 	}()
 
 	return runIt(ctx, servo, session)
+}
+
+func RunServoList(cmd *Command, args []string) error {
+	data := [][]string{}
+
+	for _, servo := range servos {
+		name := servo["name"]
+		user := servo["user"]
+		host := servo["host"]
+		if port := servo["port"]; port != "" && port != "22" {
+			host = host + ":" + port
+		}
+		path := "~/"
+		if p := servo["path"]; p != "" {
+			path = p
+		}
+		data = append(data, []string{name, user, host, path})
+	}
+
+	table := tablewriter.NewWriter(os.Stdout)
+	table.SetHeader([]string{"NAME", "USER", "HOST", "PATH"})
+	table.SetAutoWrapText(false)
+	table.SetAutoFormatHeaders(true)
+	table.SetHeaderAlignment(tablewriter.ALIGN_LEFT)
+	table.SetAlignment(tablewriter.ALIGN_LEFT)
+	table.SetCenterSeparator("")
+	table.SetColumnSeparator("")
+	table.SetRowSeparator("")
+	table.SetHeaderLine(false)
+	table.SetBorder(false)
+	table.SetTablePadding("\t") // pad with tabs
+	table.SetNoWhiteSpace(true)
+	table.AppendBulk(data) // Add Bulk Data
+	table.Render()
+	return nil
 }
 
 func RunServoStatus(cmd *Command, args []string) error {

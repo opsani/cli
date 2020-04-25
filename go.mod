@@ -34,6 +34,7 @@ require (
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/mitchellh/mapstructure v1.2.2 // indirect
 	github.com/morikuni/aec v1.0.0 // indirect
+	github.com/olekukonko/tablewriter v0.0.4
 	github.com/opencontainers/image-spec v1.0.1 // indirect
 	github.com/opencontainers/runc v0.1.1 // indirect
 	github.com/pelletier/go-toml v1.7.0 // indirect
