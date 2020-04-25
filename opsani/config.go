@@ -90,6 +90,14 @@ func SetApp(app string) {
 	viper.Set(KeyApp, app)
 }
 
+// GetAppComponents returns the organization name and app ID as separate path components
+func GetAppComponents() (orgSlug string, appSlug string) {
+	app := GetApp()
+	org := filepath.Dir(app)
+	appID := filepath.Base(app)
+	return org, appID
+}
+
 // GetAllSettings returns all configuration settings
 func GetAllSettings() map[string]interface{} {
 	return viper.AllSettings()

@@ -15,6 +15,12 @@
 package command
 
 import (
+	"fmt"
+	"log"
+	"os/exec"
+	"runtime"
+
+	"github.com/opsani/cli/opsani"
 	"github.com/spf13/cobra"
 )
 
@@ -44,5 +50,41 @@ func NewAppCommand() *cobra.Command {
 	// Config
 	appCmd.AddCommand(appConfigCmd)
 
+	appCmd.AddCommand(NewAppConsoleCommand())
+
 	return appCmd
+}
+
+// NewAppConsoleCommand returns a command that opens the Opsani Console
+// in the default browser
+func NewAppConsoleCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "console",
+		Short: "Open the Opsani console in the default web browser",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			org, appID := opsani.GetAppComponents()
+			url := fmt.Sprintf("https://console.opsani.com/accounts/%s/applications/%s", org, appID)
+			openURLInDefaultBrowser(url)
+			return nil
+		},
+	}
+}
+
+func openURLInDefaultBrowser(url string) {
+	var err error
+
+	switch runtime.GOOS {
+	case "linux":
+		err = exec.Command("xdg-open", url).Start()
+	case "windows":
+		err = exec.Command("rundll32", "url.dll,FileProtocolHandler", url).Start()
+	case "darwin":
+		err = exec.Command("open", url).Start()
+	default:
+		err = fmt.Errorf("unsupported platform")
+	}
+	if err != nil {
+		log.Fatal(err)
+	}
 }

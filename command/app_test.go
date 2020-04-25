@@ -36,8 +36,25 @@ func (s *AppTestSuite) SetupTest() {
 	s.SetCommand(command.NewRootCommand())
 }
 
-func (s *AppTestSuite) TestRunningAppStartHelp() {
+func (s *AppTestSuite) TestRunningApp() {
+	output, err := s.Execute("app")
+	s.Require().NoError(err)
+	s.Require().Contains(output, "Manage apps")
+	s.Require().Contains(output, "Usage:")
+}
+
+func (s *AppTestSuite) TestRunningAppHelp() {
 	output, err := s.Execute("app", "--help")
 	s.Require().NoError(err)
 	s.Require().Contains(output, "Manage apps")
+}
+
+func (s *AppTestSuite) TestRunningAppConsoleHelp() {
+	output, err := s.Execute("app", "--help")
+	s.Require().NoError(err)
+	s.Require().Contains(output, "Open the Opsani console")
+}
+
+func TestRunningAppConsle(t *testing.T) {
+	t.Skip("Pending test for launching browser")
 }
