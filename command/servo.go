@@ -19,16 +19,28 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strings"
 
+	"github.com/mitchellh/go-homedir"
 	"github.com/prometheus/common/log"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
+	"golang.org/x/crypto/ssh/knownhosts"
 	"golang.org/x/crypto/ssh/terminal"
 )
 
 // NewServoCommand returns a new instance of the servo command
 func NewServoCommand() *Command {
+	logsCmd := NewCommandWithCobraCommand(&cobra.Command{
+		Use:   "logs",
+		Short: "View logs on a Servo",
+		Args:  cobra.ExactArgs(1),
+	}, func(cmd *Command) {
+		cmd.RunE = RunServoLogs
+	})
+
 	servoCmd := NewCommandWithCobraCommand(&cobra.Command{
 		Use:   "servo",
 		Short: "Manage Servos",
@@ -40,31 +52,42 @@ func NewServoCommand() *Command {
 	servoCmd.AddCommand(NewCommandWithCobraCommand(&cobra.Command{
 		Use:   "ssh",
 		Short: "SSH into a Servo",
-		// Args:  cobra.ExactArgs(1),
+		Args:  cobra.ExactArgs(1),
 	}, func(cmd *Command) {
 		cmd.RunE = RunServoSSH
 	}).Command)
 
-	servoCmd.AddCommand(NewCommandWithCobraCommand(&cobra.Command{
-		Use:   "logs",
-		Short: "View logs on a Servo",
-		// Args:  cobra.ExactArgs(1),
-	}, func(cmd *Command) {
-		cmd.RunE = RunServoLogs
-	}).Command)
+	servoCmd.AddCommand(logsCmd.Command)
+
+	logsCmd.Flags().BoolP("follow", "f", false, "Follow log output")
+	viper.BindPFlag("follow", logsCmd.Flags().Lookup("follow"))
+	logsCmd.Flags().BoolP("timestamps", "t", false, "Show timestamps")
+	viper.BindPFlag("timestamps", logsCmd.Flags().Lookup("timestamps"))
+	logsCmd.Flags().StringP("lines", "l", "25", `Number of lines to show from the end of the logs (or "all").`)
+	viper.BindPFlag("lines", logsCmd.Flags().Lookup("lines"))
 
 	return servoCmd
 }
 
-const username = "root"
-const hostname = "3.93.217.12"
-const port = "22"
+// const username = "root"
+// const hostname = "3.93.217.12"
+// const port = "22"
 
-const sshKey = `
------BEGIN OPENSSH PRIVATE KEY-----
-FAKE KEY
------END OPENSSH PRIVATE KEY-----
-`
+// const sshKey = `
+// -----BEGIN OPENSSH PRIVATE KEY-----
+// FAKE KEY
+// -----END OPENSSH PRIVATE KEY-----
+// `
+
+var servos = []map[string]string{
+	{
+		"name": "opsani-dev",
+		"host": "3.93.217.12",
+		"port": "22",
+		"user": "root",
+		"path": "/root/dev.opsani.com/blake/oco",
+	},
+}
 
 func SSHAgent() ssh.AuthMethod {
 	if sshAgent, err := net.Dial("unix", os.Getenv("SSH_AUTH_SOCK")); err == nil {
@@ -73,7 +96,8 @@ func SSHAgent() ssh.AuthMethod {
 	return nil
 }
 
-func runInSSHSession(ctx context.Context, runIt func(context.Context, *ssh.Session) error) error {
+func runInSSHSession(ctx context.Context, name string, runIt func(context.Context, map[string]string, *ssh.Session) error) error {
+
 	// TODO: Recover from passphrase error
 	// // signer, err := ssh.ParsePrivateKey([]byte(sshKey))
 	// signer, err := ssh.ParsePrivateKey([]byte(sshKey))
@@ -88,9 +112,28 @@ func runInSSHSession(ctx context.Context, runIt func(context.Context, *ssh.Sessi
 	// }
 	// signer := ssh.NewSignerFromKey(key)
 
+	var servo map[string]string
+	for _, s := range servos {
+		if s["name"] == name {
+			servo = s
+			break
+		}
+	}
+	if len(servo) == 0 {
+		return fmt.Errorf("no such Servo %q", name)
+	}
+
 	// SSH client config
+	knownHosts, err := homedir.Expand("~/.ssh/known_hosts")
+	if err != nil {
+		return err
+	}
+	hostKeyCallback, err := knownhosts.New(knownHosts)
+	if err != nil {
+		log.Fatal("could not create hostkeycallback function: ", err)
+	}
 	config := &ssh.ClientConfig{
-		User: username,
+		User: servo["user"],
 		// Auth: []ssh.AuthMethod{
 		// 	// ssh.Password(password),
 		// 	ssh.PublicKeys(signer),
@@ -99,11 +142,12 @@ func runInSSHSession(ctx context.Context, runIt func(context.Context, *ssh.Sessi
 			SSHAgent(),
 		},
 		// Non-production only
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		HostKeyCallback: hostKeyCallback,
 	}
 
 	// // Connect to host
-	client, err := ssh.Dial("tcp", hostname+":"+port, config)
+	fmt.Printf("Servos: %+v\nServo=%+v\n\n", servos, servo)
+	client, err := ssh.Dial("tcp", servo["host"]+":"+servo["port"], config)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -121,27 +165,41 @@ func runInSSHSession(ctx context.Context, runIt func(context.Context, *ssh.Sessi
 		client.Close()
 	}()
 
-	return runIt(ctx, session)
+	return runIt(ctx, servo, session)
 }
 
 func RunServoLogs(cmd *Command, args []string) error {
 	ctx := context.Background()
-	return runInSSHSession(ctx, RunLogsSSHSession)
+	return runInSSHSession(ctx, args[0], RunLogsSSHSession)
 }
 
 // RunConfig displays Opsani CLI config info
 func RunServoSSH(cmd *Command, args []string) error {
 	ctx := context.Background()
-	return runInSSHSession(ctx, RunShellOnSSHSession)
+	return runInSSHSession(ctx, args[0], RunShellOnSSHSession)
 }
 
-func RunLogsSSHSession(ctx context.Context, session *ssh.Session) error {
+func RunLogsSSHSession(ctx context.Context, servo map[string]string, session *ssh.Session) error {
 	session.Stdout = os.Stdout
 	session.Stderr = os.Stderr
-	return session.Run("cd /root/dev.opsani.com/blake/oco && docker-compose logs -f --tail=100")
+
+	args := []string{}
+	if path := servo["path"]; path != "" {
+		args = append(args, "cd", path+"&&")
+	}
+	args = append(args, "docker-compose logs")
+	args = append(args, "--tail "+viper.GetString("lines"))
+	if viper.GetBool("follow") {
+		args = append(args, "--follow")
+	}
+	if viper.GetBool("timestamps") {
+		args = append(args, "--timestamps")
+	}
+	fmt.Printf("args: %v\n", args)
+	return session.Run(strings.Join(args, " "))
 }
 
-func RunShellOnSSHSession(ctx context.Context, session *ssh.Session) error {
+func RunShellOnSSHSession(ctx context.Context, servo map[string]string, session *ssh.Session) error {
 	fd := int(os.Stdin.Fd())
 	state, err := terminal.MakeRaw(fd)
 	if err != nil {

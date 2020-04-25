@@ -60,3 +60,31 @@ func (s *ServoTestSuite) TestRunningServoSSHHelp() {
 	s.Require().NoError(err)
 	s.Require().Contains(output, "SSH into a Servo")
 }
+
+func (s *ServoTestSuite) TestRunningServoSSHInvalidServo() {
+	_, err := s.Execute("servo", "ssh", "fake-name")
+	s.Require().EqualError(err, `no such Servo "fake-name"`)
+}
+
+func (s *ServoTestSuite) TestRunningServoLogsHelp() {
+	output, err := s.Execute("servo", "logs", "--help")
+	s.Require().NoError(err)
+	s.Require().Contains(output, "View logs on a Servo")
+}
+
+func (s *ServoTestSuite) TestRunningServoLogsInvalidServo() {
+	_, err := s.Execute("servo", "logs", "fake-name")
+	s.Require().EqualError(err, `no such Servo "fake-name"`)
+}
+
+func (s *ServoTestSuite) TestRunningServoFollowHelp() {
+	output, err := s.Execute("servo", "logs", "--help")
+	s.Require().NoError(err)
+	s.Require().Contains(output, "Follow log output")
+}
+
+func (s *ServoTestSuite) TestRunningLogsTimestampsHelp() {
+	output, err := s.Execute("servo", "logs", "--help")
+	s.Require().NoError(err)
+	s.Require().Contains(output, "Show timestamps")
+}
