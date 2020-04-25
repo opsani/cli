@@ -57,6 +57,35 @@ func NewServoCommand() *Command {
 		cmd.RunE = RunServoSSH
 	}).Command)
 
+	servoCmd.AddCommand(NewCommandWithCobraCommand(&cobra.Command{
+		Use:   "status",
+		Short: "Check Servo status",
+		Args:  cobra.ExactArgs(1),
+	}, func(cmd *Command) {
+		cmd.RunE = RunServoStatus
+	}).Command)
+	servoCmd.AddCommand(NewCommandWithCobraCommand(&cobra.Command{
+		Use:   "start",
+		Short: "Start the Servo",
+		Args:  cobra.ExactArgs(1),
+	}, func(cmd *Command) {
+		cmd.RunE = RunServoStart
+	}).Command)
+	servoCmd.AddCommand(NewCommandWithCobraCommand(&cobra.Command{
+		Use:   "stop",
+		Short: "Stop the Servo",
+		Args:  cobra.ExactArgs(1),
+	}, func(cmd *Command) {
+		cmd.RunE = RunServoStop
+	}).Command)
+	servoCmd.AddCommand(NewCommandWithCobraCommand(&cobra.Command{
+		Use:   "restart",
+		Short: "Restart Servo",
+		Args:  cobra.ExactArgs(1),
+	}, func(cmd *Command) {
+		cmd.RunE = RunServoRestart
+	}).Command)
+
 	servoCmd.AddCommand(logsCmd.Command)
 
 	logsCmd.Flags().BoolP("follow", "f", false, "Follow log output")
@@ -168,6 +197,34 @@ func runInSSHSession(ctx context.Context, name string, runIt func(context.Contex
 	return runIt(ctx, servo, session)
 }
 
+func RunServoStatus(cmd *Command, args []string) error {
+	ctx := context.Background()
+	return runInSSHSession(ctx, args[0], func(ctx context.Context, servo map[string]string, session *ssh.Session) error {
+		return runDockerComposeOverSSH("ps", nil, servo, session)
+	})
+}
+
+func RunServoStart(cmd *Command, args []string) error {
+	ctx := context.Background()
+	return runInSSHSession(ctx, args[0], func(ctx context.Context, servo map[string]string, session *ssh.Session) error {
+		return runDockerComposeOverSSH("start", nil, servo, session)
+	})
+}
+
+func RunServoStop(cmd *Command, args []string) error {
+	ctx := context.Background()
+	return runInSSHSession(ctx, args[0], func(ctx context.Context, servo map[string]string, session *ssh.Session) error {
+		return runDockerComposeOverSSH("stop", nil, servo, session)
+	})
+}
+
+func RunServoRestart(cmd *Command, args []string) error {
+	ctx := context.Background()
+	return runInSSHSession(ctx, args[0], func(ctx context.Context, servo map[string]string, session *ssh.Session) error {
+		return runDockerComposeOverSSH("stop && docker-compse start", nil, servo, session)
+	})
+}
+
 func RunServoLogs(cmd *Command, args []string) error {
 	ctx := context.Background()
 	return runInSSHSession(ctx, args[0], RunLogsSSHSession)
@@ -177,6 +234,17 @@ func RunServoLogs(cmd *Command, args []string) error {
 func RunServoSSH(cmd *Command, args []string) error {
 	ctx := context.Background()
 	return runInSSHSession(ctx, args[0], RunShellOnSSHSession)
+}
+
+func runDockerComposeOverSSH(cmd string, args []string, servo map[string]string, session *ssh.Session) error {
+	session.Stdout = os.Stdout
+	session.Stderr = os.Stderr
+
+	if path := servo["path"]; path != "" {
+		args = append(args, "cd", path+"&&")
+	}
+	args = append(args, "docker-compose", cmd)
+	return session.Run(strings.Join(args, " "))
 }
 
 func RunLogsSSHSession(ctx context.Context, servo map[string]string, session *ssh.Session) error {
@@ -195,7 +263,6 @@ func RunLogsSSHSession(ctx context.Context, servo map[string]string, session *ss
 	if viper.GetBool("timestamps") {
 		args = append(args, "--timestamps")
 	}
-	fmt.Printf("args: %v\n", args)
 	return session.Run(strings.Join(args, " "))
 }
 
