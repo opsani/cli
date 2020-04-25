@@ -1,0 +1,190 @@
+// Copyright 2020 Opsani
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package command
+
+import (
+	"context"
+	"fmt"
+	"net"
+	"os"
+
+	"github.com/prometheus/common/log"
+	"github.com/spf13/cobra"
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
+	"golang.org/x/crypto/ssh/terminal"
+)
+
+// NewServoCommand returns a new instance of the servo command
+func NewServoCommand() *Command {
+	servoCmd := NewCommandWithCobraCommand(&cobra.Command{
+		Use:   "servo",
+		Short: "Manage Servos",
+		Args:  cobra.NoArgs,
+	}, func(cmd *Command) {
+		cmd.PersistentPreRunE = ReduceRunEFuncsO(InitConfigRunE, RequireConfigFileFlagToExistRunE, RequireInitRunE)
+	})
+
+	servoCmd.AddCommand(NewCommandWithCobraCommand(&cobra.Command{
+		Use:   "ssh",
+		Short: "SSH into a Servo",
+		// Args:  cobra.ExactArgs(1),
+	}, func(cmd *Command) {
+		cmd.RunE = RunServoSSH
+	}).Command)
+
+	servoCmd.AddCommand(NewCommandWithCobraCommand(&cobra.Command{
+		Use:   "logs",
+		Short: "View logs on a Servo",
+		// Args:  cobra.ExactArgs(1),
+	}, func(cmd *Command) {
+		cmd.RunE = RunServoLogs
+	}).Command)
+
+	return servoCmd
+}
+
+const username = "root"
+const hostname = "3.93.217.12"
+const port = "22"
+
+const sshKey = `
+-----BEGIN OPENSSH PRIVATE KEY-----
+FAKE KEY
+-----END OPENSSH PRIVATE KEY-----
+`
+
+func SSHAgent() ssh.AuthMethod {
+	if sshAgent, err := net.Dial("unix", os.Getenv("SSH_AUTH_SOCK")); err == nil {
+		return ssh.PublicKeysCallback(agent.NewClient(sshAgent).Signers)
+	}
+	return nil
+}
+
+func runInSSHSession(ctx context.Context, runIt func(context.Context, *ssh.Session) error) error {
+	// TODO: Recover from passphrase error
+	// // signer, err := ssh.ParsePrivateKey([]byte(sshKey))
+	// signer, err := ssh.ParsePrivateKey([]byte(sshKey))
+	// signer, err := ssh.ParsePrivateKeyWithPassphrase([]byte(sshKey), []byte("THIS_IS_NOT_A_PASSPHRASE"))
+	// if err != nil {
+	// 	log.Base().Fatal(err)
+	// }
+	// fmt.Printf("Got signer %+v\n\n", signer)
+	// key, err := x509.ParsePKCS1PrivateKey(der)
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
+	// signer := ssh.NewSignerFromKey(key)
+
+	// SSH client config
+	config := &ssh.ClientConfig{
+		User: username,
+		// Auth: []ssh.AuthMethod{
+		// 	// ssh.Password(password),
+		// 	ssh.PublicKeys(signer),
+		// },
+		Auth: []ssh.AuthMethod{
+			SSHAgent(),
+		},
+		// Non-production only
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+	}
+
+	// // Connect to host
+	client, err := ssh.Dial("tcp", hostname+":"+port, config)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer client.Close()
+
+	// Create sesssion
+	session, err := client.NewSession()
+	if err != nil {
+		log.Fatal("Failed to create session: ", err)
+	}
+	defer session.Close()
+
+	go func() {
+		<-ctx.Done()
+		client.Close()
+	}()
+
+	return runIt(ctx, session)
+}
+
+func RunServoLogs(cmd *Command, args []string) error {
+	ctx := context.Background()
+	return runInSSHSession(ctx, RunLogsSSHSession)
+}
+
+// RunConfig displays Opsani CLI config info
+func RunServoSSH(cmd *Command, args []string) error {
+	ctx := context.Background()
+	return runInSSHSession(ctx, RunShellOnSSHSession)
+}
+
+func RunLogsSSHSession(ctx context.Context, session *ssh.Session) error {
+	session.Stdout = os.Stdout
+	session.Stderr = os.Stderr
+	return session.Run("cd /root/dev.opsani.com/blake/oco && docker-compose logs -f --tail=100")
+}
+
+func RunShellOnSSHSession(ctx context.Context, session *ssh.Session) error {
+	fd := int(os.Stdin.Fd())
+	state, err := terminal.MakeRaw(fd)
+	if err != nil {
+		return fmt.Errorf("terminal make raw: %s", err)
+	}
+	defer terminal.Restore(fd, state)
+
+	w, h, err := terminal.GetSize(fd)
+	if err != nil {
+		return fmt.Errorf("terminal get size: %s", err)
+	}
+
+	modes := ssh.TerminalModes{
+		ssh.ECHO:          1,
+		ssh.TTY_OP_ISPEED: 14400,
+		ssh.TTY_OP_OSPEED: 14400,
+	}
+
+	term := os.Getenv("TERM")
+	if term == "" {
+		term = "xterm-256color"
+	}
+	if err := session.RequestPty(term, h, w, modes); err != nil {
+		return fmt.Errorf("session xterm: %s", err)
+	}
+
+	session.Stdout = os.Stdout
+	session.Stderr = os.Stderr
+	session.Stdin = os.Stdin
+
+	if err := session.Shell(); err != nil {
+		return fmt.Errorf("session shell: %s", err)
+	}
+
+	if err := session.Wait(); err != nil {
+		if e, ok := err.(*ssh.ExitError); ok {
+			switch e.ExitStatus() {
+			case 130:
+				return nil
+			}
+		}
+		return fmt.Errorf("ssh: %s", err)
+	}
+
+	return err
+}
