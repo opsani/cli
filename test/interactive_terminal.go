@@ -66,6 +66,65 @@ func NewPassthroughPipeFile(inFile *os.File) (*PassthroughPipeFile, error) {
 	}, nil
 }
 
+// ExecuteInInteractiveConsole runs a pair of functions connected in an interactive virtual terminal environment
+func ExecuteInInteractiveConsole(
+	processFunc InteractiveProcessFunc, // Represents the process that the user is interacting with via the terminal
+	userFunc InteractiveUserFunc, // Represents the user interacting with the process
+	consoleOpts ...expect.ConsoleOpt) (*InteractiveExecutionContext, error) {
+	consoleObserver := new(consoleObserver)
+	closerProxy := new(closerProxy) // Create a proxy object to close our Tty proxy later
+	outputBuffer := new(bytes.Buffer)
+	consoleOpts = append([]expect.ConsoleOpt{
+		expect.WithStdout(outputBuffer),
+		expect.WithExpectObserver(consoleObserver.observeExpect),
+		expect.WithSendObserver(consoleObserver.observeSend),
+		expect.WithCloser(closerProxy),
+		expect.WithDefaultTimeout(250 * time.Millisecond),
+	}, consoleOpts...)
+	console, terminalState, err := vt10x.NewVT10XConsole(consoleOpts...)
+	if err != nil {
+		return nil, err
+	}
+	defer console.Close()
+
+	// Use the same timeout in effect on the slave (user) side on the master (process) side pf the PTY
+	timeoutOpts := expect.ConsoleOpts{}
+	for _, opt := range consoleOpts {
+		if err := opt(&timeoutOpts); err != nil {
+			return nil, err
+		}
+	}
+	consoleObserver.readTimeout = timeoutOpts.ReadTimeout
+
+	// Create the execution context
+	executionContext := &InteractiveExecutionContext{
+		outputBuffer:    outputBuffer,
+		console:         console,
+		terminalState:   terminalState,
+		closerProxy:     closerProxy,
+		consoleObserver: consoleObserver,
+	}
+
+	// Execute our function within a channel and wait for exit
+	exitChannel := make(chan struct{})
+	go func() {
+		defer close(exitChannel)
+		userFunc(executionContext, console)
+	}()
+
+	// Run the process for the user to interact with
+	err = processFunc(executionContext)
+	if err != nil {
+		fmt.Println("Process failed", err)
+	}
+
+	// Close the slave end of the pty, and read the remaining bytes from the master end.
+	console.Tty().Close()
+	<-exitChannel
+
+	return executionContext, err
+}
+
 // InteractiveExecutionContext describes the state of an interactive terminal execution
 type InteractiveExecutionContext struct {
 	outputBuffer    *bytes.Buffer
@@ -167,9 +226,30 @@ func NewInteractiveCommandExecutor(command *cobra.Command, consoleOpts ...expect
 	}
 }
 
+// Command returns the Cobra command the executor was initialized with
+// This is typically the root command in a Cobra application
+func (ice *InteractiveCommandExecutor) Command() *cobra.Command {
+	return ice.command
+}
+
 // SetTimeout sets the timeout for command execution
 func (ice *InteractiveCommandExecutor) SetTimeout(timeout time.Duration) {
 	ice.consoleOpts = append(ice.consoleOpts, expect.WithDefaultTimeout(timeout))
+}
+
+// Timeout return the timeout for command execution
+// A zero value indicates that no timeout is in effect
+func (ice *InteractiveCommandExecutor) Timeout() time.Duration {
+	timeoutOpts := expect.ConsoleOpts{}
+	for _, opt := range ice.consoleOpts {
+		if err := opt(&timeoutOpts); err != nil {
+			break
+		}
+	}
+	if timeoutOpts.ReadTimeout == nil {
+		return 0
+	}
+	return *timeoutOpts.ReadTimeout
 }
 
 // Closes out the passthrough proxy
@@ -212,67 +292,8 @@ func (eo *consoleObserver) extendDeadline() {
 	}
 }
 
-// ExecuteInInteractiveTerminal runs a pair of functions connected in an interactive virtual terminal environment
-func ExecuteInInteractiveTerminal(
-	processFunc InteractiveProcessFunc, // Represents the process that the user is interacting with via the terminal
-	userFunc InteractiveUserFunc, // Represents the user interacting with the process
-	consoleOpts ...expect.ConsoleOpt) (*InteractiveExecutionContext, error) {
-	consoleObserver := new(consoleObserver)
-	closerProxy := new(closerProxy) // Create a proxy object to close our Tty proxy later
-	outputBuffer := new(bytes.Buffer)
-	consoleOpts = append([]expect.ConsoleOpt{
-		expect.WithStdout(outputBuffer),
-		expect.WithExpectObserver(consoleObserver.observeExpect),
-		expect.WithSendObserver(consoleObserver.observeSend),
-		expect.WithCloser(closerProxy),
-		expect.WithDefaultTimeout(250 * time.Millisecond),
-	}, consoleOpts...)
-	console, terminalState, err := vt10x.NewVT10XConsole(consoleOpts...)
-	if err != nil {
-		return nil, err
-	}
-	defer console.Close()
-
-	// Use the same timeout in effect on the slave (user) side on the master (process) side pf the PTY
-	timeoutOpts := expect.ConsoleOpts{}
-	for _, opt := range consoleOpts {
-		if err := opt(&timeoutOpts); err != nil {
-			return nil, err
-		}
-	}
-	consoleObserver.readTimeout = timeoutOpts.ReadTimeout
-
-	// Create the execution context
-	executionContext := &InteractiveExecutionContext{
-		outputBuffer:    outputBuffer,
-		console:         console,
-		terminalState:   terminalState,
-		closerProxy:     closerProxy,
-		consoleObserver: consoleObserver,
-	}
-
-	// Execute our function within a channel and wait for exit
-	exitChannel := make(chan struct{})
-	go func() {
-		defer close(exitChannel)
-		userFunc(executionContext, console)
-	}()
-
-	// Run the process for the user to interact with
-	err = processFunc(executionContext)
-	if err != nil {
-		fmt.Println("Process failed", err)
-	}
-
-	// Close the slave end of the pty, and read the remaining bytes from the master end.
-	console.Tty().Close()
-	<-exitChannel
-
-	return executionContext, err
-}
-
-// ExecuteInteractively runs the specified command interactively and returns an execution context object upon completion
-func (ice *InteractiveCommandExecutor) ExecuteInteractively(args []string, interactionFunc InteractiveUserFunc) (*InteractiveExecutionContext, error) {
+// Execute runs the specified command interactively and returns an execution context object upon completion
+func (ice *InteractiveCommandExecutor) Execute(args []string, interactionFunc InteractiveUserFunc) (*InteractiveExecutionContext, error) {
 	// Wrap our execution func with setup for Command execution
 	commandExecutionFunc := func(context *InteractiveExecutionContext) error {
 		ice.command.SetIn(context.Stdin())
@@ -292,14 +313,14 @@ func (ice *InteractiveCommandExecutor) ExecuteInteractively(args []string, inter
 		return err
 	}
 
-	return ExecuteInInteractiveTerminal(commandExecutionFunc, interactionFunc, ice.consoleOpts...)
+	return ExecuteInInteractiveConsole(commandExecutionFunc, interactionFunc, ice.consoleOpts...)
 }
 
-// ExecuteStringInteractively executes the target command by splitting the args string at space boundaries
+// ExecuteS executes the target command by splitting the args string at space boundaries
 // This is a convenience interface suitable only for simple arguments that do not contain quoted values or literals
 // If you need something more advanced please use the Execute() and Args() method to compose from a variadic list of arguments
-func (ice *InteractiveCommandExecutor) ExecuteStringInteractively(argsStr string, interactionFunc InteractiveUserFunc) (*InteractiveExecutionContext, error) {
-	return ice.ExecuteInteractively(strings.Split(argsStr, " "), interactionFunc)
+func (ice *InteractiveCommandExecutor) ExecuteS(argsStr string, interactionFunc InteractiveUserFunc) (*InteractiveExecutionContext, error) {
+	return ice.Execute(strings.Split(argsStr, " "), interactionFunc)
 }
 
 // InteractiveTestContext instances are vended when an interactive test is run
@@ -406,22 +427,48 @@ func (ict *InteractiveTestContext) RequireMatches(opts ...expect.ExpectOpt) (str
 	return l, err
 }
 
-// InteractiveCommandTests instances are yielded while executing
-// a command via ExecuteCommandInteractively and ExecuteCommandInteractivelyE
+// NewInteractiveCommandTester returns a new command executor for working with interactive terminal commands
+func NewInteractiveCommandTester(command *cobra.Command, executor *InteractiveCommandExecutor, consoleOpts ...expect.ConsoleOpt) *InteractiveCommandTester {
+	ice := executor
+	if ice == nil {
+		ice = NewInteractiveCommandExecutor(command)
+	}
+	return &InteractiveCommandTester{
+		executor: ice,
+	}
+}
+
+// InteractiveCommandTester instances are yielded while executing
+// a command via ExecuteCommandInteractively
 // and provide information about the virtual terminal execution environment
-type InteractiveCommandTests struct {
-	// Test suite local command executor. Needs to be set up and torn down between tests
-	InteractiveCommandExecutor *InteractiveCommandExecutor
+type InteractiveCommandTester struct {
+	executor *InteractiveCommandExecutor
+	t        *testing.T
 }
 
-// RunTestCommandInteractively((E runs a Cobra command interactively using the given executor and yields control to a func
-// for interacting with the TTY
-func (s *InteractiveCommandTests) RunTestCommandInteractivelyE(
+// T returns the test instance for this command tester
+func (ict *InteractiveCommandTester) T() *testing.T {
+	if ict.t == nil {
+		panic("invalid configuration: the test instance cannot be nil")
+	}
+	return ict.t
+}
+
+// Executor returns the command executor for this command tester
+func (ict *InteractiveCommandTester) Executor() *InteractiveCommandExecutor {
+	if ict.executor == nil {
+		panic("invalid configuration: the executor instance cannot be nil")
+	}
+	return ict.executor
+}
+
+// Execute runs a Cobra command interactively and yields control to a func
+// for testing the command through a console decorated with testify assertions
+func (ict *InteractiveCommandTester) Execute(
 	t *testing.T,
-	ice *InteractiveCommandExecutor,
 	args []string,
 	testFunc func(*InteractiveTestContext) error) (*InteractiveExecutionContext, error) {
-	return ice.ExecuteInteractively(args, func(context *InteractiveExecutionContext, console *expect.Console) error {
+	return ict.Executor().Execute(args, func(context *InteractiveExecutionContext, console *expect.Console) error {
 		return testFunc(&InteractiveTestContext{
 			console: console,
 			context: context,
@@ -430,29 +477,15 @@ func (s *InteractiveCommandTests) RunTestCommandInteractivelyE(
 	})
 }
 
-// RunTestCommandInteractively(( runs a Cobra command interactively and yields control to a func
-// for interacting with the TTY
-func (s *InteractiveCommandTests) RunTestCommandInteractively(
-	t *testing.T,
-	args []string,
-	testFunc func(*InteractiveTestContext) error) (*InteractiveExecutionContext, error) {
-	return s.InteractiveCommandExecutor.ExecuteInteractively(args, func(context *InteractiveExecutionContext, console *expect.Console) error {
-		return testFunc(&InteractiveTestContext{
-			console: console,
-			context: context,
-			t:       t,
-		})
-	})
-}
-
-// RunTestInInteractiveTerminal runs a test within an interactive terminal environment
+// ExecuteInInteractiveConsoleT runs a test within an interactive console environment
 // Execution requires a standard test instance, a pair of functions that execute the code
 // under test and the test code, and any desired options for configuring the virtual terminal environment
-func RunTestInInteractiveTerminal(t *testing.T,
+// The raw ouytput and the terminal state are logged in the event of a test failure
+func ExecuteInInteractiveConsoleT(t *testing.T,
 	codeUnderTestFunc InteractiveProcessFunc,
 	testFunc InteractiveUserFunc,
 	consoleOpts ...expect.ConsoleOpt) (*InteractiveExecutionContext, error) {
-	context, err := ExecuteInInteractiveTerminal(codeUnderTestFunc, testFunc, consoleOpts...)
+	context, err := ExecuteInInteractiveConsole(codeUnderTestFunc, testFunc, consoleOpts...)
 	t.Logf("Raw output: %q", context.OutputBuffer().String())
 	t.Logf("\n\nterminal state: %s", expect.StripTrailingEmptyLines(context.TerminalState().String()))
 	return context, err

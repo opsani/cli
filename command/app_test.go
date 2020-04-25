@@ -24,7 +24,7 @@ import (
 )
 
 type AppTestSuite struct {
-	test.OpsaniTestSuite
+	test.Suite
 }
 
 func TestAppTestSuite(t *testing.T) {
@@ -33,11 +33,11 @@ func TestAppTestSuite(t *testing.T) {
 
 func (s *AppTestSuite) SetupTest() {
 	viper.Reset()
-	s.OpsaniTestSuite.SetRootCommand(command.NewRootCommand())
+	s.SetCommand(command.NewRootCommand())
 }
 
 func (s *AppTestSuite) TestRunningAppStartHelp() {
-	output, err := s.ExecuteCommand("app", "--help")
+	output, err := s.Execute("app", "--help")
 	s.Require().NoError(err)
 	s.Require().Contains(output, "Manage apps")
 }

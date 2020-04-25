@@ -31,7 +31,7 @@ import (
 )
 
 type InitTestSuite struct {
-	test.OpsaniTestSuite
+	test.Suite
 }
 
 func TestInitTestSuite(t *testing.T) {
@@ -42,19 +42,20 @@ func (s *InitTestSuite) SetupTest() {
 	// Colors make the tests flaky
 	core.DisableColor = true
 	viper.Reset()
-	s.OpsaniTestSuite.SetRootCommand(command.NewRootCommand())
+	s.SetCommand(command.NewRootCommand())
 }
 
 func (s *InitTestSuite) TestRunningInitHelp() {
-	output, err := s.ExecuteCommand("init", "--help")
+	output, err := s.Execute("init", "--help")
 	s.Require().NoError(err)
 	s.Require().Contains(output, "Initializes an Opsani config file")
 }
 
+// NOTE: This test intentionally uses Tty() instead of PassthroughTty()
+// In the event of breakage the test may block. Use a go test timeoout or debug on another test case
 func (s *InitTestSuite) TestTerminalInteraction() {
 	var name string
-	test.RunTestInInteractiveTerminal(s.T(), func(context *test.InteractiveExecutionContext) error {
-		fmt.Printf("%v\n", context)
+	test.ExecuteInInteractiveConsoleT(s.T(), func(context *test.InteractiveExecutionContext) error {
 		return survey.AskOne(&survey.Input{
 			Message: "What is your name?",
 		}, &name, survey.WithStdio(context.Tty(), context.Tty(), context.Tty()))
@@ -73,10 +74,10 @@ func (s *InitTestSuite) RequireNoErr2(_ interface{}, err error) {
 
 func (s *InitTestSuite) TestTerminalConfirm() {
 	var confirmed bool = true
-	test.RunTestInInteractiveTerminal(s.T(), func(context *test.InteractiveExecutionContext) error {
+	test.ExecuteInInteractiveConsoleT(s.T(), func(context *test.InteractiveExecutionContext) error {
 		return survey.AskOne(&survey.Confirm{
 			Message: "Delete file?",
-		}, &confirmed, survey.WithStdio(context.Tty(), context.Tty(), context.Tty()))
+		}, &confirmed, survey.WithStdio(context.PassthroughTty(), context.PassthroughTty(), context.PassthroughTty()))
 	}, func(_ *test.InteractiveExecutionContext, c *expect.Console) error {
 		s.RequireNoErr2(c.Expect(expect.RegexpPattern("Delete file?")))
 		c.SendLine("N")
@@ -92,7 +93,7 @@ func (s *InitTestSuite) TestInitWithExistingConfigDeclinedL() {
 		"token": "123456",
 	})
 
-	context, err := s.RunTestCommandInteractively(s.T(), test.Args("--config", configFile.Name(), "init"), func(t *test.InteractiveTestContext) error {
+	context, err := s.ExecuteTestInteractively(test.Args("--config", configFile.Name(), "init"), func(t *test.InteractiveTestContext) error {
 		t.RequireStringf("Using config from: %s", configFile.Name())
 		t.RequireStringf("? Existing config found. Overwrite %s?", configFile.Name())
 		t.SendLine("N")
@@ -110,7 +111,7 @@ func (s *InitTestSuite) TestInitWithExistingConfigDeclined() {
 		"token": "123456",
 	})
 
-	context, err := s.RunTestCommandInteractively(s.T(), test.Args("--config", configFile.Name(), "init"), func(t *test.InteractiveTestContext) error {
+	context, err := s.ExecuteTestInteractively(test.Args("--config", configFile.Name(), "init"), func(t *test.InteractiveTestContext) error {
 		t.RequireStringf("Using config from: %s", configFile.Name())
 		t.RequireStringf("? Existing config found. Overwrite %s?", configFile.Name())
 		t.SendLine("N")
@@ -128,7 +129,7 @@ func (s *InitTestSuite) TestInitWithExistingConfigAccepted() {
 		"token": "123456",
 	})
 
-	context, err := s.RunTestCommandInteractively(s.T(), test.Args("--config", configFile.Name(), "init"), func(t *test.InteractiveTestContext) error {
+	context, err := s.ExecuteTestInteractively(test.Args("--config", configFile.Name(), "init"), func(t *test.InteractiveTestContext) error {
 		t.RequireStringf("Using config from: %s", configFile.Name())
 		t.RequireStringf("? Existing config found. Overwrite %s?", configFile.Name())
 		t.SendLine("Y")

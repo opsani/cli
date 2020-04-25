@@ -24,7 +24,7 @@ import (
 )
 
 type CompletionTestSuite struct {
-	test.OpsaniTestSuite
+	test.Suite
 }
 
 func TestCompletionTestSuite(t *testing.T) {
@@ -33,35 +33,35 @@ func TestCompletionTestSuite(t *testing.T) {
 
 func (s *CompletionTestSuite) SetupTest() {
 	viper.Reset()
-	s.OpsaniTestSuite.SetRootCommand(command.NewRootCommand())
+	s.SetCommand(command.NewRootCommand())
 }
 
 func (s *CompletionTestSuite) TestRunningCompletionHelp() {
-	output, err := s.ExecuteCommand("completion", "--help")
+	output, err := s.Execute("completion", "--help")
 	s.Require().NoError(err)
 	s.Require().Contains(output, "Generate shell completion scripts for Opsani CL")
 }
 
 func (s *CompletionTestSuite) TestRunningCompletionBash() {
-	output, err := s.ExecuteCommand("completion", "--shell", "bash")
+	output, err := s.Execute("completion", "--shell", "bash")
 	s.Require().NoError(err)
 	s.Require().Contains(output, "BASH_COMP_DEBUG_FILE")
 }
 
 func (s *CompletionTestSuite) TestRunningCompletionZsh() {
-	output, err := s.ExecuteCommand("completion", "--shell", "zsh")
+	output, err := s.Execute("completion", "--shell", "zsh")
 	s.Require().NoError(err)
 	s.Require().Contains(output, "#compdef _opsani opsani")
 }
 
 func (s *CompletionTestSuite) TestRunningCompletionFish() {
-	output, err := s.ExecuteCommand("completion", "--shell", "fish")
+	output, err := s.Execute("completion", "--shell", "fish")
 	s.Require().NoError(err)
 	s.Require().Contains(output, "__fish_opsani_no_subcommand")
 }
 
 func (s *CompletionTestSuite) TestRunningCompletionPowershell() {
-	output, err := s.ExecuteCommand("completion", "--shell", "powershell")
+	output, err := s.Execute("completion", "--shell", "powershell")
 	s.Require().NoError(err)
 	s.Require().Contains(output, "Register-ArgumentCompleter -Native -CommandName 'opsani'")
 }

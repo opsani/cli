@@ -23,7 +23,7 @@ import (
 )
 
 type DiscoverTestSuite struct {
-	test.OpsaniTestSuite
+	test.Suite
 }
 
 func TestDiscoverTestSuite(t *testing.T) {
@@ -31,23 +31,23 @@ func TestDiscoverTestSuite(t *testing.T) {
 }
 
 func (s *DiscoverTestSuite) SetupTest() {
-	s.OpsaniTestSuite.SetRootCommand(command.NewRootCommand())
+	s.SetCommand(command.NewRootCommand())
 }
 
 func (s *DiscoverTestSuite) TestRunningDiscoverHelp() {
-	output, err := s.ExecuteCommand("discover", "--help")
+	output, err := s.Execute("discover", "--help")
 	s.Require().NoError(err)
 	s.Require().Contains(output, "The discover command introspects")
 }
 
 func (s *DiscoverTestSuite) TestRunningIMBHelp() {
-	output, err := s.ExecuteCommand("imb", "--help")
+	output, err := s.Execute("imb", "--help")
 	s.Require().NoError(err)
 	s.Require().Contains(output, "Run the intelligent manifest builder")
 }
 
 func (s *DiscoverTestSuite) TestRunningPullHelp() {
-	output, err := s.ExecuteCommand("pull", "--help")
+	output, err := s.Execute("pull", "--help")
 	s.Require().NoError(err)
 	s.Require().Contains(output, "Pull a Docker image")
 }

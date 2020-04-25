@@ -24,7 +24,7 @@ import (
 )
 
 type LoginTestSuite struct {
-	test.OpsaniTestSuite
+	test.Suite
 }
 
 func TestLoginTestSuite(t *testing.T) {
@@ -33,11 +33,11 @@ func TestLoginTestSuite(t *testing.T) {
 
 func (s *LoginTestSuite) SetupTest() {
 	viper.Reset()
-	s.OpsaniTestSuite.SetRootCommand(command.NewRootCommand())
+	s.SetCommand(command.NewRootCommand())
 }
 
 func (s *LoginTestSuite) TestRunningInitHelp() {
-	output, err := s.ExecuteCommand("login", "--help")
+	output, err := s.Execute("login", "--help")
 	s.Require().NoError(err)
 	s.Require().Contains(output, "Login to the Opsani API")
 }

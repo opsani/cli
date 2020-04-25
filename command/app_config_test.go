@@ -24,7 +24,7 @@ import (
 )
 
 type AppConfigTestSuite struct {
-	test.OpsaniTestSuite
+	test.Suite
 }
 
 func TestAppConfigTestSuite(t *testing.T) {
@@ -33,29 +33,29 @@ func TestAppConfigTestSuite(t *testing.T) {
 
 func (s *AppConfigTestSuite) SetupTest() {
 	viper.Reset()
-	s.OpsaniTestSuite.SetRootCommand(command.NewRootCommand())
+	s.SetCommand(command.NewRootCommand())
 }
 
 func (s *AppConfigTestSuite) TestRunningAppConfigEditHelp() {
-	output, err := s.ExecuteCommand("app", "config", "edit", "--help")
+	output, err := s.Execute("app", "config", "edit", "--help")
 	s.Require().NoError(err)
 	s.Require().Contains(output, "Edit app config")
 }
 
 func (s *AppConfigTestSuite) TestRunningAppConfigGetHelp() {
-	output, err := s.ExecuteCommand("app", "config", "get", "--help")
+	output, err := s.Execute("app", "config", "get", "--help")
 	s.Require().NoError(err)
 	s.Require().Contains(output, "Get app config")
 }
 
 func (s *AppConfigTestSuite) TestRunningAppConfigPatchHelp() {
-	output, err := s.ExecuteCommand("app", "config", "patch", "--help")
+	output, err := s.Execute("app", "config", "patch", "--help")
 	s.Require().NoError(err)
 	s.Require().Contains(output, "Patch merges the incoming")
 }
 
 func (s *AppConfigTestSuite) TestRunningAppConfigSetHelp() {
-	output, err := s.ExecuteCommand("app", "config", "set", "--help")
+	output, err := s.Execute("app", "config", "set", "--help")
 	s.Require().NoError(err)
 	s.Require().Contains(output, "Set app config")
 }

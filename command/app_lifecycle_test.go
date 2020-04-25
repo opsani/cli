@@ -24,7 +24,7 @@ import (
 )
 
 type AppLifecycleTestSuite struct {
-	test.OpsaniTestSuite
+	test.Suite
 }
 
 func TestAppLifecycleTestSuite(t *testing.T) {
@@ -33,29 +33,29 @@ func TestAppLifecycleTestSuite(t *testing.T) {
 
 func (s *AppLifecycleTestSuite) SetupTest() {
 	viper.Reset()
-	s.OpsaniTestSuite.SetRootCommand(command.NewRootCommand())
+	s.SetCommand(command.NewRootCommand())
 }
 
 func (s *AppLifecycleTestSuite) TestRunningAppStartHelp() {
-	output, err := s.ExecuteCommand("app", "start", "--help")
+	output, err := s.Execute("app", "start", "--help")
 	s.Require().NoError(err)
 	s.Require().Contains(output, "Start the app")
 }
 
 func (s *AppLifecycleTestSuite) TestRunningAppStopHelp() {
-	output, err := s.ExecuteCommand("app", "stop", "--help")
+	output, err := s.Execute("app", "stop", "--help")
 	s.Require().NoError(err)
 	s.Require().Contains(output, "Stop the app")
 }
 
 func (s *AppLifecycleTestSuite) TestRunningAppRestartHelp() {
-	output, err := s.ExecuteCommand("app", "restart", "--help")
+	output, err := s.Execute("app", "restart", "--help")
 	s.Require().NoError(err)
 	s.Require().Contains(output, "Restart the app")
 }
 
 func (s *AppLifecycleTestSuite) TestRunningAppStatusHelp() {
-	output, err := s.ExecuteCommand("app", "status", "--help")
+	output, err := s.Execute("app", "status", "--help")
 	s.Require().NoError(err)
 	s.Require().Contains(output, "Check app status")
 }
