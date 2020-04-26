@@ -240,31 +240,6 @@ func runDiscoveryCommand(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func newPullCommand(baseCmd *BaseCommand) *cobra.Command {
-	pullCmd := &cobra.Command{
-		Use:   "pull",
-		Short: "Pull a Docker image",
-		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			dockerHost, err := cmd.Flags().GetString(hostArg)
-			if err != nil {
-				return err
-			}
-
-			di, err := NewDockerInterface(dockerHost)
-			if err != nil {
-				return err
-			}
-
-			return di.PullImageWithProgressReporting(context.Background(), args[0])
-		},
-	}
-
-	pullCmd.Flags().StringP(hostArg, "H", "", "Docket host to connect to (overriding DOCKER_HOST)")
-
-	return pullCmd
-}
-
 func newDiscoverCommand(baseCmd *BaseCommand) *cobra.Command {
 	discoverCmd := &cobra.Command{
 		Use:   "discover",

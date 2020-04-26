@@ -106,7 +106,6 @@ We'd love to hear your feedback at <https://github.com/opsani/cli>`,
 
 	cobraCmd.AddCommand(newDiscoverCommand(rootCmd))
 	cobraCmd.AddCommand(newIMBCommand(rootCmd))
-	cobraCmd.AddCommand(newPullCommand(rootCmd))
 
 	cobraCmd.AddCommand(NewConfigCommand(rootCmd))
 	cobraCmd.AddCommand(NewCompletionCommand(rootCmd))
