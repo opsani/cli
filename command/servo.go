@@ -18,7 +18,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"log"
 	"net"
 	"os"
 	"strings"
@@ -442,7 +441,7 @@ func (servoCmd *servoCommand) runInSSHSession(ctx context.Context, name string, 
 	}
 	hostKeyCallback, err := knownhosts.New(knownHosts)
 	if err != nil {
-		log.Fatal("could not create hostkeycallback function: ", err)
+		return err
 	}
 	config := &ssh.ClientConfig{
 		User: servo.User,
@@ -467,19 +466,19 @@ func (servoCmd *servoCommand) runInSSHSession(ctx context.Context, name string, 
 		// Dial the bastion host
 		bastionClient, err := ssh.Dial("tcp", host, bastionConfig)
 		if err != nil {
-			log.Fatal(err)
+			return err
 		}
 
 		// Establish a new connection thrrough the bastion
 		conn, err := bastionClient.Dial("tcp", servo.HostAndPort())
 		if err != nil {
-			log.Fatal(err)
+			return err
 		}
 
 		// Build a new SSH connection on top of the bastion connection
 		ncc, chans, reqs, err := ssh.NewClientConn(conn, servo.HostAndPort(), config)
 		if err != nil {
-			log.Fatal(err)
+			return err
 		}
 
 		// Now connection a client on top of it
@@ -487,7 +486,7 @@ func (servoCmd *servoCommand) runInSSHSession(ctx context.Context, name string, 
 	} else {
 		sshClient, err = ssh.Dial("tcp", servo.HostAndPort(), config)
 		if err != nil {
-			log.Fatal(err)
+			return err
 		}
 	}
 	defer sshClient.Close()
@@ -495,7 +494,7 @@ func (servoCmd *servoCommand) runInSSHSession(ctx context.Context, name string, 
 	// Create sesssion
 	session, err := sshClient.NewSession()
 	if err != nil {
-		log.Fatal("Failed to create session: ", err)
+		return err
 	}
 	defer session.Close()
 
