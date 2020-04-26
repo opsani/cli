@@ -35,7 +35,8 @@ import (
 
 type servoCommand struct {
 	*BaseCommand
-	force bool
+	force   bool
+	verbose bool
 }
 
 // NewServoCommand returns a new instance of the servo command
@@ -54,13 +55,15 @@ func NewServoCommand(baseCmd *BaseCommand) *cobra.Command {
 	}
 
 	// Servo registry
-	servoCmd.AddCommand(&cobra.Command{
+	listCmd := &cobra.Command{
 		Use:     "list",
 		Aliases: []string{"ls"},
 		Short:   "List Servos",
 		Args:    cobra.NoArgs,
 		RunE:    servoCommand.RunServoList,
-	})
+	}
+	listCmd.Flags().BoolVarP(&servoCommand.verbose, "verbose", "v", false, "Display verbose output")
+	servoCmd.AddCommand(listCmd)
 	servoCmd.AddCommand(&cobra.Command{
 		Use:   "add",
 		Short: "Add a Servo",
@@ -188,6 +191,17 @@ func (s Servo) DisplayPath() string {
 		return s.Path
 	}
 	return "~/"
+}
+
+func (s Servo) URL() string {
+	pathComponent := ""
+	if s.Path != "" {
+		if s.Port != "" && s.Port != "22" {
+			pathComponent = pathComponent + ":"
+		}
+		pathComponent = pathComponent + s.Path
+	}
+	return fmt.Sprintf("ssh://%s@%s:%s", s.User, s.DisplayHost(), pathComponent)
 }
 
 func (servoCmd *servoCommand) RunAddServo(_ *cobra.Command, args []string) error {
@@ -372,19 +386,7 @@ func (servoCmd *servoCommand) runInSSHSession(ctx context.Context, name string, 
 }
 
 func (servoCmd *servoCommand) RunServoList(_ *cobra.Command, args []string) error {
-	data := [][]string{}
-	servos, _ := servoCmd.GetServos()
-	for _, servo := range servos {
-		data = append(data, []string{
-			servo.Name,
-			servo.User,
-			servo.DisplayHost(),
-			servo.DisplayPath(),
-		})
-	}
-
-	table := tablewriter.NewWriter(os.Stdout)
-	table.SetHeader([]string{"NAME", "USER", "HOST", "PATH"})
+	table := tablewriter.NewWriter(servoCmd.OutOrStdout())
 	table.SetAutoWrapText(false)
 	table.SetAutoFormatHeaders(true)
 	table.SetHeaderAlignment(tablewriter.ALIGN_LEFT)
@@ -396,7 +398,30 @@ func (servoCmd *servoCommand) RunServoList(_ *cobra.Command, args []string) erro
 	table.SetBorder(false)
 	table.SetTablePadding("\t") // pad with tabs
 	table.SetNoWhiteSpace(true)
-	table.AppendBulk(data) // Add Bulk Data
+
+	data := [][]string{}
+	servos, _ := servoCmd.GetServos()
+
+	if servoCmd.verbose {
+		table.SetHeader([]string{"NAME", "USER", "HOST", "PATH"})
+		for _, servo := range servos {
+			data = append(data, []string{
+				servo.Name,
+				servo.User,
+				servo.DisplayHost(),
+				servo.DisplayPath(),
+			})
+		}
+	} else {
+		for _, servo := range servos {
+			data = append(data, []string{
+				servo.Name,
+				servo.URL(),
+			})
+		}
+	}
+
+	table.AppendBulk(data)
 	table.Render()
 	return nil
 }

@@ -274,6 +274,26 @@ func (s *ServoTestSuite) TestRunningServoList() {
 	configFile := test.TempConfigFileWithObj(config)
 	output, err := s.Execute("--config", configFile.Name(), "servo", "list")
 	s.Require().NoError(err)
-	s.Require().Contains("NAME      	USER        	HOST          	PATH  ", output)
-	s.Require().Contains("opsani-dev	blakewatters	dev.opsani.com	/servo	", output)
+	s.Require().Contains(output, "opsani-dev	ssh://blakewatters@dev.opsani.com:/servo	")
+}
+
+func (s *ServoTestSuite) TestRunningServoListVerbose() {
+	config := map[string]interface{}{
+		"app":   "example.com/app",
+		"token": "123456",
+		"servos": []map[string]string{
+			{
+				"host": "dev.opsani.com",
+				"name": "opsani-dev",
+				"path": "/servo",
+				"port": "",
+				"user": "blakewatters",
+			},
+		},
+	}
+	configFile := test.TempConfigFileWithObj(config)
+	output, err := s.Execute("--config", configFile.Name(), "servo", "list", "-v")
+	s.Require().NoError(err)
+	s.Require().Contains(output, "NAME      	USER        	HOST          	PATH  ")
+	s.Require().Contains(output, "opsani-dev	blakewatters	dev.opsani.com	/servo	")
 }
