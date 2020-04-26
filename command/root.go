@@ -24,6 +24,7 @@ import (
 
 	"github.com/AlecAivazis/survey/v2/core"
 	"github.com/AlecAivazis/survey/v2/terminal"
+	"github.com/docker/docker/pkg/term"
 	"github.com/mitchellh/go-homedir"
 	"github.com/opsani/cli/opsani"
 	"github.com/spf13/cobra"
@@ -91,10 +92,11 @@ We'd love to hear your feedback at <https://github.com/opsani/cli>`,
 	configFileUsage := fmt.Sprintf("Location of config file (default \"%s\")", rootCmd.DefaultConfigFile())
 	cobraCmd.PersistentFlags().StringVar(&rootCmd.ConfigFile, "config", "", configFileUsage)
 	cobraCmd.MarkPersistentFlagFilename("config", "*.yaml", "*.yml")
-	cobraCmd.SetVersionTemplate("Opsani CLI version {{.Version}}\n")
 	cobraCmd.Flags().Bool("version", false, "Display version and exit")
 	cobraCmd.PersistentFlags().Bool("help", false, "Display help and exit")
 	cobraCmd.PersistentFlags().MarkHidden("help")
+	cobraCmd.PersistentFlags().MarkShorthandDeprecated("help", "please use --help")
+
 	cobraCmd.SetHelpCommand(&cobra.Command{
 		Hidden: true,
 	})
@@ -110,6 +112,26 @@ We'd love to hear your feedback at <https://github.com/opsani/cli>`,
 	cobraCmd.AddCommand(NewConfigCommand(rootCmd))
 	cobraCmd.AddCommand(NewCompletionCommand(rootCmd))
 	cobraCmd.AddCommand(NewServoCommand(rootCmd))
+	cobraCmd.AddCommand(NewVitalCommand(rootCmd))
+
+	// Usage and help layout
+	cobra.AddTemplateFunc("hasSubCommands", hasSubCommands)
+	cobra.AddTemplateFunc("hasManagementSubCommands", hasManagementSubCommands)
+	cobra.AddTemplateFunc("operationSubCommands", operationSubCommands)
+	cobra.AddTemplateFunc("managementSubCommands", managementSubCommands)
+	cobra.AddTemplateFunc("wrappedFlagUsages", wrappedFlagUsages)
+
+	cobra.AddTemplateFunc("hasOtherSubCommands", hasOtherSubCommands)
+	cobra.AddTemplateFunc("otherSubCommands", otherSubCommands)
+
+	cobra.AddTemplateFunc("hasRegistrySubCommands", hasRegistrySubCommands)
+	cobra.AddTemplateFunc("registrySubCommands", registrySubCommands)
+
+	cobraCmd.SetUsageTemplate(usageTemplate)
+	cobraCmd.SetHelpTemplate(helpTemplate)
+	// cobraCmd.SetFlagErrorFunc(FlagErrorFunc)
+	cobraCmd.SetHelpCommand(helpCommand)
+	cobraCmd.SetVersionTemplate("Opsani CLI version {{.Version}}\n")
 
 	// See Execute()
 	cobraCmd.SetFlagErrorFunc(func(cmd *cobra.Command, err error) error {
@@ -348,3 +370,186 @@ func (baseCmd *BaseCommand) GetAllSettings() map[string]interface{} {
 func (baseCmd *BaseCommand) IsInitialized() bool {
 	return baseCmd.App() != "" && baseCmd.AccessToken() != ""
 }
+
+var helpCommand = &cobra.Command{
+	Use:               "help [command]",
+	Short:             "Help about the command",
+	PersistentPreRun:  func(cmd *cobra.Command, args []string) {},
+	PersistentPostRun: func(cmd *cobra.Command, args []string) {},
+	RunE: func(c *cobra.Command, args []string) error {
+		cmd, args, e := c.Root().Find(args)
+		if cmd == nil || e != nil || len(args) > 0 {
+			return fmt.Errorf("unknown help topic: %v", strings.Join(args, " "))
+		}
+
+		helpFunc := cmd.HelpFunc()
+		helpFunc(cmd, args)
+		return nil
+	},
+}
+
+/// Help and usage
+
+// FlagErrorFunc prints an error message which matches the format of the
+// docker/cli/cli error messages
+// func FlagErrorFunc(cmd *cobra.Command, err error) error {
+// 	if err == nil {
+// 		return nil
+// 	}
+
+// 	usage := ""
+// 	if cmd.HasSubCommands() {
+// 		usage = "\n\n" + cmd.UsageString()
+// 	}
+// 	return StatusError{
+// 		Status:     fmt.Sprintf("%s\nSee '%s --help'.%s", err, cmd.CommandPath(), usage),
+// 		StatusCode: 125,
+// 	}
+// }
+
+func hasSubCommands(cmd *cobra.Command) bool {
+	return len(operationSubCommands(cmd)) > 0
+}
+
+func hasManagementSubCommands(cmd *cobra.Command) bool {
+	return len(managementSubCommands(cmd)) > 0
+}
+
+func operationSubCommands(cmd *cobra.Command) []*cobra.Command {
+	cmds := []*cobra.Command{}
+	for _, sub := range cmd.Commands() {
+		// if isOtherCommand(sub) {
+		if len(sub.Annotations) > 0 {
+			continue
+		}
+		if sub.IsAvailableCommand() && !sub.HasSubCommands() {
+			cmds = append(cmds, sub)
+		}
+	}
+	return cmds
+}
+
+func wrappedFlagUsages(cmd *cobra.Command) string {
+	width := 80
+	if ws, err := term.GetWinsize(0); err == nil {
+		width = int(ws.Width)
+	}
+	return cmd.Flags().FlagUsagesWrapped(width - 1)
+}
+
+func managementSubCommands(cmd *cobra.Command) []*cobra.Command {
+	cmds := []*cobra.Command{}
+	for _, sub := range cmd.Commands() {
+		if isOtherCommand(sub) {
+			continue
+		}
+		if sub.IsAvailableCommand() && sub.HasSubCommands() {
+			cmds = append(cmds, sub)
+		}
+	}
+	return cmds
+}
+
+func hasOtherSubCommands(cmd *cobra.Command) bool {
+	return len(otherSubCommands(cmd)) > 0
+}
+
+func otherSubCommands(cmd *cobra.Command) []*cobra.Command {
+	cmds := []*cobra.Command{}
+	for _, sub := range cmd.Commands() {
+		if sub.IsAvailableCommand() && isOtherCommand(sub) {
+			cmds = append(cmds, sub)
+		}
+	}
+	return cmds
+}
+
+func isOtherCommand(cmd *cobra.Command) bool {
+	return cmd.Annotations["other"] == "true"
+}
+
+func hasRegistrySubCommands(cmd *cobra.Command) bool {
+	return len(registrySubCommands(cmd)) > 0
+}
+
+func registrySubCommands(cmd *cobra.Command) []*cobra.Command {
+	cmds := []*cobra.Command{}
+	for _, sub := range cmd.Commands() {
+		if sub.IsAvailableCommand() && isRegistryCommand(sub) {
+			cmds = append(cmds, sub)
+		}
+	}
+	return cmds
+}
+
+func isRegistryCommand(cmd *cobra.Command) bool {
+	return cmd.Annotations["registry"] == "true"
+}
+
+var usageTemplate = `Usage:
+
+{{- if not .HasSubCommands}}	{{.UseLine}}{{end}}
+{{- if .HasSubCommands}}	{{ .CommandPath}}{{- if .HasAvailableFlags}} [OPTIONS]{{end}} COMMAND{{end}}
+
+{{if ne .Long ""}}{{ .Long | trim }}{{ else }}{{ .Short | trim }}{{end}}
+
+{{- if gt .Aliases 0}}
+
+Aliases:
+  {{.NameAndAliases}}
+
+{{- end}}
+{{- if .HasExample}}
+
+Examples:
+{{ .Example }}
+
+{{- end}}
+{{- if .HasAvailableFlags}}
+
+Options:
+{{ wrappedFlagUsages . | trimRightSpace}}
+
+{{- end}}
+{{- if hasManagementSubCommands . }}
+
+Management Commands:
+
+{{- range managementSubCommands . }}
+  {{rpad .Name .NamePadding }} {{.Short}}
+{{- end}}
+{{- end}}
+{{- if hasRegistrySubCommands . }}
+
+Registry Commands:
+
+{{- range registrySubCommands . }}
+  {{rpad .Name .NamePadding }} {{.Short}}
+{{- end}}
+{{- end}}
+{{- if hasSubCommands .}}
+
+Commands:
+
+{{- range operationSubCommands . }}
+  {{rpad .Name .NamePadding }} {{.Short}}
+{{- end}}
+{{- end}}
+
+{{- if hasOtherSubCommands .}}
+
+Other Commands:
+
+{{- range otherSubCommands . }}
+  {{rpad .Name .NamePadding }} {{.Short}}
+{{- end}}
+{{- end}}
+
+{{- if .HasSubCommands }}
+
+Run '{{.CommandPath}} COMMAND --help' for more information on a command.
+{{- end}}
+`
+
+var helpTemplate = `
+{{if or .Runnable .HasSubCommands}}{{.UsageString}}{{end}}`

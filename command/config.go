@@ -29,7 +29,8 @@ func NewConfigCommand(baseCmd *BaseCommand) *cobra.Command {
 	cfgCmd := configCommand{BaseCommand: baseCmd}
 	return &cobra.Command{
 		Use:               "config",
-		Short:             "Manages client configuration",
+		Short:             "Display configuration",
+		Annotations:       map[string]string{"other": "true"},
 		Args:              cobra.NoArgs,
 		RunE:              cfgCmd.Run,
 		PersistentPreRunE: ReduceRunEFuncs(baseCmd.InitConfigRunE, baseCmd.RequireConfigFileFlagToExistRunE, baseCmd.RequireInitRunE),

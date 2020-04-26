@@ -59,30 +59,33 @@ func NewServoCommand(baseCmd *BaseCommand) *cobra.Command {
 
 	// Servo registry
 	listCmd := &cobra.Command{
-		Use:     "list",
-		Aliases: []string{"ls"},
-		Short:   "List Servos",
-		Args:    cobra.NoArgs,
-		RunE:    servoCommand.RunServoList,
+		Use:         "list",
+		Annotations: map[string]string{"registry": "true"},
+		Aliases:     []string{"ls"},
+		Short:       "List Servos",
+		Args:        cobra.NoArgs,
+		RunE:        servoCommand.RunServoList,
 	}
 	listCmd.Flags().BoolVarP(&servoCommand.verbose, "verbose", "v", false, "Display verbose output")
 	servoCmd.AddCommand(listCmd)
 	addCmd := &cobra.Command{
-		Use:   "add",
-		Short: "Add a Servo",
-		Args:  cobra.MaximumNArgs(1),
-		RunE:  servoCommand.RunAddServo,
+		Use:         "add",
+		Annotations: map[string]string{"registry": "true"},
+		Short:       "Add a Servo",
+		Args:        cobra.MaximumNArgs(1),
+		RunE:        servoCommand.RunAddServo,
 	}
 	addCmd.Flags().BoolP("bastion", "b", false, "Use a bastion host for access")
 	addCmd.Flags().String("bastion-host", "", "Specify the bastion host (format is user@host[:port])")
 	servoCmd.AddCommand(addCmd)
 
 	removeCmd := &cobra.Command{
-		Use:     "remove",
-		Aliases: []string{"rm"},
-		Short:   "Remove a Servo",
-		Args:    cobra.ExactArgs(1),
-		RunE:    servoCommand.RunRemoveServo,
+		Use:         "remove",
+		Annotations: map[string]string{"registry": "true"},
+		Aliases:     []string{"rm"},
+		Short:       "Remove a Servo",
+		Args:        cobra.ExactArgs(1),
+		RunE:        servoCommand.RunRemoveServo,
 	}
 	removeCmd.Flags().BoolVarP(&servoCommand.force, "force", "f", false, "Don't prompt for confirmation")
 	servoCmd.AddCommand(removeCmd)

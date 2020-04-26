@@ -56,6 +56,7 @@ func NewAuthCommand(baseCmd *BaseCommand) *cobra.Command {
 		Use:   "logout",
 		Short: "Logout from Opsani",
 		Args:  cobra.NoArgs,
+		RunE:  authCommand.runLogoutCommand,
 	})
 
 	return authCobra
@@ -86,5 +87,10 @@ func (cmd *authCommand) runLoginCommand(c *cobra.Command, args []string) error {
 			return err
 		}
 	}
+	return nil
+}
+
+func (cmd *authCommand) runLogoutCommand(c *cobra.Command, args []string) error {
+	fmt.Println("Logged out from", cmd.GetBaseURLHostnameAndPort())
 	return nil
 }

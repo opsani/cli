@@ -27,8 +27,9 @@ import (
 // NewCompletionCommand returns a new Opsani CLI cmpletion command instance
 func NewCompletionCommand(baseCmd *BaseCommand) *cobra.Command {
 	completionCmd := &cobra.Command{
-		Use:   "completion",
-		Short: "Generate shell completion scripts",
+		Use:         "completion",
+		Annotations: map[string]string{"other": "true"},
+		Short:       "Generate shell completion scripts",
 		Long: `Generate shell completion scripts for Opsani CLI commands.
 
 		The output of this command will be computer code and is meant to be saved to a
