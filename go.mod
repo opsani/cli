@@ -11,6 +11,7 @@ require (
 	github.com/alecthomas/assert v0.0.0-20170929043011-405dbfeb8e38
 	github.com/alecthomas/colour v0.1.0 // indirect
 	github.com/alecthomas/repr v0.0.0-20200325044227-4184120f674c // indirect
+	github.com/charmbracelet/glamour v0.1.0
 	github.com/containerd/containerd v1.3.3 // indirect
 	github.com/containerd/continuity v0.0.0-20200228182428-0f16d7a0959c // indirect
 	github.com/creack/pty v1.1.9 // indirect
@@ -23,12 +24,13 @@ require (
 	github.com/go-resty/resty/v2 v2.2.0
 	github.com/goccy/go-yaml v1.4.3
 	github.com/golang/protobuf v1.4.0 // indirect
-	github.com/googleapis/gnostic v0.4.1 // indirect
+	github.com/googleapis/gnostic v0.4.0 // indirect
 	github.com/gorilla/mux v1.7.4 // indirect
 	github.com/hinshun/vt10x v0.0.0-20180616224451-1954e6464174
 	github.com/hokaccha/go-prettyjson v0.0.0-20190818114111-108c894c2c0e
 	github.com/imdario/mergo v0.3.9 // indirect
 	github.com/konsorten/go-windows-terminal-sequences v1.0.2 // indirect
+	github.com/kr/pretty v0.2.0 // indirect
 	github.com/kr/pty v1.1.8
 	github.com/mattn/go-colorable v0.1.4
 	github.com/mattn/go-isatty v0.0.12
