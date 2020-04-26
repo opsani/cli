@@ -35,6 +35,7 @@ import (
 
 type servoCommand struct {
 	*BaseCommand
+	force bool
 }
 
 // NewServoCommand returns a new instance of the servo command
@@ -61,18 +62,21 @@ func NewServoCommand(baseCmd *BaseCommand) *cobra.Command {
 		RunE:    servoCommand.RunServoList,
 	})
 	servoCmd.AddCommand(&cobra.Command{
-		Use:   "Add",
+		Use:   "add",
 		Short: "Add a Servo",
 		Args:  cobra.MaximumNArgs(1),
 		RunE:  servoCommand.RunAddServo,
 	})
-	servoCmd.AddCommand(&cobra.Command{
-		Use:     "Remove",
+
+	removeCmd := &cobra.Command{
+		Use:     "remove",
 		Aliases: []string{"rm"},
 		Short:   "Remove a Servo",
 		Args:    cobra.ExactArgs(1),
 		RunE:    servoCommand.RunRemoveServo,
-	})
+	}
+	removeCmd.Flags().BoolVarP(&servoCommand.force, "force", "f", false, "Don't prompt for confirmation")
+	servoCmd.AddCommand(removeCmd)
 
 	// Servo Lifecycle
 	servoCmd.AddCommand(&cobra.Command{
@@ -136,15 +140,15 @@ func NewServoCommand(baseCmd *BaseCommand) *cobra.Command {
 // -----END OPENSSH PRIVATE KEY-----
 // `
 
-var servos = []map[string]string{
-	{
-		"name": "opsani-dev",
-		"host": "3.93.217.12",
-		"port": "22",
-		"user": "root",
-		"path": "/root/dev.opsani.com/blake/oco",
-	},
-}
+// var servos = []map[string]string{
+// 	{
+// 		"name": "opsani-dev",
+// 		"host": "3.93.217.12",
+// 		"port": "22",
+// 		"user": "root",
+// 		"path": "/root/dev.opsani.com/blake/oco",
+// 	},
+// }
 
 func (servoCmd *servoCommand) SSHAgent() ssh.AuthMethod {
 	if sshAgent, err := net.Dial("unix", os.Getenv("SSH_AUTH_SOCK")); err == nil {
@@ -153,39 +157,129 @@ func (servoCmd *servoCommand) SSHAgent() ssh.AuthMethod {
 	return nil
 }
 
-func (servoCmd *servoCommand) RunAddServo(_ *cobra.Command, args []string) error {
-	// Name, [user@]host[:port]/path
-	return nil
+// Servo represents a deployed Servo assembly running somewhere
+type Servo struct {
+	Name string
+	User string
+	Host string
+	Port string
+	Path string
+}
 
-	servos := []map[string]string{}
-	var servo struct {
-		Name string
-		Host string
-		Port string
-		Path string
+func (s Servo) HostAndPort() string {
+	v := s.Host
+	if s.Port != "" && s.Port != "22" {
+		v = v + ":" + s.Port
 	}
-	// var newServo servo
+	return v
+}
 
-	if servo.Name == "" {
+func (s Servo) DisplayPath() string {
+	if s.Path != "" {
+		return s.Path
+	}
+	return "~/"
+}
+
+func (servoCmd *servoCommand) RunAddServo(_ *cobra.Command, args []string) error {
+	servo := Servo{}
+	if len(args) > 0 {
 		servo.Name = args[0]
 	}
 
-	confirmed := false
+	servos := make([]Servo, 0)
+	err := viper.UnmarshalKey("servos", &servos)
+	if err != nil {
+		return err
+	}
+
 	if servo.Name == "" {
-		err := survey.AskOne(&survey.Input{
+		err := servoCmd.AskOne(&survey.Input{
 			Message: "Servo name?",
 		}, &servo.Name, survey.WithValidator(survey.Required))
 		if err != nil {
 			return err
 		}
-		// prompt := &survey.Confirm{
-		// 	Message: fmt.Sprintf("Write to %s?", opsani.ConfigFile),
-		// }
-		// cmd.AskOne(prompt, &servo.Name)
-		// servos = append(servos, servo)
+	}
+
+	if servo.User == "" {
+		err := servoCmd.AskOne(&survey.Input{
+			Message: "User?",
+		}, &servo.User, survey.WithValidator(survey.Required))
+		if err != nil {
+			return err
+		}
+	}
+
+	if servo.Host == "" {
+		err := servoCmd.AskOne(&survey.Input{
+			Message: "Host?",
+		}, &servo.Host, survey.WithValidator(survey.Required))
+		if err != nil {
+			return err
+		}
+	}
+
+	if servo.Path == "" {
+		err := servoCmd.AskOne(&survey.Input{
+			Message: "Path? (optional)",
+		}, &servo.Path, survey.WithValidator(survey.Required))
+		if err != nil {
+			return err
+		}
+	}
+
+	servos = append(servos, servo)
+	viper.Set("servos", servos)
+	if err := viper.WriteConfig(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// GetServos returns the Servos in the configuration
+func (servoCmd *servoCommand) GetServos() ([]Servo, error) {
+	servos := make([]Servo, 0)
+	err := viper.UnmarshalKey("servos", &servos)
+	if err != nil {
+		return nil, err
+	}
+	return servos, nil
+}
+
+func (servoCmd *servoCommand) RunRemoveServo(_ *cobra.Command, args []string) error {
+	name := args[0]
+	var servo *Servo
+
+	// Find the target
+	servos, err := servoCmd.GetServos()
+	if err != nil {
+		return err
+	}
+	var index int
+	for i, s := range servos {
+		if s.Name == name {
+			servo = &s
+			index = i
+			break
+		}
+	}
+
+	if servo == nil {
+		return fmt.Errorf("Unable to find Servo named %q", servo)
+	}
+
+	confirmed := servoCmd.force
+	if !confirmed {
+		prompt := &survey.Confirm{
+			Message: fmt.Sprintf("Remove Servo %q?", servo.Name),
+		}
+		servoCmd.AskOne(prompt, &confirmed)
 	}
 
 	if confirmed {
+		servos = append(servos[:index], servos[index+1:]...)
 		viper.Set("servos", servos)
 		if err := viper.WriteConfig(); err != nil {
 			return err
@@ -195,37 +289,7 @@ func (servoCmd *servoCommand) RunAddServo(_ *cobra.Command, args []string) error
 	return nil
 }
 
-func (servoCmd *servoCommand) RunRemoveServo(_ *cobra.Command, args []string) error {
-	name := args[0]
-	var servo map[string]string
-	for _, s := range servos {
-		if s["name"] == name {
-			servo = s
-			break
-		}
-	}
-	if len(servo) == 0 {
-		return fmt.Errorf("no such Servo %q", name)
-	}
-
-	confirmed := false
-	if !confirmed {
-		// prompt := &survey.Confirm{
-		// 	Message: fmt.Sprintf("Remove Servo %q? from %q", servo["name"], opsani.ConfigFile),
-		// }
-		// servoCommand.AskOne(prompt, &confirmed)
-	}
-
-	if confirmed {
-		if err := viper.WriteConfig(); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (servoCmd *servoCommand) runInSSHSession(ctx context.Context, name string, runIt func(context.Context, map[string]string, *ssh.Session) error) error {
+func (servoCmd *servoCommand) runInSSHSession(ctx context.Context, name string, runIt func(context.Context, Servo, *ssh.Session) error) error {
 
 	// TODO: Recover from passphrase error
 	// // signer, err := ssh.ParsePrivateKey([]byte(sshKey))
@@ -241,14 +305,15 @@ func (servoCmd *servoCommand) runInSSHSession(ctx context.Context, name string, 
 	// }
 	// signer := ssh.NewSignerFromKey(key)
 
-	var servo map[string]string
+	var servo *Servo
+	servos, err := servoCmd.GetServos()
 	for _, s := range servos {
-		if s["name"] == name {
-			servo = s
+		if s.Name == name {
+			servo = &s
 			break
 		}
 	}
-	if len(servo) == 0 {
+	if servo == nil {
 		return fmt.Errorf("no such Servo %q", name)
 	}
 
@@ -262,7 +327,7 @@ func (servoCmd *servoCommand) runInSSHSession(ctx context.Context, name string, 
 		log.Fatal("could not create hostkeycallback function: ", err)
 	}
 	config := &ssh.ClientConfig{
-		User: servo["user"],
+		User: servo.User,
 		// Auth: []ssh.AuthMethod{
 		// 	// ssh.Password(password),
 		// 	ssh.PublicKeys(signer),
@@ -276,7 +341,7 @@ func (servoCmd *servoCommand) runInSSHSession(ctx context.Context, name string, 
 
 	// // Connect to host
 	fmt.Printf("Servos: %+v\nServo=%+v\n\n", servos, servo)
-	client, err := ssh.Dial("tcp", servo["host"]+":"+servo["port"], config)
+	client, err := ssh.Dial("tcp", servo.HostAndPort(), config)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -294,29 +359,19 @@ func (servoCmd *servoCommand) runInSSHSession(ctx context.Context, name string, 
 		client.Close()
 	}()
 
-	return runIt(ctx, servo, session)
+	return runIt(ctx, *servo, session)
 }
 
 func (servoCmd *servoCommand) RunServoList(_ *cobra.Command, args []string) error {
 	data := [][]string{}
-
-	viper.Set("servos", servos)
-	if err := viper.WriteConfigAs(servoCmd.ConfigFile); err != nil {
-		return err
-	}
-
+	servos, _ := servoCmd.GetServos()
 	for _, servo := range servos {
-		name := servo["name"]
-		user := servo["user"]
-		host := servo["host"]
-		if port := servo["port"]; port != "" && port != "22" {
-			host = host + ":" + port
-		}
-		path := "~/"
-		if p := servo["path"]; p != "" {
-			path = p
-		}
-		data = append(data, []string{name, user, host, path})
+		data = append(data, []string{
+			servo.Name,
+			servo.User,
+			servo.HostAndPort(),
+			servo.DisplayPath(),
+		})
 	}
 
 	table := tablewriter.NewWriter(os.Stdout)
@@ -339,28 +394,28 @@ func (servoCmd *servoCommand) RunServoList(_ *cobra.Command, args []string) erro
 
 func (servoCmd *servoCommand) RunServoStatus(_ *cobra.Command, args []string) error {
 	ctx := context.Background()
-	return servoCmd.runInSSHSession(ctx, args[0], func(ctx context.Context, servo map[string]string, session *ssh.Session) error {
+	return servoCmd.runInSSHSession(ctx, args[0], func(ctx context.Context, servo Servo, session *ssh.Session) error {
 		return servoCmd.runDockerComposeOverSSH("ps", nil, servo, session)
 	})
 }
 
 func (servoCmd *servoCommand) RunServoStart(_ *cobra.Command, args []string) error {
 	ctx := context.Background()
-	return servoCmd.runInSSHSession(ctx, args[0], func(ctx context.Context, servo map[string]string, session *ssh.Session) error {
+	return servoCmd.runInSSHSession(ctx, args[0], func(ctx context.Context, servo Servo, session *ssh.Session) error {
 		return servoCmd.runDockerComposeOverSSH("start", nil, servo, session)
 	})
 }
 
 func (servoCmd *servoCommand) RunServoStop(_ *cobra.Command, args []string) error {
 	ctx := context.Background()
-	return servoCmd.runInSSHSession(ctx, args[0], func(ctx context.Context, servo map[string]string, session *ssh.Session) error {
+	return servoCmd.runInSSHSession(ctx, args[0], func(ctx context.Context, servo Servo, session *ssh.Session) error {
 		return servoCmd.runDockerComposeOverSSH("stop", nil, servo, session)
 	})
 }
 
 func (servoCmd *servoCommand) RunServoRestart(_ *cobra.Command, args []string) error {
 	ctx := context.Background()
-	return servoCmd.runInSSHSession(ctx, args[0], func(ctx context.Context, servo map[string]string, session *ssh.Session) error {
+	return servoCmd.runInSSHSession(ctx, args[0], func(ctx context.Context, servo Servo, session *ssh.Session) error {
 		return servoCmd.runDockerComposeOverSSH("stop && docker-compse start", nil, servo, session)
 	})
 }
@@ -376,23 +431,23 @@ func (servoCmd *servoCommand) RunServoSSH(_ *cobra.Command, args []string) error
 	return servoCmd.runInSSHSession(ctx, args[0], servoCmd.RunShellOnSSHSession)
 }
 
-func (servoCmd *servoCommand) runDockerComposeOverSSH(cmd string, args []string, servo map[string]string, session *ssh.Session) error {
+func (servoCmd *servoCommand) runDockerComposeOverSSH(cmd string, args []string, servo Servo, session *ssh.Session) error {
 	session.Stdout = os.Stdout
 	session.Stderr = os.Stderr
 
-	if path := servo["path"]; path != "" {
+	if path := servo.Path; path != "" {
 		args = append(args, "cd", path+"&&")
 	}
 	args = append(args, "docker-compose", cmd)
 	return session.Run(strings.Join(args, " "))
 }
 
-func (servoCmd *servoCommand) RunLogsSSHSession(ctx context.Context, servo map[string]string, session *ssh.Session) error {
+func (servoCmd *servoCommand) RunLogsSSHSession(ctx context.Context, servo Servo, session *ssh.Session) error {
 	session.Stdout = os.Stdout
 	session.Stderr = os.Stderr
 
 	args := []string{}
-	if path := servo["path"]; path != "" {
+	if path := servo.Path; path != "" {
 		args = append(args, "cd", path+"&&")
 	}
 	args = append(args, "docker-compose logs")
@@ -406,7 +461,7 @@ func (servoCmd *servoCommand) RunLogsSSHSession(ctx context.Context, servo map[s
 	return session.Run(strings.Join(args, " "))
 }
 
-func (servoCmd *servoCommand) RunShellOnSSHSession(ctx context.Context, servo map[string]string, session *ssh.Session) error {
+func (servoCmd *servoCommand) RunShellOnSSHSession(ctx context.Context, servo Servo, session *ssh.Session) error {
 	fd := int(os.Stdin.Fd())
 	state, err := terminal.MakeRaw(fd)
 	if err != nil {

@@ -15,12 +15,15 @@
 package command_test
 
 import (
+	"io/ioutil"
 	"testing"
 
+	"github.com/AlecAivazis/survey/v2/core"
 	"github.com/opsani/cli/command"
 	"github.com/opsani/cli/test"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/suite"
+	"gopkg.in/yaml.v2"
 )
 
 type ServoTestSuite struct {
@@ -33,6 +36,7 @@ func TestServoTestSuite(t *testing.T) {
 
 func (s *ServoTestSuite) SetupTest() {
 	viper.Reset()
+	core.DisableColor = true
 	s.SetCommand(command.NewRootCommand())
 }
 
@@ -99,8 +103,167 @@ func (s *ServoTestSuite) TestRunningAddHelp() {
 	s.Require().Contains(output, "Add a Servo")
 }
 
+func (s *ServoTestSuite) TestRunningAddNoInput() {
+	configFile := test.TempConfigFileWithObj(map[string]string{
+		"app":   "example.com/app",
+		"token": "123456",
+	})
+	args := test.Args("--config", configFile.Name(), "servo", "add")
+	context, err := s.ExecuteTestInteractively(args, func(t *test.InteractiveTestContext) error {
+		t.RequireString("? Servo name?")
+		t.SendLine("opsani-dev")
+		t.RequireString("? User?")
+		t.SendLine("blakewatters")
+		t.RequireString("? Host?")
+		t.SendLine("dev.opsani.com")
+		t.RequireString("? Path? (optional)")
+		t.SendLine("/servo")
+		t.ExpectEOF()
+		return nil
+	})
+	s.T().Logf("The output buffer is: %v", context.OutputBuffer().String())
+	s.Require().NoError(err)
+
+	// Check the config file
+	var config = map[string]interface{}{}
+	body, _ := ioutil.ReadFile(configFile.Name())
+	yaml.Unmarshal(body, &config)
+	expected := []interface{}(
+		[]interface{}{
+			map[interface{}]interface{}{
+				"host": "dev.opsani.com",
+				"name": "opsani-dev",
+				"path": "/servo",
+				"port": "",
+				"user": "blakewatters",
+			},
+		},
+	)
+	s.Require().EqualValues(expected, config["servos"])
+}
+
+// TODO: Override port and specifying some values on CLI
+
 func (s *ServoTestSuite) TestRunningRemoveHelp() {
 	output, err := s.Execute("servo", "remove", "--help")
 	s.Require().NoError(err)
 	s.Require().Contains(output, "Remove a Servo")
+}
+
+// TODO: add -f
+func (s *ServoTestSuite) TestRunningRemoveServoConfirmed() {
+	configFile := test.TempConfigFileWithObj(map[string]interface{}{
+		"app":   "example.com/app",
+		"token": "123456",
+		"servos": []map[string]string{
+			{
+				"host": "dev.opsani.com",
+				"name": "opsani-dev",
+				"path": "/servo",
+				"port": "",
+				"user": "blakewatters",
+			},
+		},
+	})
+	args := test.Args("--config", configFile.Name(), "servo", "remove", "opsani-dev")
+	_, err := s.ExecuteTestInteractively(args, func(t *test.InteractiveTestContext) error {
+		t.RequireString(`? Remove Servo "opsani-dev"?`)
+		t.SendLine("Y")
+		t.ExpectEOF()
+		return nil
+	})
+	s.Require().NoError(err)
+
+	// Check the config file
+	var config = map[string]interface{}{}
+	body, _ := ioutil.ReadFile(configFile.Name())
+	yaml.Unmarshal(body, &config)
+	s.Require().EqualValues([]interface{}{}, config["servos"])
+}
+
+func (s *ServoTestSuite) TestRunningRemoveServoForce() {
+	config := map[string]interface{}{
+		"app":   "example.com/app",
+		"token": "123456",
+		"servos": []map[string]string{
+			{
+				"host": "dev.opsani.com",
+				"name": "opsani-dev",
+				"path": "/servo",
+				"port": "",
+				"user": "blakewatters",
+			},
+		},
+	}
+	configFile := test.TempConfigFileWithObj(config)
+	_, err := s.Execute("--config", configFile.Name(), "servo", "remove", "-f", "opsani-dev")
+	s.Require().NoError(err)
+
+	// Check that the servo has been removed
+	var configState = map[string]interface{}{}
+	body, _ := ioutil.ReadFile(configFile.Name())
+	yaml.Unmarshal(body, &configState)
+	s.Require().EqualValues([]interface{}{}, configState["servos"])
+}
+
+func (s *ServoTestSuite) TestRunningRemoveServoDeclined() {
+	configFile := test.TempConfigFileWithObj(map[string]interface{}{
+		"app":   "example.com/app",
+		"token": "123456",
+		"servos": []map[string]string{
+			{
+				"host": "dev.opsani.com",
+				"name": "opsani-dev",
+				"path": "/servo",
+				"port": "",
+				"user": "blakewatters",
+			},
+		},
+	})
+	args := test.Args("--config", configFile.Name(), "servo", "remove", "opsani-dev")
+	_, err := s.ExecuteTestInteractively(args, func(t *test.InteractiveTestContext) error {
+		t.RequireString(`? Remove Servo "opsani-dev"?`)
+		t.SendLine("N")
+		t.ExpectEOF()
+		return nil
+	})
+	s.Require().NoError(err)
+
+	// Check that the config file has not changed
+	expected := []interface{}(
+		[]interface{}{
+			map[interface{}]interface{}{
+				"host": "dev.opsani.com",
+				"name": "opsani-dev",
+				"path": "/servo",
+				"port": "",
+				"user": "blakewatters",
+			},
+		},
+	)
+	body, _ := ioutil.ReadFile(configFile.Name())
+	var configState = map[string]interface{}{}
+	yaml.Unmarshal(body, &configState)
+	s.Require().EqualValues(expected, configState["servos"])
+}
+
+func (s *ServoTestSuite) TestRunningServoList() {
+	config := map[string]interface{}{
+		"app":   "example.com/app",
+		"token": "123456",
+		"servos": []map[string]string{
+			{
+				"host": "dev.opsani.com",
+				"name": "opsani-dev",
+				"path": "/servo",
+				"port": "",
+				"user": "blakewatters",
+			},
+		},
+	}
+	configFile := test.TempConfigFileWithObj(config)
+	output, err := s.Execute("--config", configFile.Name(), "servo", "list")
+	s.Require().NoError(err)
+	s.Require().Contains("NAME      	USER        	HOST          	PATH  ", output)
+	s.Require().Contains("opsani-dev	blakewatters	dev.opsani.com	/servo	", output)
 }
