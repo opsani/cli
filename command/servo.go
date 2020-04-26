@@ -224,21 +224,33 @@ func (servoCmd *servoCommand) RunServoList(_ *cobra.Command, args []string) erro
 	servos, _ := servoCmd.Servos()
 
 	if servoCmd.verbose {
-		table.SetHeader([]string{"NAME", "USER", "HOST", "PATH"})
+		headers := []string{"NAME", "USER", "HOST", "PATH"}
 		for _, servo := range servos {
-			data = append(data, []string{
+			row := []string{
 				servo.Name,
 				servo.User,
 				servo.DisplayHost(),
 				servo.DisplayPath(),
-			})
+			}
+			if servo.Bastion != "" {
+				row = append(row, servo.Bastion)
+				if len(headers) == 4 {
+					headers = append(headers, "BASTION")
+				}
+			}
+			data = append(data, row)
 		}
+		table.SetHeader(headers)
 	} else {
 		for _, servo := range servos {
-			data = append(data, []string{
+			row := []string{
 				servo.Name,
 				servo.URL(),
-			})
+			}
+			if servo.Bastion != "" {
+				row = append(row, fmt.Sprintf("(via %s)", servo.Bastion))
+			}
+			data = append(data, row)
 		}
 	}
 
