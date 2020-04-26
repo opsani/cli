@@ -128,7 +128,7 @@ func NewServoCommand(baseCmd *BaseCommand) *cobra.Command {
 		RunE:  servoCommand.RunServoLogs,
 	}
 
-	logsCmd.Flags().BoolVarP(&servoCommand.force, "follow", "f", false, "Follow log output")
+	logsCmd.Flags().BoolVarP(&servoCommand.follow, "follow", "f", false, "Follow log output")
 	logsCmd.Flags().BoolVarP(&servoCommand.timestamps, "timestamps", "t", false, "Show timestamps")
 	logsCmd.Flags().StringVarP(&servoCommand.lines, "lines", "l", "25", `Number of lines to show from the end of the logs (or "all").`)
 
