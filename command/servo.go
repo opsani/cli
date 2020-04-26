@@ -141,6 +141,8 @@ func NewServoCommand(baseCmd *BaseCommand) *cobra.Command {
 
 	// Add nested children
 	servoCmd.AddCommand(NewServoImageCommand(baseCmd))
+	servoCmd.AddCommand(NewServoAssemblyCommand(baseCmd))
+	servoCmd.AddCommand(NewServoPluginCommand(baseCmd))
 
 	return servoCmd
 }

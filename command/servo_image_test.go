@@ -13,29 +13,3 @@
 // limitations under the License.
 
 package command_test
-
-import (
-	"testing"
-
-	"github.com/opsani/cli/command"
-	"github.com/opsani/cli/test"
-	"github.com/stretchr/testify/suite"
-)
-
-type LoginTestSuite struct {
-	test.Suite
-}
-
-func TestLoginTestSuite(t *testing.T) {
-	suite.Run(t, new(LoginTestSuite))
-}
-
-func (s *LoginTestSuite) SetupTest() {
-	s.SetCommand(command.NewRootCommand())
-}
-
-func (s *LoginTestSuite) TestRunningInitHelp() {
-	output, err := s.Execute("login", "--help")
-	s.Require().NoError(err)
-	s.Require().Contains(output, "Login to the Opsani API")
-}

@@ -22,26 +22,26 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-type DiscoverTestSuite struct {
+type AuthTestSuite struct {
 	test.Suite
 }
 
-func TestDiscoverTestSuite(t *testing.T) {
-	suite.Run(t, new(DiscoverTestSuite))
+func TestAuthTestSuite(t *testing.T) {
+	suite.Run(t, new(AuthTestSuite))
 }
 
-func (s *DiscoverTestSuite) SetupTest() {
+func (s *AuthTestSuite) SetupTest() {
 	s.SetCommand(command.NewRootCommand())
 }
 
-func (s *DiscoverTestSuite) TestRunningDiscoverHelp() {
-	output, err := s.Execute("discover", "--help")
+func (s *AuthTestSuite) TestLoginHelp() {
+	output, err := s.Execute("auth", "login", "--help")
 	s.Require().NoError(err)
-	s.Require().Contains(output, "The discover command introspects")
+	s.Require().Contains(output, "Login to Opsani")
 }
 
-func (s *DiscoverTestSuite) TestRunningIMBHelp() {
-	output, err := s.Execute("imb", "--help")
+func (s *AuthTestSuite) TestLogoutHelp() {
+	output, err := s.Execute("auth", "logout", "--help")
 	s.Require().NoError(err)
-	s.Require().Contains(output, "Run the intelligent manifest builder")
+	s.Require().Contains(output, "Logout from Opsani")
 }

@@ -102,7 +102,7 @@ We'd love to hear your feedback at <https://github.com/opsani/cli>`,
 	// Add all sub-commands
 	cobraCmd.AddCommand(NewInitCommand(rootCmd))
 	cobraCmd.AddCommand(NewAppCommand(rootCmd))
-	cobraCmd.AddCommand(NewLoginCommand(rootCmd))
+	cobraCmd.AddCommand(NewAuthCommand(rootCmd))
 
 	cobraCmd.AddCommand(newDiscoverCommand(rootCmd))
 	cobraCmd.AddCommand(newIMBCommand(rootCmd))
