@@ -167,6 +167,15 @@ type Servo struct {
 }
 
 func (s Servo) HostAndPort() string {
+	h := s.Host
+	p := s.Port
+	if p == "" {
+		p = "22"
+	}
+	return strings.Join([]string{h, p}, ":")
+}
+
+func (s Servo) DisplayHost() string {
 	v := s.Host
 	if s.Port != "" && s.Port != "22" {
 		v = v + ":" + s.Port
@@ -267,7 +276,7 @@ func (servoCmd *servoCommand) RunRemoveServo(_ *cobra.Command, args []string) er
 	}
 
 	if servo == nil {
-		return fmt.Errorf("Unable to find Servo named %q", servo)
+		return fmt.Errorf("Unable to find Servo named %q", name)
 	}
 
 	confirmed := servoCmd.force
@@ -369,7 +378,7 @@ func (servoCmd *servoCommand) RunServoList(_ *cobra.Command, args []string) erro
 		data = append(data, []string{
 			servo.Name,
 			servo.User,
-			servo.HostAndPort(),
+			servo.DisplayHost(),
 			servo.DisplayPath(),
 		})
 	}

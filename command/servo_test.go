@@ -181,6 +181,16 @@ func (s *ServoTestSuite) TestRunningRemoveServoConfirmed() {
 	s.Require().EqualValues([]interface{}{}, config["servos"])
 }
 
+func (s *ServoTestSuite) TestRunningRemoveServoUnknown() {
+	config := map[string]interface{}{
+		"app":   "example.com/app",
+		"token": "123456",
+	}
+	configFile := test.TempConfigFileWithObj(config)
+	_, err := s.Execute("--config", configFile.Name(), "servo", "remove", "unknown")
+	s.Require().EqualError(err, `Unable to find Servo named "unknown"`)
+}
+
 func (s *ServoTestSuite) TestRunningRemoveServoForce() {
 	config := map[string]interface{}{
 		"app":   "example.com/app",
