@@ -150,7 +150,12 @@ func (s *ServoTestSuite) TestRunningRemoveHelp() {
 	s.Require().Contains(output, "Remove a Servo")
 }
 
-// TODO: add -f
+func (s *ServoTestSuite) TestRunningConfigHelp() {
+	output, err := s.Execute("servo", "config", "--help")
+	s.Require().NoError(err)
+	s.Require().Contains(output, "Display the Servo config file")
+}
+
 func (s *ServoTestSuite) TestRunningRemoveServoConfirmed() {
 	configFile := test.TempConfigFileWithObj(map[string]interface{}{
 		"app":   "example.com/app",

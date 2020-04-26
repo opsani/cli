@@ -15,6 +15,7 @@
 package command
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"net"
@@ -22,6 +23,10 @@ import (
 	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
+	"github.com/fatih/color"
+	"github.com/goccy/go-yaml/lexer"
+	"github.com/goccy/go-yaml/printer"
+	"github.com/mattn/go-colorable"
 	"github.com/mitchellh/go-homedir"
 	"github.com/olekukonko/tablewriter"
 	"github.com/prometheus/common/log"
@@ -108,6 +113,12 @@ func NewServoCommand(baseCmd *BaseCommand) *cobra.Command {
 	})
 
 	// Servo Access
+	servoCmd.AddCommand(&cobra.Command{
+		Use:   "config",
+		Short: "Display the Servo config file",
+		Args:  cobra.ExactArgs(1),
+		RunE:  servoCommand.RunServoConfig,
+	})
 	logsCmd := &cobra.Command{
 		Use:   "logs",
 		Short: "View logs on a Servo",
@@ -358,12 +369,10 @@ func (servoCmd *servoCommand) runInSSHSession(ctx context.Context, name string, 
 		Auth: []ssh.AuthMethod{
 			servoCmd.SSHAgent(),
 		},
-		// Non-production only
 		HostKeyCallback: hostKeyCallback,
 	}
 
-	// // Connect to host
-	fmt.Printf("Servos: %+v\nServo=%+v\n\n", servos, servo)
+	// Connect to host
 	client, err := ssh.Dial("tcp", servo.HostAndPort(), config)
 	if err != nil {
 		log.Fatal(err)
@@ -452,6 +461,83 @@ func (servoCmd *servoCommand) RunServoRestart(_ *cobra.Command, args []string) e
 	return servoCmd.runInSSHSession(ctx, args[0], func(ctx context.Context, servo Servo, session *ssh.Session) error {
 		return servoCmd.runDockerComposeOverSSH("stop && docker-compse start", nil, servo, session)
 	})
+}
+
+func (servoCmd *servoCommand) RunServoConfig(_ *cobra.Command, args []string) error {
+	ctx := context.Background()
+	outputBuffer := new(bytes.Buffer)
+	err := servoCmd.runInSSHSession(ctx, args[0], func(ctx context.Context, servo Servo, session *ssh.Session) error {
+		session.Stdout = outputBuffer
+		session.Stderr = os.Stderr
+
+		sshCmd := make([]string, 3)
+		if path := servo.Path; path != "" {
+			sshCmd = append(sshCmd, "cd", path+"&&")
+		}
+		sshCmd = append(sshCmd, "cat", "config.yaml")
+		return session.Run(strings.Join(sshCmd, " "))
+	})
+
+	// We got the config, let's pretty print it
+	if err == nil {
+		servoCmd.prettyPrintYAML(outputBuffer.Bytes())
+	}
+	return err
+}
+
+const escape = "\x1b"
+
+func format(attr color.Attribute) string {
+	return fmt.Sprintf("%s[%dm", escape, attr)
+}
+
+func (servoCmd *servoCommand) prettyPrintYAML(bytes []byte) error {
+	tokens := lexer.Tokenize(string(bytes))
+	var p printer.Printer
+	p.LineNumber = true
+	p.LineNumberFormat = func(num int) string {
+		fn := color.New(color.Bold, color.FgHiWhite).SprintFunc()
+		return fn(fmt.Sprintf("%2d | ", num))
+	}
+	p.Bool = func() *printer.Property {
+		return &printer.Property{
+			Prefix: format(color.FgHiMagenta),
+			Suffix: format(color.Reset),
+		}
+	}
+	p.Number = func() *printer.Property {
+		return &printer.Property{
+			Prefix: format(color.FgHiMagenta),
+			Suffix: format(color.Reset),
+		}
+	}
+	p.MapKey = func() *printer.Property {
+		return &printer.Property{
+			Prefix: format(color.FgHiCyan),
+			Suffix: format(color.Reset),
+		}
+	}
+	p.Anchor = func() *printer.Property {
+		return &printer.Property{
+			Prefix: format(color.FgHiYellow),
+			Suffix: format(color.Reset),
+		}
+	}
+	p.Alias = func() *printer.Property {
+		return &printer.Property{
+			Prefix: format(color.FgHiYellow),
+			Suffix: format(color.Reset),
+		}
+	}
+	p.String = func() *printer.Property {
+		return &printer.Property{
+			Prefix: format(color.FgHiGreen),
+			Suffix: format(color.Reset),
+		}
+	}
+	writer := colorable.NewColorableStdout()
+	writer.Write([]byte(p.PrintTokens(tokens) + "\n"))
+	return nil
 }
 
 func (servoCmd *servoCommand) RunServoLogs(_ *cobra.Command, args []string) error {
