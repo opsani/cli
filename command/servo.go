@@ -140,6 +140,9 @@ func NewServoCommand(baseCmd *BaseCommand) *cobra.Command {
 		RunE:  servoCommand.RunServoSSH,
 	})
 
+	// Add nested children
+	servoCmd.AddCommand(NewServoImageCommand(baseCmd))
+
 	return servoCmd
 }
 
@@ -286,21 +289,21 @@ func (servoCmd *servoCommand) RunServoStatus(_ *cobra.Command, args []string) er
 func (servoCmd *servoCommand) RunServoStart(_ *cobra.Command, args []string) error {
 	ctx := context.Background()
 	return servoCmd.runInSSHSession(ctx, args[0], func(ctx context.Context, servo Servo, session *ssh.Session) error {
-		return servoCmd.runDockerComposeOverSSH("start", nil, servo, session)
+		return servoCmd.runDockerComposeOverSSH("up -d", nil, servo, session)
 	})
 }
 
 func (servoCmd *servoCommand) RunServoStop(_ *cobra.Command, args []string) error {
 	ctx := context.Background()
 	return servoCmd.runInSSHSession(ctx, args[0], func(ctx context.Context, servo Servo, session *ssh.Session) error {
-		return servoCmd.runDockerComposeOverSSH("stop", nil, servo, session)
+		return servoCmd.runDockerComposeOverSSH("down", nil, servo, session)
 	})
 }
 
 func (servoCmd *servoCommand) RunServoRestart(_ *cobra.Command, args []string) error {
 	ctx := context.Background()
 	return servoCmd.runInSSHSession(ctx, args[0], func(ctx context.Context, servo Servo, session *ssh.Session) error {
-		return servoCmd.runDockerComposeOverSSH("stop && docker-compse start", nil, servo, session)
+		return servoCmd.runDockerComposeOverSSH("down && docker-compse up -d", nil, servo, session)
 	})
 }
 

@@ -77,9 +77,9 @@ func (cmd *BaseCommand) RootCobraCommand() *cobra.Command {
 }
 
 // Viper returns the Viper configuration object underlying the Opsani CLI command
-// func (cmd *BaseCommand) Viper() *viper {
-// 	return viper
-// }
+func (cmd *BaseCommand) Viper() *viper.Viper {
+	return cmd.viperCfg
+}
 
 // Proxy the Cobra I/O methods for convenience
 
