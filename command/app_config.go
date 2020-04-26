@@ -50,7 +50,7 @@ func openFileInEditor(filename string, editor string) error {
 }
 
 // NewAppConfigEditCommand returns a new Opsani CLI app config edit action
-func NewAppConfigEditCommand() *cobra.Command {
+func NewAppConfigEditCommand(baseCmd *BaseCommand) *cobra.Command {
 	return &cobra.Command{
 		Use:   "edit [PATH=VALUE ...]",
 		Short: "Edit app config",
@@ -64,7 +64,7 @@ func NewAppConfigEditCommand() *cobra.Command {
 			filename := tempFile.Name()
 
 			// Download config to temp
-			client := NewAPIClientFromConfig()
+			client := baseCmd.NewAPIClient()
 			resp, err := client.GetConfig()
 			if err != nil {
 				return err
@@ -120,13 +120,13 @@ func NewAppConfigEditCommand() *cobra.Command {
 }
 
 // NewAppConfigGetCommand returns a new Opsani CLI `app config get` action
-func NewAppConfigGetCommand() *cobra.Command {
+func NewAppConfigGetCommand(baseCmd *BaseCommand) *cobra.Command {
 	return &cobra.Command{
 		Use:   "get [PATH ...]",
 		Short: "Get app config",
 		Args:  cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client := NewAPIClientFromConfig()
+			client := baseCmd.NewAPIClient()
 			resp, err := client.GetConfig()
 			if err != nil {
 				return err
@@ -193,13 +193,13 @@ func bodyForConfigUpdateWithArgs(args []string) (interface{}, error) {
 }
 
 // NewAppConfigSetCommand returns a new Opsani CLI `app config set` action
-func NewAppConfigSetCommand() *cobra.Command {
+func NewAppConfigSetCommand(baseCmd *BaseCommand) *cobra.Command {
 	return &cobra.Command{
 		Use:   "set [CONFIG]",
 		Short: "Set app config",
 		Args:  RangeOfValidJSONArgs(0, 1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client := NewAPIClientFromConfig()
+			client := baseCmd.NewAPIClient()
 			body, err := bodyForConfigUpdateWithArgs(args)
 			if err != nil {
 				return err
@@ -215,14 +215,14 @@ func NewAppConfigSetCommand() *cobra.Command {
 }
 
 // NewAppConfigPatchCommand returns a new Opsani CLI `app config patch` action
-func NewAppConfigPatchCommand() *cobra.Command {
+func NewAppConfigPatchCommand(baseCmd *BaseCommand) *cobra.Command {
 	return &cobra.Command{
 		Use:   "patch [CONFIG]",
 		Short: "Patch app config",
 		Long:  "Patch merges the incoming change into the existing configuration.",
 		Args:  RangeOfValidJSONArgs(0, 1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client := NewAPIClientFromConfig()
+			client := baseCmd.NewAPIClient()
 			body, err := bodyForConfigUpdateWithArgs(args)
 			if err != nil {
 				return err
@@ -246,16 +246,16 @@ var appConfig = struct {
 }{}
 
 // NewAppConfigCommand returns a new Opsani CLI `app config` action
-func NewAppConfigCommand() *cobra.Command {
+func NewAppConfigCommand(baseCmd *BaseCommand) *cobra.Command {
 	appConfigCmd := &cobra.Command{
 		Use:   "config",
 		Short: "Manage app config",
 	}
 
-	appConfigGetCmd := NewAppConfigGetCommand()
-	appConfigSetCmd := NewAppConfigSetCommand()
-	appConfigPatchCmd := NewAppConfigPatchCommand()
-	appConfigEditCmd := NewAppConfigEditCommand()
+	appConfigGetCmd := NewAppConfigGetCommand(baseCmd)
+	appConfigSetCmd := NewAppConfigSetCommand(baseCmd)
+	appConfigPatchCmd := NewAppConfigPatchCommand(baseCmd)
+	appConfigEditCmd := NewAppConfigEditCommand(baseCmd)
 
 	appConfigCmd.AddCommand(appConfigGetCmd)
 	appConfigCmd.AddCommand(appConfigSetCmd)

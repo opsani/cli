@@ -19,40 +19,35 @@ import (
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/mgutz/ansi"
-	"github.com/opsani/cli/opsani"
 	"github.com/spf13/cobra"
 )
 
-const usernameArg = "username"
-const passwordArg = "password"
+type loginCommand struct {
+	*BaseCommand
 
-func runLoginCommand(cmd *cobra.Command, args []string) error {
-	username, err := cmd.Flags().GetString(usernameArg)
-	if err != nil {
-		return err
-	}
-	password, err := cmd.Flags().GetString(passwordArg)
-	if err != nil {
-		return err
-	}
-	fmt.Println("Logging into", opsani.GetBaseURLHostnameAndPort())
+	username string
+	password string
+}
+
+func (loginCmd *loginCommand) runLoginCommand(_ *cobra.Command, args []string) error {
+	fmt.Println("Logging into", loginCmd.GetBaseURLHostnameAndPort())
 
 	whiteBold := ansi.ColorCode("white+b")
-	if username == "" {
+	if loginCmd.username == "" {
 		err := survey.AskOne(&survey.Input{
 			Message: "Username:",
-		}, &username, survey.WithValidator(survey.Required))
+		}, &loginCmd.username, survey.WithValidator(survey.Required))
 		if err != nil {
 			return err
 		}
 	} else {
-		fmt.Printf("%si %sUsername: %s%s%s%s\n", ansi.Blue, whiteBold, ansi.Reset, ansi.LightCyan, username, ansi.Reset)
+		fmt.Printf("%si %sUsername: %s%s%s%s\n", ansi.Blue, whiteBold, ansi.Reset, ansi.LightCyan, loginCmd.username, ansi.Reset)
 	}
 
-	if password == "" {
+	if loginCmd.password == "" {
 		err := survey.AskOne(&survey.Password{
 			Message: "Password:",
-		}, &password, survey.WithValidator(survey.Required))
+		}, &loginCmd.password, survey.WithValidator(survey.Required))
 		if err != nil {
 			return err
 		}
@@ -61,17 +56,18 @@ func runLoginCommand(cmd *cobra.Command, args []string) error {
 }
 
 // NewLoginCommand returns a new `opani login` command instance
-func NewLoginCommand() *cobra.Command {
-	loginCmd := &cobra.Command{
+func NewLoginCommand(baseCmd *BaseCommand) *cobra.Command {
+	loginCmd := loginCommand{BaseCommand: baseCmd}
+	c := &cobra.Command{
 		Use:   "login",
 		Short: "Login to the Opsani API",
 		Long:  `Login to the Opsani API and persist access credentials.`,
 		Args:  cobra.NoArgs,
-		RunE:  runLoginCommand,
+		RunE:  loginCmd.runLoginCommand,
 	}
 
-	loginCmd.Flags().StringP(usernameArg, "u", "", "Opsani Username")
-	loginCmd.Flags().StringP(passwordArg, "p", "", "Password")
+	c.Flags().StringVarP(&loginCmd.username, "username", "u", "", "Opsani Username")
+	c.Flags().StringVarP(&loginCmd.password, "password", "p", "", "Password")
 
-	return loginCmd
+	return c
 }

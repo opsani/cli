@@ -21,6 +21,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/AlecAivazis/survey/v2"
 	"github.com/mitchellh/go-homedir"
 	"github.com/olekukonko/tablewriter"
 	"github.com/prometheus/common/log"
@@ -32,70 +33,80 @@ import (
 	"golang.org/x/crypto/ssh/terminal"
 )
 
-// NewServoCommand returns a new instance of the servo command
-func NewServoCommand() *Command {
-	logsCmd := NewCommandWithCobraCommand(&cobra.Command{
-		Use:   "logs",
-		Short: "View logs on a Servo",
-		Args:  cobra.ExactArgs(1),
-	}, func(cmd *Command) {
-		cmd.RunE = RunServoLogs
-	})
+type servoCommand struct {
+	*BaseCommand
+}
 
-	servoCmd := NewCommandWithCobraCommand(&cobra.Command{
+// NewServoCommand returns a new instance of the servo command
+func NewServoCommand(baseCmd *BaseCommand) *cobra.Command {
+	servoCommand := servoCommand{BaseCommand: baseCmd}
+
+	servoCmd := &cobra.Command{
 		Use:   "servo",
 		Short: "Manage Servos",
 		Args:  cobra.NoArgs,
-	}, func(cmd *Command) {
-		cmd.PersistentPreRunE = ReduceRunEFuncsO(InitConfigRunE, RequireConfigFileFlagToExistRunE, RequireInitRunE)
-	})
+		PersistentPreRunE: ReduceRunEFuncs(
+			baseCmd.InitConfigRunE,
+			baseCmd.RequireConfigFileFlagToExistRunE,
+			baseCmd.RequireInitRunE,
+		),
+	}
 
-	servoCmd.AddCommand(NewCommandWithCobraCommand(&cobra.Command{
-		Use:   "ssh",
-		Short: "SSH into a Servo",
-		Args:  cobra.ExactArgs(1),
-	}, func(cmd *Command) {
-		cmd.RunE = RunServoSSH
-	}).Command)
-
-	servoCmd.AddCommand(NewCommandWithCobraCommand(&cobra.Command{
-		Use:   "status",
-		Short: "Check Servo status",
-		Args:  cobra.ExactArgs(1),
-	}, func(cmd *Command) {
-		cmd.RunE = RunServoStatus
-	}).Command)
-	servoCmd.AddCommand(NewCommandWithCobraCommand(&cobra.Command{
-		Use:   "start",
-		Short: "Start the Servo",
-		Args:  cobra.ExactArgs(1),
-	}, func(cmd *Command) {
-		cmd.RunE = RunServoStart
-	}).Command)
-	servoCmd.AddCommand(NewCommandWithCobraCommand(&cobra.Command{
-		Use:   "stop",
-		Short: "Stop the Servo",
-		Args:  cobra.ExactArgs(1),
-	}, func(cmd *Command) {
-		cmd.RunE = RunServoStop
-	}).Command)
-	servoCmd.AddCommand(NewCommandWithCobraCommand(&cobra.Command{
-		Use:   "restart",
-		Short: "Restart Servo",
-		Args:  cobra.ExactArgs(1),
-	}, func(cmd *Command) {
-		cmd.RunE = RunServoRestart
-	}).Command)
-	servoCmd.AddCommand(NewCommandWithCobraCommand(&cobra.Command{
+	// Servo registry
+	servoCmd.AddCommand(&cobra.Command{
 		Use:     "list",
 		Aliases: []string{"ls"},
 		Short:   "List Servos",
 		Args:    cobra.NoArgs,
-	}, func(cmd *Command) {
-		cmd.RunE = RunServoList
-	}).Command)
+		RunE:    servoCommand.RunServoList,
+	})
+	servoCmd.AddCommand(&cobra.Command{
+		Use:   "Add",
+		Short: "Add a Servo",
+		Args:  cobra.MaximumNArgs(1),
+		RunE:  servoCommand.RunAddServo,
+	})
+	servoCmd.AddCommand(&cobra.Command{
+		Use:     "Remove",
+		Aliases: []string{"rm"},
+		Short:   "Remove a Servo",
+		Args:    cobra.ExactArgs(1),
+		RunE:    servoCommand.RunRemoveServo,
+	})
 
-	servoCmd.AddCommand(logsCmd.Command)
+	// Servo Lifecycle
+	servoCmd.AddCommand(&cobra.Command{
+		Use:   "status",
+		Short: "Check Servo status",
+		Args:  cobra.ExactArgs(1),
+		RunE:  servoCommand.RunServoStatus,
+	})
+	servoCmd.AddCommand(&cobra.Command{
+		Use:   "start",
+		Short: "Start the Servo",
+		Args:  cobra.ExactArgs(1),
+		RunE:  servoCommand.RunServoStart,
+	})
+	servoCmd.AddCommand(&cobra.Command{
+		Use:   "stop",
+		Short: "Stop the Servo",
+		Args:  cobra.ExactArgs(1),
+		RunE:  servoCommand.RunServoStop,
+	})
+	servoCmd.AddCommand(&cobra.Command{
+		Use:   "restart",
+		Short: "Restart Servo",
+		Args:  cobra.ExactArgs(1),
+		RunE:  servoCommand.RunServoRestart,
+	})
+
+	// Servo Access
+	logsCmd := &cobra.Command{
+		Use:   "logs",
+		Short: "View logs on a Servo",
+		Args:  cobra.ExactArgs(1),
+		RunE:  servoCommand.RunServoLogs,
+	}
 
 	logsCmd.Flags().BoolP("follow", "f", false, "Follow log output")
 	viper.BindPFlag("follow", logsCmd.Flags().Lookup("follow"))
@@ -103,6 +114,14 @@ func NewServoCommand() *Command {
 	viper.BindPFlag("timestamps", logsCmd.Flags().Lookup("timestamps"))
 	logsCmd.Flags().StringP("lines", "l", "25", `Number of lines to show from the end of the logs (or "all").`)
 	viper.BindPFlag("lines", logsCmd.Flags().Lookup("lines"))
+
+	servoCmd.AddCommand(logsCmd)
+	servoCmd.AddCommand(&cobra.Command{
+		Use:   "ssh",
+		Short: "SSH into a Servo",
+		Args:  cobra.ExactArgs(1),
+		RunE:  servoCommand.RunServoSSH,
+	})
 
 	return servoCmd
 }
@@ -127,14 +146,86 @@ var servos = []map[string]string{
 	},
 }
 
-func SSHAgent() ssh.AuthMethod {
+func (servoCmd *servoCommand) SSHAgent() ssh.AuthMethod {
 	if sshAgent, err := net.Dial("unix", os.Getenv("SSH_AUTH_SOCK")); err == nil {
 		return ssh.PublicKeysCallback(agent.NewClient(sshAgent).Signers)
 	}
 	return nil
 }
 
-func runInSSHSession(ctx context.Context, name string, runIt func(context.Context, map[string]string, *ssh.Session) error) error {
+func (servoCmd *servoCommand) RunAddServo(_ *cobra.Command, args []string) error {
+	// Name, [user@]host[:port]/path
+	return nil
+
+	servos := []map[string]string{}
+	var servo struct {
+		Name string
+		Host string
+		Port string
+		Path string
+	}
+	// var newServo servo
+
+	if servo.Name == "" {
+		servo.Name = args[0]
+	}
+
+	confirmed := false
+	if servo.Name == "" {
+		err := survey.AskOne(&survey.Input{
+			Message: "Servo name?",
+		}, &servo.Name, survey.WithValidator(survey.Required))
+		if err != nil {
+			return err
+		}
+		// prompt := &survey.Confirm{
+		// 	Message: fmt.Sprintf("Write to %s?", opsani.ConfigFile),
+		// }
+		// cmd.AskOne(prompt, &servo.Name)
+		// servos = append(servos, servo)
+	}
+
+	if confirmed {
+		viper.Set("servos", servos)
+		if err := viper.WriteConfig(); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (servoCmd *servoCommand) RunRemoveServo(_ *cobra.Command, args []string) error {
+	name := args[0]
+	var servo map[string]string
+	for _, s := range servos {
+		if s["name"] == name {
+			servo = s
+			break
+		}
+	}
+	if len(servo) == 0 {
+		return fmt.Errorf("no such Servo %q", name)
+	}
+
+	confirmed := false
+	if !confirmed {
+		// prompt := &survey.Confirm{
+		// 	Message: fmt.Sprintf("Remove Servo %q? from %q", servo["name"], opsani.ConfigFile),
+		// }
+		// servoCommand.AskOne(prompt, &confirmed)
+	}
+
+	if confirmed {
+		if err := viper.WriteConfig(); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (servoCmd *servoCommand) runInSSHSession(ctx context.Context, name string, runIt func(context.Context, map[string]string, *ssh.Session) error) error {
 
 	// TODO: Recover from passphrase error
 	// // signer, err := ssh.ParsePrivateKey([]byte(sshKey))
@@ -177,7 +268,7 @@ func runInSSHSession(ctx context.Context, name string, runIt func(context.Contex
 		// 	ssh.PublicKeys(signer),
 		// },
 		Auth: []ssh.AuthMethod{
-			SSHAgent(),
+			servoCmd.SSHAgent(),
 		},
 		// Non-production only
 		HostKeyCallback: hostKeyCallback,
@@ -206,8 +297,13 @@ func runInSSHSession(ctx context.Context, name string, runIt func(context.Contex
 	return runIt(ctx, servo, session)
 }
 
-func RunServoList(cmd *Command, args []string) error {
+func (servoCmd *servoCommand) RunServoList(_ *cobra.Command, args []string) error {
 	data := [][]string{}
+
+	viper.Set("servos", servos)
+	if err := viper.WriteConfigAs(servoCmd.ConfigFile); err != nil {
+		return err
+	}
 
 	for _, servo := range servos {
 		name := servo["name"]
@@ -241,46 +337,46 @@ func RunServoList(cmd *Command, args []string) error {
 	return nil
 }
 
-func RunServoStatus(cmd *Command, args []string) error {
+func (servoCmd *servoCommand) RunServoStatus(_ *cobra.Command, args []string) error {
 	ctx := context.Background()
-	return runInSSHSession(ctx, args[0], func(ctx context.Context, servo map[string]string, session *ssh.Session) error {
-		return runDockerComposeOverSSH("ps", nil, servo, session)
+	return servoCmd.runInSSHSession(ctx, args[0], func(ctx context.Context, servo map[string]string, session *ssh.Session) error {
+		return servoCmd.runDockerComposeOverSSH("ps", nil, servo, session)
 	})
 }
 
-func RunServoStart(cmd *Command, args []string) error {
+func (servoCmd *servoCommand) RunServoStart(_ *cobra.Command, args []string) error {
 	ctx := context.Background()
-	return runInSSHSession(ctx, args[0], func(ctx context.Context, servo map[string]string, session *ssh.Session) error {
-		return runDockerComposeOverSSH("start", nil, servo, session)
+	return servoCmd.runInSSHSession(ctx, args[0], func(ctx context.Context, servo map[string]string, session *ssh.Session) error {
+		return servoCmd.runDockerComposeOverSSH("start", nil, servo, session)
 	})
 }
 
-func RunServoStop(cmd *Command, args []string) error {
+func (servoCmd *servoCommand) RunServoStop(_ *cobra.Command, args []string) error {
 	ctx := context.Background()
-	return runInSSHSession(ctx, args[0], func(ctx context.Context, servo map[string]string, session *ssh.Session) error {
-		return runDockerComposeOverSSH("stop", nil, servo, session)
+	return servoCmd.runInSSHSession(ctx, args[0], func(ctx context.Context, servo map[string]string, session *ssh.Session) error {
+		return servoCmd.runDockerComposeOverSSH("stop", nil, servo, session)
 	})
 }
 
-func RunServoRestart(cmd *Command, args []string) error {
+func (servoCmd *servoCommand) RunServoRestart(_ *cobra.Command, args []string) error {
 	ctx := context.Background()
-	return runInSSHSession(ctx, args[0], func(ctx context.Context, servo map[string]string, session *ssh.Session) error {
-		return runDockerComposeOverSSH("stop && docker-compse start", nil, servo, session)
+	return servoCmd.runInSSHSession(ctx, args[0], func(ctx context.Context, servo map[string]string, session *ssh.Session) error {
+		return servoCmd.runDockerComposeOverSSH("stop && docker-compse start", nil, servo, session)
 	})
 }
 
-func RunServoLogs(cmd *Command, args []string) error {
+func (servoCmd *servoCommand) RunServoLogs(_ *cobra.Command, args []string) error {
 	ctx := context.Background()
-	return runInSSHSession(ctx, args[0], RunLogsSSHSession)
+	return servoCmd.runInSSHSession(ctx, args[0], servoCmd.RunLogsSSHSession)
 }
 
 // RunConfig displays Opsani CLI config info
-func RunServoSSH(cmd *Command, args []string) error {
+func (servoCmd *servoCommand) RunServoSSH(_ *cobra.Command, args []string) error {
 	ctx := context.Background()
-	return runInSSHSession(ctx, args[0], RunShellOnSSHSession)
+	return servoCmd.runInSSHSession(ctx, args[0], servoCmd.RunShellOnSSHSession)
 }
 
-func runDockerComposeOverSSH(cmd string, args []string, servo map[string]string, session *ssh.Session) error {
+func (servoCmd *servoCommand) runDockerComposeOverSSH(cmd string, args []string, servo map[string]string, session *ssh.Session) error {
 	session.Stdout = os.Stdout
 	session.Stderr = os.Stderr
 
@@ -291,7 +387,7 @@ func runDockerComposeOverSSH(cmd string, args []string, servo map[string]string,
 	return session.Run(strings.Join(args, " "))
 }
 
-func RunLogsSSHSession(ctx context.Context, servo map[string]string, session *ssh.Session) error {
+func (servoCmd *servoCommand) RunLogsSSHSession(ctx context.Context, servo map[string]string, session *ssh.Session) error {
 	session.Stdout = os.Stdout
 	session.Stderr = os.Stderr
 
@@ -310,7 +406,7 @@ func RunLogsSSHSession(ctx context.Context, servo map[string]string, session *ss
 	return session.Run(strings.Join(args, " "))
 }
 
-func RunShellOnSSHSession(ctx context.Context, servo map[string]string, session *ssh.Session) error {
+func (servoCmd *servoCommand) RunShellOnSSHSession(ctx context.Context, servo map[string]string, session *ssh.Session) error {
 	fd := int(os.Stdin.Fd())
 	state, err := terminal.MakeRaw(fd)
 	if err != nil {

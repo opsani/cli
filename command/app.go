@@ -20,26 +20,25 @@ import (
 	"os/exec"
 	"runtime"
 
-	"github.com/opsani/cli/opsani"
 	"github.com/spf13/cobra"
 )
 
 // NewAppCommand returns a new `opsani app` command instance
-func NewAppCommand() *cobra.Command {
+func NewAppCommand(baseCmd *BaseCommand) *cobra.Command {
 	appCmd := &cobra.Command{
 		Use:   "app",
 		Short: "Manage apps",
 
 		// All commands require an initialized client
-		PersistentPreRunE: InitConfigRunE,
+		PersistentPreRunE: baseCmd.InitConfigRunE,
 	}
 
 	// Initialize our subcommands
-	appStartCmd := NewAppStartCommand()
-	appStopCmd := NewAppStopCommand()
-	appRestartCmd := NewAppRestartCommand()
-	appStatusCmd := NewAppStatusCommand()
-	appConfigCmd := NewAppConfigCommand()
+	appStartCmd := NewAppStartCommand(baseCmd)
+	appStopCmd := NewAppStopCommand(baseCmd)
+	appRestartCmd := NewAppRestartCommand(baseCmd)
+	appStatusCmd := NewAppStatusCommand(baseCmd)
+	appConfigCmd := NewAppConfigCommand(baseCmd)
 
 	// Lifecycle
 	appCmd.AddCommand(appStartCmd)
@@ -50,20 +49,20 @@ func NewAppCommand() *cobra.Command {
 	// Config
 	appCmd.AddCommand(appConfigCmd)
 
-	appCmd.AddCommand(NewAppConsoleCommand())
+	appCmd.AddCommand(NewAppConsoleCommand(baseCmd))
 
 	return appCmd
 }
 
 // NewAppConsoleCommand returns a command that opens the Opsani Console
 // in the default browser
-func NewAppConsoleCommand() *cobra.Command {
+func NewAppConsoleCommand(baseCmd *BaseCommand) *cobra.Command {
 	return &cobra.Command{
 		Use:   "console",
 		Short: "Open the Opsani console in the default web browser",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			org, appID := opsani.GetAppComponents()
+			org, appID := baseCmd.GetAppComponents()
 			url := fmt.Sprintf("https://console.opsani.com/accounts/%s/applications/%s", org, appID)
 			openURLInDefaultBrowser(url)
 			return nil

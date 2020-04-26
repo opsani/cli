@@ -22,30 +22,34 @@ import (
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/AlecAivazis/survey/v2/terminal"
 	"github.com/mgutz/ansi"
-	"github.com/opsani/cli/opsani"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
 
 const confirmedArg = "confirmed"
 
-// RunInitCommand initializes Opsani CLI config
-func RunInitCommand(cmd *Command, args []string) error {
-	confirmed, err := cmd.Flags().GetBool(confirmedArg)
-	if err != nil {
-		return err
-	}
+type initCommand struct {
+	*BaseCommand
 
+	confirmed bool
+}
+
+///
+/// TODO: Swap out config accessors
+///
+
+// RunInitCommand initializes Opsani CLI config
+func (initCmd *initCommand) RunInitCommand(_ *cobra.Command, args []string) error {
 	// Handle reinitialization case
 	overwrite := false
-	if _, err := os.Stat(opsani.ConfigFile); !os.IsNotExist(err) && !confirmed {
-		cmd.Println("Using config from:", opsani.ConfigFile)
-		cmd.PrettyPrintJSONObject(opsani.GetAllSettings())
+	if _, err := os.Stat(initCmd.ConfigFile); !os.IsNotExist(err) && !initCmd.confirmed {
+		initCmd.Println("Using config from:", initCmd.ConfigFile)
+		initCmd.PrettyPrintJSONObject(initCmd.GetAllSettings())
 
 		prompt := &survey.Confirm{
-			Message: fmt.Sprintf("Existing config found. Overwrite %s?", opsani.ConfigFile),
+			Message: fmt.Sprintf("Existing config found. Overwrite %s?", initCmd.ConfigFile),
 		}
-		err := cmd.AskOne(prompt, &overwrite)
+		err := initCmd.AskOne(prompt, &overwrite)
 		if err != nil {
 			return err
 		}
@@ -53,65 +57,66 @@ func RunInitCommand(cmd *Command, args []string) error {
 			return terminal.InterruptErr
 		}
 	}
-	app := opsani.GetApp()
-	token := opsani.GetAccessToken()
+	app := initCmd.App()
+	token := initCmd.AccessToken()
 	whiteBold := ansi.ColorCode("white+b")
 
 	if overwrite || app == "" {
-		err := cmd.AskOne(&survey.Input{
+		err := initCmd.AskOne(&survey.Input{
 			Message: "Opsani app (i.e. domain.com/app):",
-			Default: opsani.GetApp(),
+			Default: app,
 		}, &app, survey.WithValidator(survey.Required))
 		if err != nil {
 			return err
 		}
 	} else {
-		cmd.Printf("%si %sApp: %s%s%s%s\n", ansi.Blue, whiteBold, ansi.Reset, ansi.LightCyan, app, ansi.Reset)
+		initCmd.Printf("%si %sApp: %s%s%s%s\n", ansi.Blue, whiteBold, ansi.Reset, ansi.LightCyan, app, ansi.Reset)
 	}
 
 	if overwrite || token == "" {
-		err := cmd.AskOne(&survey.Input{
+		err := initCmd.AskOne(&survey.Input{
 			Message: "API Token:",
-			Default: opsani.GetAccessToken(),
+			Default: token,
 		}, &token, survey.WithValidator(survey.Required))
 		if err != nil {
 			return err
 		}
 	} else {
-		cmd.Printf("%si %sAPI Token: %s%s%s%s\n", ansi.Blue, whiteBold, ansi.Reset, ansi.LightCyan, token, ansi.Reset)
+		initCmd.Printf("%si %sAPI Token: %s%s%s%s\n", ansi.Blue, whiteBold, ansi.Reset, ansi.LightCyan, token, ansi.Reset)
 	}
 
 	// Confirm that the user wants to write this config
-	opsani.SetApp(app)
-	opsani.SetAccessToken(token)
+	initCmd.SetApp(app)
+	initCmd.SetAccessToken(token)
 
-	cmd.Printf("\nOpsani config initialized:\n")
-	cmd.PrettyPrintJSONObject(opsani.GetAllSettings())
-	if !confirmed {
+	initCmd.Printf("\nOpsani config initialized:\n")
+	initCmd.PrettyPrintJSONObject(initCmd.GetAllSettings())
+	if !initCmd.confirmed {
 		prompt := &survey.Confirm{
-			Message: fmt.Sprintf("Write to %s?", opsani.ConfigFile),
+			Message: fmt.Sprintf("Write to %s?", initCmd.ConfigFile),
 		}
-		cmd.AskOne(prompt, &confirmed)
+		initCmd.AskOne(prompt, &initCmd.confirmed)
 	}
-	if confirmed {
-		configDir := filepath.Dir(opsani.ConfigFile)
+	if initCmd.confirmed {
+		configDir := filepath.Dir(initCmd.ConfigFile)
 		if _, err := os.Stat(configDir); os.IsNotExist(err) {
 			err = os.Mkdir(configDir, 0755)
 			if err != nil {
 				return err
 			}
 		}
-		if err := viper.WriteConfigAs(opsani.ConfigFile); err != nil {
+		if err := viper.WriteConfigAs(initCmd.ConfigFile); err != nil {
 			return err
 		}
-		cmd.Println("\nOpsani CLI initialized")
+		initCmd.Println("\nOpsani CLI initialized")
 	}
 	return nil
 }
 
 // NewInitCommand returns a new `opsani init` command instance
-func NewInitCommand() *Command {
-	return NewCommandWithCobraCommand(&cobra.Command{
+func NewInitCommand(baseCommand *BaseCommand) *cobra.Command {
+	initCmd := &initCommand{BaseCommand: baseCommand}
+	cmd := &cobra.Command{
 		Use:   "init",
 		Short: "Initialize Opsani config",
 		Long: `Initializes an Opsani config file and acquires the required settings:
@@ -120,8 +125,8 @@ func NewInitCommand() *Command {
 	  * 'token': API token to authenticate with (OPSANI_TOKEN).
 	`,
 		Args: cobra.NoArgs,
-	}, func(cmd *Command) {
-		cmd.RunE = RunInitCommand
-		cmd.Flags().Bool(confirmedArg, false, "Write config without asking for confirmation")
-	})
+		RunE: initCmd.RunInitCommand,
+	}
+	cmd.Flags().BoolVar(&initCmd.confirmed, confirmedArg, false, "Write config without asking for confirmation")
+	return cmd
 }

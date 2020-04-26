@@ -73,7 +73,11 @@ func (s *ServoTestSuite) TestRunningServoLogsHelp() {
 }
 
 func (s *ServoTestSuite) TestRunningServoLogsInvalidServo() {
-	_, err := s.Execute("servo", "logs", "fake-name")
+	configFile := test.TempConfigFileWithObj(map[string]string{
+		"app":   "example.com/app",
+		"token": "123456",
+	})
+	_, _, err := s.ExecuteC(test.Args("--config", configFile.Name(), "servo", "logs", "fake-name")...)
 	s.Require().EqualError(err, `no such Servo "fake-name"`)
 }
 
@@ -87,4 +91,16 @@ func (s *ServoTestSuite) TestRunningLogsTimestampsHelp() {
 	output, err := s.Execute("servo", "logs", "--help")
 	s.Require().NoError(err)
 	s.Require().Contains(output, "Show timestamps")
+}
+
+func (s *ServoTestSuite) TestRunningAddHelp() {
+	output, err := s.Execute("servo", "add", "--help")
+	s.Require().NoError(err)
+	s.Require().Contains(output, "Add a Servo")
+}
+
+func (s *ServoTestSuite) TestRunningRemoveHelp() {
+	output, err := s.Execute("servo", "remove", "--help")
+	s.Require().NoError(err)
+	s.Require().Contains(output, "Remove a Servo")
 }

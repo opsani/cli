@@ -18,6 +18,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/opsani/cli/command"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/suite"
 )
@@ -44,9 +45,14 @@ func (h *Suite) Command() *cobra.Command {
 	return h.cmd
 }
 
-// SetCommand sets the Cobra command under test
+// SetCommand sets the Opsani command under test
+func (h *Suite) SetCommand(cmd *command.BaseCommand) {
+	h.SetCobraCommand(cmd.CobraCommand())
+}
+
+// SetCobraCommand sets the Cobra command under test
 // Changing the command will reset the associated command executor and tester instances
-func (h *Suite) SetCommand(cmd *cobra.Command) {
+func (h *Suite) SetCobraCommand(cmd *cobra.Command) {
 	if cmd != nil {
 		cmdExecutor := NewCommandExecutor(cmd)
 		ice := NewInteractiveCommandExecutor(cmd)

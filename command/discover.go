@@ -240,7 +240,7 @@ func runDiscoveryCommand(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func newPullCommand() *cobra.Command {
+func newPullCommand(baseCmd *BaseCommand) *cobra.Command {
 	pullCmd := &cobra.Command{
 		Use:   "pull",
 		Short: "Pull a Docker image",
@@ -265,7 +265,7 @@ func newPullCommand() *cobra.Command {
 	return pullCmd
 }
 
-func newDiscoverCommand() *cobra.Command {
+func newDiscoverCommand(baseCmd *BaseCommand) *cobra.Command {
 	discoverCmd := &cobra.Command{
 		Use:   "discover",
 		Short: "Build Servo assets through Kubernetes discovery",
@@ -275,7 +275,7 @@ func newDiscoverCommand() *cobra.Command {
 	Upon completion of discovery, manifests will be generated that can be
 	used to build a Servo assembly image and deploy it to Kubernetes.`,
 		Args:              cobra.NoArgs,
-		PersistentPreRunE: InitConfigRunE,
+		PersistentPreRunE: baseCmd.InitConfigRunE,
 		RunE:              runDiscoveryCommand,
 	}
 
@@ -285,7 +285,7 @@ func newDiscoverCommand() *cobra.Command {
 	return discoverCmd
 }
 
-func newIMBCommand() *cobra.Command {
+func newIMBCommand(baseCmd *BaseCommand) *cobra.Command {
 	imbCmd := &cobra.Command{
 		Use:   "imb",
 		Short: "Run the intelligent manifest builder under Docker",

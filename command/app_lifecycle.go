@@ -17,13 +17,13 @@ package command
 import "github.com/spf13/cobra"
 
 // NewAppStartCommand returns an Opsani CLI command for starting the app
-func NewAppStartCommand() *cobra.Command {
+func NewAppStartCommand(baseCmd *BaseCommand) *cobra.Command {
 	return &cobra.Command{
 		Use:   "start",
 		Short: "Start the app",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client := NewAPIClientFromConfig()
+			client := baseCmd.NewAPIClient()
 			if resp, err := client.StartApp(); err == nil {
 				return PrettyPrintJSONResponse(resp)
 			} else {
@@ -34,13 +34,13 @@ func NewAppStartCommand() *cobra.Command {
 }
 
 // NewAppStopCommand returns an Opsani CLI command for stopping the app
-func NewAppStopCommand() *cobra.Command {
+func NewAppStopCommand(baseCmd *BaseCommand) *cobra.Command {
 	return &cobra.Command{
 		Use:   "stop",
 		Short: "Stop the app",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client := NewAPIClientFromConfig()
+			client := baseCmd.NewAPIClient()
 			resp, err := client.StopApp()
 			if err != nil {
 				return err
@@ -51,13 +51,13 @@ func NewAppStopCommand() *cobra.Command {
 }
 
 // NewAppRestartCommand returns an Opsani CLI command for restarting the app
-func NewAppRestartCommand() *cobra.Command {
+func NewAppRestartCommand(baseCmd *BaseCommand) *cobra.Command {
 	return &cobra.Command{
 		Use:   "restart",
 		Short: "Restart the app",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client := NewAPIClientFromConfig()
+			client := baseCmd.NewAPIClient()
 			resp, err := client.RestartApp()
 			if err != nil {
 				return err
@@ -68,13 +68,13 @@ func NewAppRestartCommand() *cobra.Command {
 }
 
 // NewAppStatusCommand returns an Opsani CLI command for retrieving status on the app
-func NewAppStatusCommand() *cobra.Command {
+func NewAppStatusCommand(baseCmd *BaseCommand) *cobra.Command {
 	return &cobra.Command{
 		Use:   "status",
 		Short: "Check app status",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client := NewAPIClientFromConfig()
+			client := baseCmd.NewAPIClient()
 			resp, err := client.GetAppStatus()
 			if err != nil {
 				return err
