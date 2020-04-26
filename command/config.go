@@ -15,6 +15,8 @@
 package command
 
 import (
+	"io/ioutil"
+
 	"github.com/spf13/cobra"
 )
 
@@ -37,5 +39,10 @@ func NewConfigCommand(baseCmd *BaseCommand) *cobra.Command {
 // RunConfig displays Opsani CLI config info
 func (configCmd *configCommand) Run(_ *cobra.Command, args []string) error {
 	configCmd.Println("Using config from:", configCmd.ConfigFile)
-	return configCmd.PrettyPrintJSONObject(configCmd.GetAllSettings())
+
+	body, err := ioutil.ReadFile(configCmd.ConfigFile)
+	if err != nil {
+		return err
+	}
+	return configCmd.prettyPrintYAML(body, false)
 }
