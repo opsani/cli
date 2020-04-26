@@ -21,6 +21,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/AlecAivazis/survey/v2/terminal"
@@ -29,7 +30,6 @@ import (
 	"github.com/goccy/go-yaml/lexer"
 	"github.com/goccy/go-yaml/printer"
 	"github.com/hokaccha/go-prettyjson"
-	"github.com/mattn/go-colorable"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -225,8 +225,8 @@ func (cmd *BaseCommand) prettyPrintYAML(bytes []byte, lineNumbers bool) error {
 			Suffix: format(color.Reset),
 		}
 	}
-	writer := colorable.NewColorableStdout()
-	writer.Write([]byte(p.PrintTokens(tokens) + "\n"))
+	// writer := colorable.NewColorableStdout()
+	cmd.OutOrStdout().Write([]byte(p.PrintTokens(tokens) + "\n"))
 	return nil
 }
 
@@ -294,4 +294,115 @@ func (cmd *BaseCommand) DebugModeEnabled() bool {
 // RequestTracingEnabled returns a boolean value indicating if request tracing is enabled
 func (cmd *BaseCommand) RequestTracingEnabled() bool {
 	return cmd.requestTracingEnabled
+}
+
+// Servos returns the Servos in the configuration
+func (cmd *BaseCommand) Servos() ([]Servo, error) {
+	servos := make([]Servo, 0)
+	err := viper.UnmarshalKey("servos", &servos)
+	if err != nil {
+		return nil, err
+	}
+	return servos, nil
+}
+
+// lookupServo named returns the Servo with the given name and its index in the config
+func (cmd *BaseCommand) lookupServo(name string) (*Servo, int) {
+	var servo *Servo
+	servos, err := cmd.Servos()
+	if err != nil {
+		return nil, 0
+	}
+	var index int
+	for i, s := range servos {
+		if s.Name == name {
+			servo = &s
+			index = i
+			break
+		}
+	}
+
+	return servo, index
+}
+
+// ServoNamed named returns the Servo with the given name
+func (cmd *BaseCommand) ServoNamed(name string) *Servo {
+	servo, _ := cmd.lookupServo(name)
+	return servo
+}
+
+// AddServo adds a Servo to the config
+func (cmd *BaseCommand) AddServo(servo Servo) error {
+	servos, err := cmd.Servos()
+	if err != nil {
+		return err
+	}
+
+	servos = append(servos, servo)
+	viper.Set("servos", servos)
+	return viper.WriteConfig()
+}
+
+// RemoveServoNamed removes a Servo from the config with the given name
+func (cmd *BaseCommand) RemoveServoNamed(name string) error {
+	s, index := cmd.lookupServo(name)
+	if s == nil {
+		return fmt.Errorf("no such Servo %q", name)
+	}
+	servos, err := cmd.Servos()
+	if err != nil {
+		return err
+	}
+	servos = append(servos[:index], servos[index+1:]...)
+	viper.Set("servos", servos)
+	return viper.WriteConfig()
+}
+
+// RemoveServo removes a Servo from the config
+func (cmd *BaseCommand) RemoveServo(servo Servo) error {
+	return cmd.RemoveServoNamed(servo.Name)
+}
+
+// Servo represents a deployed Servo assembly running somewhere
+type Servo struct {
+	Name string
+	User string
+	Host string
+	Port string
+	Path string
+}
+
+func (s Servo) HostAndPort() string {
+	h := s.Host
+	p := s.Port
+	if p == "" {
+		p = "22"
+	}
+	return strings.Join([]string{h, p}, ":")
+}
+
+func (s Servo) DisplayHost() string {
+	v := s.Host
+	if s.Port != "" && s.Port != "22" {
+		v = v + ":" + s.Port
+	}
+	return v
+}
+
+func (s Servo) DisplayPath() string {
+	if s.Path != "" {
+		return s.Path
+	}
+	return "~/"
+}
+
+func (s Servo) URL() string {
+	pathComponent := ""
+	if s.Path != "" {
+		if s.Port != "" && s.Port != "22" {
+			pathComponent = pathComponent + ":"
+		}
+		pathComponent = pathComponent + s.Path
+	}
+	return fmt.Sprintf("ssh://%s@%s:%s", s.User, s.DisplayHost(), pathComponent)
 }
