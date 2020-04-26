@@ -420,15 +420,48 @@ func (servoCmd *servoCommand) runInSSHSession(ctx context.Context, name string, 
 		HostKeyCallback: hostKeyCallback,
 	}
 
-	// Connect to host
-	client, err := ssh.Dial("tcp", servo.HostAndPort(), config)
-	if err != nil {
-		log.Fatal(err)
+	// Support bastion hosts via redialing
+	var sshClient *ssh.Client
+	if servo.Bastion != "" {
+		user, host := servo.BastionComponents()
+		bastionConfig := &ssh.ClientConfig{
+			User: user,
+			Auth: []ssh.AuthMethod{
+				servoCmd.sshAgent(),
+			},
+			HostKeyCallback: hostKeyCallback,
+		}
+
+		// Dial the bastion host
+		bastionClient, err := ssh.Dial("tcp", host, bastionConfig)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		// Establish a new connection thrrough the bastion
+		conn, err := bastionClient.Dial("tcp", servo.HostAndPort())
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		// Build a new SSH connection on top of the bastion connection
+		ncc, chans, reqs, err := ssh.NewClientConn(conn, servo.HostAndPort(), config)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		// Now connection a client on top of it
+		sshClient = ssh.NewClient(ncc, chans, reqs)
+	} else {
+		sshClient, err = ssh.Dial("tcp", servo.HostAndPort(), config)
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
-	defer client.Close()
+	defer sshClient.Close()
 
 	// Create sesssion
-	session, err := client.NewSession()
+	session, err := sshClient.NewSession()
 	if err != nil {
 		log.Fatal("Failed to create session: ", err)
 	}
@@ -436,7 +469,7 @@ func (servoCmd *servoCommand) runInSSHSession(ctx context.Context, name string, 
 
 	go func() {
 		<-ctx.Done()
-		client.Close()
+		sshClient.Close()
 	}()
 
 	return runIt(ctx, *servo, session)

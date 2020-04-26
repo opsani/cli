@@ -379,11 +379,12 @@ func (cmd *BaseCommand) RemoveServo(servo Servo) error {
 
 // Servo represents a deployed Servo assembly running somewhere
 type Servo struct {
-	Name string
-	User string
-	Host string
-	Port string
-	Path string
+	Name    string
+	User    string
+	Host    string
+	Port    string
+	Path    string
+	Bastion string
 }
 
 func (s Servo) HostAndPort() string {
@@ -419,4 +420,14 @@ func (s Servo) URL() string {
 		pathComponent = pathComponent + s.Path
 	}
 	return fmt.Sprintf("ssh://%s@%s:%s", s.User, s.DisplayHost(), pathComponent)
+}
+
+func (s Servo) BastionComponents() (string, string) {
+	components := strings.Split(s.Bastion, "@")
+	user := components[0]
+	host := components[1]
+	if !strings.Contains(host, ":") {
+		host = host + ":22"
+	}
+	return user, host
 }
