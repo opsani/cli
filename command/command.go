@@ -49,8 +49,8 @@ func SetStdio(stdio terminal.Stdio) {
 // It contains the root command for Cobra and is designed for embedding
 // into other command structures to add subcommand functionality
 type BaseCommand struct {
-	rootCmd  *cobra.Command
-	viperCfg *viper.Viper
+	rootCobraCommand *cobra.Command
+	viperCfg         *viper.Viper
 
 	ConfigFile            string
 	requestTracingEnabled bool
@@ -71,9 +71,9 @@ func (cmd *BaseCommand) stdio() terminal.Stdio {
 	}
 }
 
-// CobraCommand returns the Cobra instance underlying the Opsani CLI command
-func (cmd *BaseCommand) CobraCommand() *cobra.Command {
-	return cmd.rootCmd
+// RootCobraCommand returns the root Cobra command of the Opsani CLI command
+func (cmd *BaseCommand) RootCobraCommand() *cobra.Command {
+	return cmd.rootCobraCommand
 }
 
 // Viper returns the Viper configuration object underlying the Opsani CLI command
@@ -85,37 +85,37 @@ func (cmd *BaseCommand) CobraCommand() *cobra.Command {
 
 // OutOrStdout returns output to stdout.
 func (cmd *BaseCommand) OutOrStdout() io.Writer {
-	return cmd.rootCmd.OutOrStdout()
+	return cmd.rootCobraCommand.OutOrStdout()
 }
 
 // Print is a convenience method to Print to the defined output, fallback to Stderr if not set.
 func (cmd *BaseCommand) Print(i ...interface{}) {
-	cmd.rootCmd.Print(i...)
+	cmd.rootCobraCommand.Print(i...)
 }
 
 // Println is a convenience method to Println to the defined output, fallback to Stderr if not set.
 func (cmd *BaseCommand) Println(i ...interface{}) {
-	cmd.rootCmd.Println(i...)
+	cmd.rootCobraCommand.Println(i...)
 }
 
 // Printf is a convenience method to Printf to the defined output, fallback to Stderr if not set.
 func (cmd *BaseCommand) Printf(format string, i ...interface{}) {
-	cmd.rootCmd.Printf(format, i...)
+	cmd.rootCobraCommand.Printf(format, i...)
 }
 
 // PrintErr is a convenience method to Print to the defined Err output, fallback to Stderr if not set.
 func (cmd *BaseCommand) PrintErr(i ...interface{}) {
-	cmd.rootCmd.PrintErr(i...)
+	cmd.rootCobraCommand.PrintErr(i...)
 }
 
 // PrintErrln is a convenience method to Println to the defined Err output, fallback to Stderr if not set.
 func (cmd *BaseCommand) PrintErrln(i ...interface{}) {
-	cmd.rootCmd.PrintErrln(i...)
+	cmd.rootCobraCommand.PrintErrln(i...)
 }
 
 // PrintErrf is a convenience method to Printf to the defined Err output, fallback to Stderr if not set.
 func (cmd *BaseCommand) PrintErrf(format string, i ...interface{}) {
-	cmd.rootCmd.PrintErrf(format, i...)
+	cmd.rootCobraCommand.PrintErrf(format, i...)
 }
 
 // Proxy the Survey library to follow our output directives

@@ -66,7 +66,7 @@ We'd love to hear your feedback at <https://github.com/opsani/cli>`,
 	}
 
 	// Link our root command to Cobra
-	rootCmd.rootCmd = cobraCmd
+	rootCmd.rootCobraCommand = cobraCmd
 
 	// Bind our global configuration parameters
 	cobraCmd.PersistentFlags().String(KeyBaseURL, DefaultBaseURL, "Base URL for accessing the Opsani API")
@@ -158,14 +158,14 @@ func subCommandPath(rootCmd *cobra.Command, cmd *cobra.Command) string {
 // All commands with RunE will bubble errors back here
 func Execute() (cmd *cobra.Command, err error) {
 	rootCmd := NewRootCommand()
-	cobraCmd := rootCmd.rootCmd
+	cobraCmd := rootCmd.rootCobraCommand
 
 	if err := rootCmd.initConfig(); err != nil {
 		rootCmd.PrintErr(err)
 		return cobraCmd, err
 	}
 
-	executedCmd, err := rootCmd.rootCmd.ExecuteC()
+	executedCmd, err := rootCmd.rootCobraCommand.ExecuteC()
 	if err != nil {
 		// Exit silently if the user bailed with control-c
 		if errors.Is(err, terminal.InterruptErr) {

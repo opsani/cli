@@ -47,7 +47,7 @@ func (h *Suite) Command() *cobra.Command {
 
 // SetCommand sets the Opsani command under test
 func (h *Suite) SetCommand(cmd *command.BaseCommand) {
-	h.SetCobraCommand(cmd.CobraCommand())
+	h.SetCobraCommand(cmd.RootCobraCommand())
 }
 
 // SetCobraCommand sets the Cobra command under test

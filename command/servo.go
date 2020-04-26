@@ -33,10 +33,14 @@ import (
 	"golang.org/x/crypto/ssh/terminal"
 )
 
+// NOTE: Binding vars instead of using flags because the call stack is messy atm
 type servoCommand struct {
 	*BaseCommand
-	force   bool
-	verbose bool
+	force      bool
+	verbose    bool
+	follow     bool
+	timestamps bool
+	lines      string
 }
 
 // NewServoCommand returns a new instance of the servo command
@@ -64,12 +68,15 @@ func NewServoCommand(baseCmd *BaseCommand) *cobra.Command {
 	}
 	listCmd.Flags().BoolVarP(&servoCommand.verbose, "verbose", "v", false, "Display verbose output")
 	servoCmd.AddCommand(listCmd)
-	servoCmd.AddCommand(&cobra.Command{
+	addCmd := &cobra.Command{
 		Use:   "add",
 		Short: "Add a Servo",
 		Args:  cobra.MaximumNArgs(1),
 		RunE:  servoCommand.RunAddServo,
-	})
+	}
+	addCmd.Flags().BoolP("bastion", "b", false, "Use a bastion host for access")
+	addCmd.Flags().String("bastion-host", "", "Specify the bastion host (format is user@host[:port])")
+	servoCmd.AddCommand(addCmd)
 
 	removeCmd := &cobra.Command{
 		Use:     "remove",
@@ -121,12 +128,9 @@ func NewServoCommand(baseCmd *BaseCommand) *cobra.Command {
 		RunE:  servoCommand.RunServoLogs,
 	}
 
-	logsCmd.Flags().BoolP("follow", "f", false, "Follow log output")
-	baseCmd.viperCfg.BindPFlag("follow", logsCmd.Flags().Lookup("follow"))
-	logsCmd.Flags().BoolP("timestamps", "t", false, "Show timestamps")
-	baseCmd.viperCfg.BindPFlag("timestamps", logsCmd.Flags().Lookup("timestamps"))
-	logsCmd.Flags().StringP("lines", "l", "25", `Number of lines to show from the end of the logs (or "all").`)
-	baseCmd.viperCfg.BindPFlag("lines", logsCmd.Flags().Lookup("lines"))
+	logsCmd.Flags().BoolVarP(&servoCommand.force, "follow", "f", false, "Follow log output")
+	logsCmd.Flags().BoolVarP(&servoCommand.timestamps, "timestamps", "t", false, "Show timestamps")
+	logsCmd.Flags().StringVarP(&servoCommand.lines, "lines", "l", "25", `Number of lines to show from the end of the logs (or "all").`)
 
 	servoCmd.AddCommand(logsCmd)
 	servoCmd.AddCommand(&cobra.Command{
@@ -139,7 +143,7 @@ func NewServoCommand(baseCmd *BaseCommand) *cobra.Command {
 	return servoCmd
 }
 
-func (servoCmd *servoCommand) RunAddServo(_ *cobra.Command, args []string) error {
+func (servoCmd *servoCommand) RunAddServo(c *cobra.Command, args []string) error {
 	servo := Servo{}
 	if len(args) > 0 {
 		servo.Name = args[0]
@@ -178,6 +182,19 @@ func (servoCmd *servoCommand) RunAddServo(_ *cobra.Command, args []string) error
 		}, &servo.Path)
 		if err != nil {
 			return err
+		}
+	}
+
+	// Handle bastion hosts
+	if flagSet, _ := c.Flags().GetBool("bastion"); flagSet {
+		servo.Bastion, _ = c.Flags().GetString("bastion-host")
+		if servo.Bastion == "" {
+			err := servoCmd.AskOne(&survey.Input{
+				Message: "Bastion host? (format is user@host[:port])",
+			}, &servo.Bastion)
+			if err != nil {
+				return err
+			}
 		}
 	}
 
@@ -340,11 +357,11 @@ func (servoCmd *servoCommand) runLogsSSHSession(ctx context.Context, servo Servo
 		args = append(args, "cd", path+"&&")
 	}
 	args = append(args, "docker-compose logs")
-	args = append(args, "--tail "+servoCmd.viperCfg.GetString("lines"))
-	if servoCmd.viperCfg.GetBool("follow") {
+	args = append(args, "--tail "+servoCmd.lines)
+	if servoCmd.follow {
 		args = append(args, "--follow")
 	}
-	if servoCmd.viperCfg.GetBool("timestamps") {
+	if servoCmd.timestamps {
 		args = append(args, "--timestamps")
 	}
 	return session.Run(strings.Join(args, " "))

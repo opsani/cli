@@ -127,11 +127,54 @@ func (s *ServoTestSuite) TestRunningAddNoInput() {
 	expected := []interface{}(
 		[]interface{}{
 			map[interface{}]interface{}{
-				"host": "dev.opsani.com",
-				"name": "opsani-dev",
-				"path": "/servo",
-				"port": "",
-				"user": "blakewatters",
+				"host":    "dev.opsani.com",
+				"name":    "opsani-dev",
+				"path":    "/servo",
+				"port":    "",
+				"user":    "blakewatters",
+				"bastion": "",
+			},
+		},
+	)
+	s.Require().EqualValues(expected, config["servos"])
+}
+
+func (s *ServoTestSuite) TestRunningAddNoInputWithBastion() {
+	configFile := test.TempConfigFileWithObj(map[string]string{
+		"app":   "example.com/app",
+		"token": "123456",
+	})
+	args := test.Args("--config", configFile.Name(), "servo", "add", "--bastion")
+	context, err := s.ExecuteTestInteractively(args, func(t *test.InteractiveTestContext) error {
+		t.RequireString("Servo name?")
+		t.SendLine("opsani-dev")
+		t.RequireString("User?")
+		t.SendLine("blakewatters")
+		t.RequireString("Host?")
+		t.SendLine("dev.opsani.com")
+		t.RequireString("Path? (optional)")
+		t.SendLine("/servo")
+		t.RequireString("Bastion host? (format is user@host[:port])")
+		t.SendLine("blake@ssh.opsani.com:5555")
+		t.ExpectEOF()
+		return nil
+	})
+	s.T().Logf("The output buffer is: %v", context.OutputBuffer().String())
+	s.Require().NoError(err)
+
+	// Check the config file
+	var config = map[string]interface{}{}
+	body, _ := ioutil.ReadFile(configFile.Name())
+	yaml.Unmarshal(body, &config)
+	expected := []interface{}(
+		[]interface{}{
+			map[interface{}]interface{}{
+				"host":    "dev.opsani.com",
+				"name":    "opsani-dev",
+				"path":    "/servo",
+				"port":    "",
+				"user":    "blakewatters",
+				"bastion": "blake@ssh.opsani.com:5555",
 			},
 		},
 	)
