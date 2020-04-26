@@ -63,10 +63,11 @@ func NewServoImageCommand(baseCmd *BaseCommand) *cobra.Command {
 		RunE:  servoImageCommand.RunInfo,
 	})
 	pullCmd := &cobra.Command{
-		Use:   "pull",
-		Short: "Pull a Servo image with Docker",
-		Args:  cobra.ExactArgs(1),
-		RunE:  servoImageCommand.RunPull,
+		Use:                   "pull [OPTIONS] IMAGE",
+		Short:                 "Pull a Servo image with Docker",
+		Args:                  cobra.ExactArgs(1),
+		RunE:                  servoImageCommand.RunPull,
+		DisableFlagsInUseLine: true,
 	}
 	pullCmd.Flags().StringP(hostArg, "H", "", "Docket host to connect to (overriding DOCKER_HOST)")
 	servoImageCobra.AddCommand(pullCmd)

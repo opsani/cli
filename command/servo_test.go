@@ -96,7 +96,7 @@ func (s *ServoTestSuite) TestRunningLogsTimestampsHelp() {
 func (s *ServoTestSuite) TestRunningAddHelp() {
 	output, err := s.Execute("servo", "add", "--help")
 	s.Require().NoError(err)
-	s.Require().Contains(output, "Add a Servo")
+	s.Require().Contains(output, "Add a Servo to the local registry")
 }
 
 func (s *ServoTestSuite) TestRunningAddNoInput() {

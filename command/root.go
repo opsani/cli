@@ -61,9 +61,10 @@ We'd love to hear your feedback at <https://github.com/opsani/cli>`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return cmd.Help()
 		},
-		SilenceUsage:  true,
-		SilenceErrors: true,
-		Version:       "0.0.1",
+		SilenceUsage:          true,
+		SilenceErrors:         true,
+		Version:               "0.0.1",
+		DisableFlagsInUseLine: true,
 	}
 
 	// Link our root command to Cobra
@@ -505,10 +506,13 @@ Examples:
 {{ .Example }}
 
 {{- end}}
-{{- if .HasAvailableFlags}}
+{{- if .HasAvailableLocalFlags}}
 
 Options:
-{{ wrappedFlagUsages . | trimRightSpace}}
+{{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}{{if .HasAvailableInheritedFlags}}
+
+Global Options:
+{{.InheritedFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}{{if .HasHelpSubCommands}}
 
 {{- end}}
 {{- if hasManagementSubCommands . }}
