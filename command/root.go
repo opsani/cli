@@ -22,6 +22,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/AlecAivazis/survey/v2/core"
 	"github.com/AlecAivazis/survey/v2/terminal"
 	"github.com/mitchellh/go-homedir"
 	"github.com/opsani/cli/opsani"
@@ -46,9 +47,8 @@ const (
 // NewRootCommand returns a new instance of the root command for Opsani CLI
 func NewRootCommand() *BaseCommand {
 	// Create our base command to bind configuration
-	// viper := viper.New()
-	// baseCommand := &BaseCommand{viper: viper}
-	rootCmd := &BaseCommand{}
+	viperCfg := viper.New()
+	rootCmd := &BaseCommand{viperCfg: viperCfg}
 
 	cobraCmd := &cobra.Command{
 		Use:   "opsani",
@@ -71,17 +71,18 @@ We'd love to hear your feedback at <https://github.com/opsani/cli>`,
 	// Bind our global configuration parameters
 	cobraCmd.PersistentFlags().String(KeyBaseURL, DefaultBaseURL, "Base URL for accessing the Opsani API")
 	cobraCmd.PersistentFlags().MarkHidden(KeyBaseURL)
-	viper.BindPFlag(KeyBaseURL, cobraCmd.PersistentFlags().Lookup(KeyBaseURL))
+	viperCfg.BindPFlag(KeyBaseURL, cobraCmd.PersistentFlags().Lookup(KeyBaseURL))
 
 	cobraCmd.PersistentFlags().String(KeyApp, "", "App to control (overrides config file and OPSANI_APP)")
-	viper.BindPFlag(KeyApp, cobraCmd.PersistentFlags().Lookup(KeyApp))
+	viperCfg.BindPFlag(KeyApp, cobraCmd.PersistentFlags().Lookup(KeyApp))
 
 	cobraCmd.PersistentFlags().String(KeyToken, "", "API token to authenticate with (overrides config file and OPSANI_TOKEN)")
-	viper.BindPFlag(KeyToken, cobraCmd.PersistentFlags().Lookup(KeyToken))
+	viperCfg.BindPFlag(KeyToken, cobraCmd.PersistentFlags().Lookup(KeyToken))
 
 	// Not stored in Viper
 	cobraCmd.PersistentFlags().BoolVarP(&rootCmd.debugModeEnabled, KeyDebugMode, "D", false, "Enable debug mode")
 	cobraCmd.PersistentFlags().BoolVar(&rootCmd.requestTracingEnabled, KeyRequestTracing, false, "Enable request tracing")
+	cobraCmd.PersistentFlags().BoolVar(&rootCmd.disableColors, "no-colors", false, "Disable colorized output")
 
 	configFileUsage := fmt.Sprintf("Location of config file (default \"%s\")", rootCmd.DefaultConfigFile())
 	cobraCmd.PersistentFlags().StringVar(&rootCmd.ConfigFile, "config", "", configFileUsage)
@@ -208,8 +209,6 @@ func ReduceRunEFuncs(runFuncs ...RunEFunc) RunEFunc {
 	}
 }
 
-// TODO: Move all of these onto BaseCommand as methods
-
 // InitConfigRunE initializes client configuration and aborts execution if an error is encountered
 func (baseCmd *BaseCommand) InitConfigRunE(cmd *cobra.Command, args []string) error {
 	return baseCmd.initConfig()
@@ -240,23 +239,23 @@ func (baseCmd *BaseCommand) RequireInitRunE(cmd *cobra.Command, args []string) e
 
 func (baseCmd *BaseCommand) initConfig() error {
 	if baseCmd.ConfigFile != "" {
-		viper.SetConfigFile(baseCmd.ConfigFile)
+		baseCmd.viperCfg.SetConfigFile(baseCmd.ConfigFile)
 	} else {
 		// Find Opsani config in home directory
-		viper.AddConfigPath(baseCmd.DefaultConfigPath())
-		viper.SetConfigName("config")
-		viper.SetConfigType(baseCmd.DefaultConfigType())
+		baseCmd.viperCfg.AddConfigPath(baseCmd.DefaultConfigPath())
+		baseCmd.viperCfg.SetConfigName("config")
+		baseCmd.viperCfg.SetConfigType(baseCmd.DefaultConfigType())
 		baseCmd.ConfigFile = baseCmd.DefaultConfigFile()
 	}
 
 	// Set up environment variables
-	viper.SetEnvPrefix(KeyEnvPrefix)
-	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
-	viper.AutomaticEnv()
+	baseCmd.viperCfg.SetEnvPrefix(KeyEnvPrefix)
+	baseCmd.viperCfg.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
+	baseCmd.viperCfg.AutomaticEnv()
 
 	// Load the configuration
-	if err := viper.ReadInConfig(); err == nil {
-		baseCmd.ConfigFile = viper.ConfigFileUsed()
+	if err := baseCmd.viperCfg.ReadInConfig(); err == nil {
+		baseCmd.ConfigFile = baseCmd.viperCfg.ConfigFileUsed()
 	} else {
 
 		switch err.(type) {
@@ -267,6 +266,9 @@ func (baseCmd *BaseCommand) initConfig() error {
 			return fmt.Errorf("error parsing configuration file: %w", err)
 		}
 	}
+
+	core.DisableColor = baseCmd.disableColors
+
 	return nil
 }
 
@@ -323,7 +325,7 @@ func (baseCmd *BaseCommand) DefaultConfigType() string {
 
 // GetBaseURL returns the Opsani API base URL
 func (baseCmd *BaseCommand) GetBaseURL() string {
-	return viper.GetString(KeyBaseURL)
+	return baseCmd.viperCfg.GetString(KeyBaseURL)
 }
 
 // GetAppComponents returns the organization name and app ID as separate path components
@@ -336,7 +338,7 @@ func (baseCmd *BaseCommand) GetAppComponents() (orgSlug string, appSlug string) 
 
 // GetAllSettings returns all configuration settings
 func (baseCmd *BaseCommand) GetAllSettings() map[string]interface{} {
-	return viper.AllSettings()
+	return baseCmd.viperCfg.AllSettings()
 }
 
 // IsInitialized returns a boolean value that indicates if the client has been initialized

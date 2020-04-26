@@ -59,13 +59,14 @@ func (s *ConfigTestSuite) TestRunningConfigInitialized() {
 	WriteConfigFile(defaultConfig)
 	cmd := exec.Command(opsaniBinaryPath,
 		"--config", opsaniConfigPath,
+		"--no-colors",
 		"config",
 	)
 
 	output, err := cmd.CombinedOutput()
 	s.Require().NoError(err)
-	s.Require().Contains(string(output), `"app": "example.com/app1"`)
-	s.Require().Contains(string(output), `"token": "123456"`)
+	s.Require().Contains(string(output), `app: example.com/app1`)
+	s.Require().Contains(string(output), `token: "123456`)
 }
 
 func (s *ConfigTestSuite) TestRunningConfigFileInvalidData() {

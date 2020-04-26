@@ -23,7 +23,6 @@ import (
 	"github.com/AlecAivazis/survey/v2/terminal"
 	"github.com/mgutz/ansi"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 )
 
 const confirmedArg = "confirmed"
@@ -33,10 +32,6 @@ type initCommand struct {
 
 	confirmed bool
 }
-
-///
-/// TODO: Swap out config accessors
-///
 
 // RunInitCommand initializes Opsani CLI config
 func (initCmd *initCommand) RunInitCommand(_ *cobra.Command, args []string) error {
@@ -105,7 +100,7 @@ func (initCmd *initCommand) RunInitCommand(_ *cobra.Command, args []string) erro
 				return err
 			}
 		}
-		if err := viper.WriteConfigAs(initCmd.ConfigFile); err != nil {
+		if err := initCmd.viperCfg.WriteConfigAs(initCmd.ConfigFile); err != nil {
 			return err
 		}
 		initCmd.Println("\nOpsani CLI initialized")

@@ -25,7 +25,6 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
 	"sigs.k8s.io/yaml"
 )
@@ -42,7 +41,6 @@ var (
 )
 
 func TestMain(m *testing.M) {
-	viper.Reset()
 	tmpDir, err := ioutil.TempDir("", "integration-opsani")
 	if err != nil {
 		panic("failed to create temp dir")

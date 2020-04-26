@@ -27,7 +27,6 @@ import (
 	"github.com/mitchellh/go-homedir"
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 	"golang.org/x/crypto/ssh/knownhosts"
@@ -123,11 +122,11 @@ func NewServoCommand(baseCmd *BaseCommand) *cobra.Command {
 	}
 
 	logsCmd.Flags().BoolP("follow", "f", false, "Follow log output")
-	viper.BindPFlag("follow", logsCmd.Flags().Lookup("follow"))
+	baseCmd.viperCfg.BindPFlag("follow", logsCmd.Flags().Lookup("follow"))
 	logsCmd.Flags().BoolP("timestamps", "t", false, "Show timestamps")
-	viper.BindPFlag("timestamps", logsCmd.Flags().Lookup("timestamps"))
+	baseCmd.viperCfg.BindPFlag("timestamps", logsCmd.Flags().Lookup("timestamps"))
 	logsCmd.Flags().StringP("lines", "l", "25", `Number of lines to show from the end of the logs (or "all").`)
-	viper.BindPFlag("lines", logsCmd.Flags().Lookup("lines"))
+	baseCmd.viperCfg.BindPFlag("lines", logsCmd.Flags().Lookup("lines"))
 
 	servoCmd.AddCommand(logsCmd)
 	servoCmd.AddCommand(&cobra.Command{
@@ -329,11 +328,11 @@ func (servoCmd *servoCommand) runLogsSSHSession(ctx context.Context, servo Servo
 		args = append(args, "cd", path+"&&")
 	}
 	args = append(args, "docker-compose logs")
-	args = append(args, "--tail "+viper.GetString("lines"))
-	if viper.GetBool("follow") {
+	args = append(args, "--tail "+servoCmd.viperCfg.GetString("lines"))
+	if servoCmd.viperCfg.GetBool("follow") {
 		args = append(args, "--follow")
 	}
-	if viper.GetBool("timestamps") {
+	if servoCmd.viperCfg.GetBool("timestamps") {
 		args = append(args, "--timestamps")
 	}
 	return session.Run(strings.Join(args, " "))

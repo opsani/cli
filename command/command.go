@@ -49,12 +49,13 @@ func SetStdio(stdio terminal.Stdio) {
 // It contains the root command for Cobra and is designed for embedding
 // into other command structures to add subcommand functionality
 type BaseCommand struct {
-	rootCmd *cobra.Command
-	// viper   *viper
+	rootCmd  *cobra.Command
+	viperCfg *viper.Viper
 
 	ConfigFile            string
 	requestTracingEnabled bool
 	debugModeEnabled      bool
+	disableColors         bool
 }
 
 // stdio is a test helper for returning terminal file descriptors usable by Survey
@@ -185,46 +186,49 @@ func (cmd *BaseCommand) prettyPrintYAML(bytes []byte, lineNumbers bool) error {
 	tokens := lexer.Tokenize(string(bytes))
 	var p printer.Printer
 	p.LineNumber = lineNumbers
-	p.LineNumberFormat = func(num int) string {
-		fn := color.New(color.Bold, color.FgHiWhite).SprintFunc()
-		return fn(fmt.Sprintf("%2d | ", num))
-	}
-	p.Bool = func() *printer.Property {
-		return &printer.Property{
-			Prefix: format(color.FgHiMagenta),
-			Suffix: format(color.Reset),
+	if cmd.ColorOutput() {
+		p.LineNumberFormat = func(num int) string {
+			fn := color.New(color.Bold, color.FgHiWhite).SprintFunc()
+			return fn(fmt.Sprintf("%2d | ", num))
+		}
+		p.Bool = func() *printer.Property {
+			return &printer.Property{
+				Prefix: format(color.FgHiMagenta),
+				Suffix: format(color.Reset),
+			}
+		}
+		p.Number = func() *printer.Property {
+			return &printer.Property{
+				Prefix: format(color.FgHiMagenta),
+				Suffix: format(color.Reset),
+			}
+		}
+		p.MapKey = func() *printer.Property {
+			return &printer.Property{
+				Prefix: format(color.FgHiCyan),
+				Suffix: format(color.Reset),
+			}
+		}
+		p.Anchor = func() *printer.Property {
+			return &printer.Property{
+				Prefix: format(color.FgHiYellow),
+				Suffix: format(color.Reset),
+			}
+		}
+		p.Alias = func() *printer.Property {
+			return &printer.Property{
+				Prefix: format(color.FgHiYellow),
+				Suffix: format(color.Reset),
+			}
+		}
+		p.String = func() *printer.Property {
+			return &printer.Property{
+				Prefix: format(color.FgHiGreen),
+				Suffix: format(color.Reset),
+			}
 		}
 	}
-	p.Number = func() *printer.Property {
-		return &printer.Property{
-			Prefix: format(color.FgHiMagenta),
-			Suffix: format(color.Reset),
-		}
-	}
-	p.MapKey = func() *printer.Property {
-		return &printer.Property{
-			Prefix: format(color.FgHiCyan),
-			Suffix: format(color.Reset),
-		}
-	}
-	p.Anchor = func() *printer.Property {
-		return &printer.Property{
-			Prefix: format(color.FgHiYellow),
-			Suffix: format(color.Reset),
-		}
-	}
-	p.Alias = func() *printer.Property {
-		return &printer.Property{
-			Prefix: format(color.FgHiYellow),
-			Suffix: format(color.Reset),
-		}
-	}
-	p.String = func() *printer.Property {
-		return &printer.Property{
-			Prefix: format(color.FgHiGreen),
-			Suffix: format(color.Reset),
-		}
-	}
+
 	// writer := colorable.NewColorableStdout()
 	cmd.OutOrStdout().Write([]byte(p.PrintTokens(tokens) + "\n"))
 	return nil
@@ -232,7 +236,7 @@ func (cmd *BaseCommand) prettyPrintYAML(bytes []byte, lineNumbers bool) error {
 
 // BaseURL returns the Opsani API base URL
 func (cmd *BaseCommand) BaseURL() string {
-	return viper.GetString(KeyBaseURL)
+	return cmd.viperCfg.GetString(KeyBaseURL)
 }
 
 // BaseURLHostnameAndPort returns the hostname and port portion of Opsani base URL for summary display
@@ -250,27 +254,27 @@ func (cmd *BaseCommand) BaseURLHostnameAndPort() string {
 
 // SetBaseURL sets the Opsani API base URL
 func (cmd *BaseCommand) SetBaseURL(baseURL string) {
-	viper.Set(KeyBaseURL, baseURL)
+	cmd.viperCfg.Set(KeyBaseURL, baseURL)
 }
 
 // AccessToken returns the Opsani API access token
 func (cmd *BaseCommand) AccessToken() string {
-	return viper.GetString(KeyToken)
+	return cmd.viperCfg.GetString(KeyToken)
 }
 
 // SetAccessToken sets the Opsani API access token
 func (cmd *BaseCommand) SetAccessToken(accessToken string) {
-	viper.Set(KeyToken, accessToken)
+	cmd.viperCfg.Set(KeyToken, accessToken)
 }
 
 // App returns the target Opsani app
 func (cmd *BaseCommand) App() string {
-	return viper.GetString(KeyApp)
+	return cmd.viperCfg.GetString(KeyApp)
 }
 
 // SetApp sets the target Opsani app
 func (cmd *BaseCommand) SetApp(app string) {
-	viper.Set(KeyApp, app)
+	cmd.viperCfg.Set(KeyApp, app)
 }
 
 // AppComponents returns the organization name and app ID as separate path components
@@ -283,7 +287,7 @@ func (cmd *BaseCommand) AppComponents() (orgSlug string, appSlug string) {
 
 // AllSettings returns all configuration settings
 func (cmd *BaseCommand) AllSettings() map[string]interface{} {
-	return viper.AllSettings()
+	return cmd.viperCfg.AllSettings()
 }
 
 // DebugModeEnabled returns a boolean value indicating if debugging is enabled
@@ -296,10 +300,20 @@ func (cmd *BaseCommand) RequestTracingEnabled() bool {
 	return cmd.requestTracingEnabled
 }
 
+// ColorOutput indicates if ANSI colors will be used for output
+func (cmd *BaseCommand) ColorOutput() bool {
+	return !cmd.disableColors
+}
+
+// SetColorOutput sets whether or not ANSI colors will be used for output
+func (cmd *BaseCommand) SetColorOutput(colorOutput bool) {
+	cmd.disableColors = !colorOutput
+}
+
 // Servos returns the Servos in the configuration
 func (cmd *BaseCommand) Servos() ([]Servo, error) {
 	servos := make([]Servo, 0)
-	err := viper.UnmarshalKey("servos", &servos)
+	err := cmd.viperCfg.UnmarshalKey("servos", &servos)
 	if err != nil {
 		return nil, err
 	}
@@ -339,8 +353,8 @@ func (cmd *BaseCommand) AddServo(servo Servo) error {
 	}
 
 	servos = append(servos, servo)
-	viper.Set("servos", servos)
-	return viper.WriteConfig()
+	cmd.viperCfg.Set("servos", servos)
+	return cmd.viperCfg.WriteConfig()
 }
 
 // RemoveServoNamed removes a Servo from the config with the given name
@@ -354,8 +368,8 @@ func (cmd *BaseCommand) RemoveServoNamed(name string) error {
 		return err
 	}
 	servos = append(servos[:index], servos[index+1:]...)
-	viper.Set("servos", servos)
-	return viper.WriteConfig()
+	cmd.viperCfg.Set("servos", servos)
+	return cmd.viperCfg.WriteConfig()
 }
 
 // RemoveServo removes a Servo from the config

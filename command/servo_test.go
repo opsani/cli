@@ -18,10 +18,8 @@ import (
 	"io/ioutil"
 	"testing"
 
-	"github.com/AlecAivazis/survey/v2/core"
 	"github.com/opsani/cli/command"
 	"github.com/opsani/cli/test"
-	"github.com/spf13/viper"
 	"github.com/stretchr/testify/suite"
 	"gopkg.in/yaml.v2"
 )
@@ -35,8 +33,6 @@ func TestServoTestSuite(t *testing.T) {
 }
 
 func (s *ServoTestSuite) SetupTest() {
-	viper.Reset()
-	core.DisableColor = true
 	s.SetCommand(command.NewRootCommand())
 }
 
@@ -110,13 +106,13 @@ func (s *ServoTestSuite) TestRunningAddNoInput() {
 	})
 	args := test.Args("--config", configFile.Name(), "servo", "add")
 	context, err := s.ExecuteTestInteractively(args, func(t *test.InteractiveTestContext) error {
-		t.RequireString("? Servo name?")
+		t.RequireString("Servo name?")
 		t.SendLine("opsani-dev")
-		t.RequireString("? User?")
+		t.RequireString("User?")
 		t.SendLine("blakewatters")
-		t.RequireString("? Host?")
+		t.RequireString("Host?")
 		t.SendLine("dev.opsani.com")
-		t.RequireString("? Path? (optional)")
+		t.RequireString("Path? (optional)")
 		t.SendLine("/servo")
 		t.ExpectEOF()
 		return nil
@@ -172,7 +168,7 @@ func (s *ServoTestSuite) TestRunningRemoveServoConfirmed() {
 	})
 	args := test.Args("--config", configFile.Name(), "servo", "remove", "opsani-dev")
 	_, err := s.ExecuteTestInteractively(args, func(t *test.InteractiveTestContext) error {
-		t.RequireString(`? Remove Servo "opsani-dev"?`)
+		t.RequireString(`Remove Servo "opsani-dev"?`)
 		t.SendLine("Y")
 		t.ExpectEOF()
 		return nil
@@ -237,7 +233,7 @@ func (s *ServoTestSuite) TestRunningRemoveServoDeclined() {
 	})
 	args := test.Args("--config", configFile.Name(), "servo", "remove", "opsani-dev")
 	_, err := s.ExecuteTestInteractively(args, func(t *test.InteractiveTestContext) error {
-		t.RequireString(`? Remove Servo "opsani-dev"?`)
+		t.RequireString(`Remove Servo "opsani-dev"?`)
 		t.SendLine("N")
 		t.ExpectEOF()
 		return nil
