@@ -82,7 +82,11 @@ We'd love to hear your feedback at <https://github.com/opsani/cli>`,
 	// Not stored in Viper
 	cobraCmd.PersistentFlags().BoolVarP(&rootCmd.debugModeEnabled, KeyDebugMode, "D", false, "Enable debug mode")
 	cobraCmd.PersistentFlags().BoolVar(&rootCmd.requestTracingEnabled, KeyRequestTracing, false, "Enable request tracing")
-	cobraCmd.PersistentFlags().BoolVar(&rootCmd.disableColors, "no-colors", false, "Disable colorized output")
+
+	// Respect NO_COLOR from env to be a good sport
+	// https://no-color.org/
+	_, disableColors := os.LookupEnv("NO_COLOR")
+	cobraCmd.PersistentFlags().BoolVar(&rootCmd.disableColors, "no-colors", disableColors, "Disable colorized output")
 
 	configFileUsage := fmt.Sprintf("Location of config file (default \"%s\")", rootCmd.DefaultConfigFile())
 	cobraCmd.PersistentFlags().StringVar(&rootCmd.ConfigFile, "config", "", configFileUsage)
