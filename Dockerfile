@@ -12,6 +12,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM scratch
-COPY ./bin/opsani /
-ENTRYPOINT ["/opsani"]
+FROM golang:alpine
+
+# Set necessary environmet variables needed for our image
+ENV GO111MODULE=on \
+    CGO_ENABLED=0 \
+    GOOS=linux \
+    GOARCH=amd64
+
+# Move to working directory /build
+WORKDIR /build
+
+# Copy and download dependency using go mod
+COPY go.mod .
+COPY go.sum .
+RUN go mod download
+
+# Build our binary
+COPY . .
+RUN go build -o bin/opsani .
+WORKDIR /dist
+RUN cp /build/bin/opsani .
+
+CMD ["/dist/opsani"]

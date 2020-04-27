@@ -20,12 +20,10 @@ import (
 	"testing"
 
 	"github.com/AlecAivazis/survey/v2"
-	"github.com/AlecAivazis/survey/v2/core"
 	"github.com/AlecAivazis/survey/v2/terminal"
 	"github.com/Netflix/go-expect"
 	"github.com/opsani/cli/command"
 	"github.com/opsani/cli/test"
-	"github.com/spf13/viper"
 	"github.com/stretchr/testify/suite"
 	"gopkg.in/yaml.v2"
 )
@@ -39,9 +37,6 @@ func TestInitTestSuite(t *testing.T) {
 }
 
 func (s *InitTestSuite) SetupTest() {
-	// Colors make the tests flaky
-	core.DisableColor = true
-	viper.Reset()
 	s.SetCommand(command.NewRootCommand())
 }
 
@@ -95,7 +90,7 @@ func (s *InitTestSuite) TestInitWithExistingConfigDeclinedL() {
 
 	context, err := s.ExecuteTestInteractively(test.Args("--config", configFile.Name(), "init"), func(t *test.InteractiveTestContext) error {
 		t.RequireStringf("Using config from: %s", configFile.Name())
-		t.RequireStringf("? Existing config found. Overwrite %s?", configFile.Name())
+		t.RequireStringf("Existing config found. Overwrite %s?", configFile.Name())
 		t.SendLine("N")
 		t.ExpectEOF()
 		return nil
@@ -113,7 +108,7 @@ func (s *InitTestSuite) TestInitWithExistingConfigDeclined() {
 
 	context, err := s.ExecuteTestInteractively(test.Args("--config", configFile.Name(), "init"), func(t *test.InteractiveTestContext) error {
 		t.RequireStringf("Using config from: %s", configFile.Name())
-		t.RequireStringf("? Existing config found. Overwrite %s?", configFile.Name())
+		t.RequireStringf("Existing config found. Overwrite %s?", configFile.Name())
 		t.SendLine("N")
 		t.ExpectEOF()
 		return nil
@@ -131,7 +126,7 @@ func (s *InitTestSuite) TestInitWithExistingConfigAccepted() {
 
 	context, err := s.ExecuteTestInteractively(test.Args("--config", configFile.Name(), "init"), func(t *test.InteractiveTestContext) error {
 		t.RequireStringf("Using config from: %s", configFile.Name())
-		t.RequireStringf("? Existing config found. Overwrite %s?", configFile.Name())
+		t.RequireStringf("Existing config found. Overwrite %s?", configFile.Name())
 		t.SendLine("Y")
 		t.ExpectMatch(expect.RegexpPattern("Opsani app"))
 		t.SendLine("dev.opsani.com/amazing-app")
@@ -144,6 +139,7 @@ func (s *InitTestSuite) TestInitWithExistingConfigAccepted() {
 		return nil
 	})
 	s.Require().NoError(err, context.OutputBuffer().String())
+	s.T().Logf("Output buffer = %v", context.OutputBuffer().String())
 
 	// Check the config file
 	var config = map[string]interface{}{}

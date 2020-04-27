@@ -45,9 +45,3 @@ func (s *DiscoverTestSuite) TestRunningIMBHelp() {
 	s.Require().NoError(err)
 	s.Require().Contains(output, "Run the intelligent manifest builder")
 }
-
-func (s *DiscoverTestSuite) TestRunningPullHelp() {
-	output, err := s.Execute("pull", "--help")
-	s.Require().NoError(err)
-	s.Require().Contains(output, "Pull a Docker image")
-}

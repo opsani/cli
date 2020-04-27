@@ -15,24 +15,35 @@
 package command
 
 import (
-	"github.com/opsani/cli/opsani"
+	"io/ioutil"
+
 	"github.com/spf13/cobra"
 )
 
+type configCommand struct {
+	*BaseCommand
+}
+
 // NewConfigCommand returns a new instance of the root command for Opsani CLI
-func NewConfigCommand() *Command {
-	return NewCommandWithCobraCommand(&cobra.Command{
-		Use:   "config",
-		Short: "Manages client configuration",
-		Args:  cobra.NoArgs,
-	}, func(cmd *Command) {
-		cmd.RunE = RunConfig
-		cmd.PersistentPreRunE = ReduceRunEFuncsO(InitConfigRunE, RequireConfigFileFlagToExistRunE, RequireInitRunE)
-	})
+func NewConfigCommand(baseCmd *BaseCommand) *cobra.Command {
+	cfgCmd := configCommand{BaseCommand: baseCmd}
+	return &cobra.Command{
+		Use:               "config",
+		Short:             "Display configuration",
+		Annotations:       map[string]string{"other": "true"},
+		Args:              cobra.NoArgs,
+		RunE:              cfgCmd.Run,
+		PersistentPreRunE: ReduceRunEFuncs(baseCmd.InitConfigRunE, baseCmd.RequireConfigFileFlagToExistRunE, baseCmd.RequireInitRunE),
+	}
 }
 
 // RunConfig displays Opsani CLI config info
-func RunConfig(cmd *Command, args []string) error {
-	cmd.Println("Using config from:", opsani.ConfigFile)
-	return cmd.PrettyPrintJSONObject(opsani.GetAllSettings())
+func (configCmd *configCommand) Run(_ *cobra.Command, args []string) error {
+	configCmd.Println("Using config from:", configCmd.ConfigFile)
+
+	body, err := ioutil.ReadFile(configCmd.ConfigFile)
+	if err != nil {
+		return err
+	}
+	return configCmd.prettyPrintYAML(body, false)
 }

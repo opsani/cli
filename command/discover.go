@@ -43,7 +43,6 @@ const hostArg = "host"
 const kubeconfigArg = "kubeconfig"
 
 func runIntelligentManifestBuilderCommand(cmd *cobra.Command, args []string) error {
-	ctx := context.Background()
 	imageRef, err := cmd.Flags().GetString(imageArg)
 	if err != nil {
 		return err
@@ -53,7 +52,11 @@ func runIntelligentManifestBuilderCommand(cmd *cobra.Command, args []string) err
 	if err != nil {
 		return err
 	}
+	return runIntelligentManifestBuilder(dockerHost, imageRef)
+}
 
+func runIntelligentManifestBuilder(dockerHost string, imageRef string) error {
+	ctx := context.Background()
 	di, err := NewDockerInterface(dockerHost)
 	if err != nil {
 		return err
@@ -240,32 +243,7 @@ func runDiscoveryCommand(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func newPullCommand() *cobra.Command {
-	pullCmd := &cobra.Command{
-		Use:   "pull",
-		Short: "Pull a Docker image",
-		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			dockerHost, err := cmd.Flags().GetString(hostArg)
-			if err != nil {
-				return err
-			}
-
-			di, err := NewDockerInterface(dockerHost)
-			if err != nil {
-				return err
-			}
-
-			return di.PullImageWithProgressReporting(context.Background(), args[0])
-		},
-	}
-
-	pullCmd.Flags().StringP(hostArg, "H", "", "Docket host to connect to (overriding DOCKER_HOST)")
-
-	return pullCmd
-}
-
-func newDiscoverCommand() *cobra.Command {
+func newDiscoverCommand(baseCmd *BaseCommand) *cobra.Command {
 	discoverCmd := &cobra.Command{
 		Use:   "discover",
 		Short: "Build Servo assets through Kubernetes discovery",
@@ -275,7 +253,7 @@ func newDiscoverCommand() *cobra.Command {
 	Upon completion of discovery, manifests will be generated that can be
 	used to build a Servo assembly image and deploy it to Kubernetes.`,
 		Args:              cobra.NoArgs,
-		PersistentPreRunE: InitConfigRunE,
+		PersistentPreRunE: baseCmd.InitConfigRunE,
 		RunE:              runDiscoveryCommand,
 	}
 
@@ -285,7 +263,7 @@ func newDiscoverCommand() *cobra.Command {
 	return discoverCmd
 }
 
-func newIMBCommand() *cobra.Command {
+func newIMBCommand(baseCmd *BaseCommand) *cobra.Command {
 	imbCmd := &cobra.Command{
 		Use:   "imb",
 		Short: "Run the intelligent manifest builder under Docker",

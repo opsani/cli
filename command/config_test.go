@@ -17,11 +17,11 @@ package command_test
 import (
 	"fmt"
 	"os"
+	"regexp"
 	"testing"
 
 	"github.com/opsani/cli/command"
 	"github.com/opsani/cli/test"
-	"github.com/spf13/viper"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -38,7 +38,6 @@ func TestConfigTestSuite(t *testing.T) {
 }
 
 func (s *ConfigTestSuite) SetupTest() {
-	viper.Reset()
 	s.SetCommand(command.NewRootCommand())
 }
 
@@ -68,11 +67,21 @@ func (s *ConfigTestSuite) TestRunningConfigWithInvalidFile() {
 	s.Require().EqualError(err, "error parsing configuration file: While parsing config: yaml: unmarshal errors:\n  line 1: cannot unmarshal !!str `malform...` into map[string]interface {}")
 }
 
+const ansi = "[\u001B\u009B][[\\]()#;?]*(?:(?:(?:[a-zA-Z\\d]*(?:;[a-zA-Z\\d]*)*)?\u0007)|(?:(?:\\d{1,4}(?:;\\d{0,4})*)?[\\dA-PRZcf-ntqry=><~]))"
+
+var re = regexp.MustCompile(ansi)
+
+func Strip(str string) string {
+	return re.ReplaceAllString(str, "")
+}
+
 func (s *ConfigTestSuite) TestRunningWithInitializedConfig() {
+
 	configFile := test.TempConfigFileWithObj(map[string]interface{}{"app": "example.com/app1", "token": "123456"})
 	output, err := s.ExecuteArgs(ConfigFileArgs(configFile, "config"))
 	s.Require().NoError(err)
-	s.Require().Contains(output, `"app": "example.com/app1"`)
-	s.Require().Contains(output, `"token": "123456"`)
-	s.Require().Contains(output, fmt.Sprintln("Using config from:", configFile.Name()))
+	yaml := Strip(output)
+	s.Require().Contains(yaml, `app: example.com/app1`)
+	s.Require().Contains(yaml, `token: "123456`)
+	s.Require().Contains(yaml, fmt.Sprintln("Using config from:", configFile.Name()))
 }

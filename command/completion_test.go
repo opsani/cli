@@ -19,7 +19,6 @@ import (
 
 	"github.com/opsani/cli/command"
 	"github.com/opsani/cli/test"
-	"github.com/spf13/viper"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -32,7 +31,6 @@ func TestCompletionTestSuite(t *testing.T) {
 }
 
 func (s *CompletionTestSuite) SetupTest() {
-	viper.Reset()
 	s.SetCommand(command.NewRootCommand())
 }
 

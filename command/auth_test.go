@@ -19,25 +19,29 @@ import (
 
 	"github.com/opsani/cli/command"
 	"github.com/opsani/cli/test"
-	"github.com/spf13/viper"
 	"github.com/stretchr/testify/suite"
 )
 
-type LoginTestSuite struct {
+type AuthTestSuite struct {
 	test.Suite
 }
 
-func TestLoginTestSuite(t *testing.T) {
-	suite.Run(t, new(LoginTestSuite))
+func TestAuthTestSuite(t *testing.T) {
+	suite.Run(t, new(AuthTestSuite))
 }
 
-func (s *LoginTestSuite) SetupTest() {
-	viper.Reset()
+func (s *AuthTestSuite) SetupTest() {
 	s.SetCommand(command.NewRootCommand())
 }
 
-func (s *LoginTestSuite) TestRunningInitHelp() {
-	output, err := s.Execute("login", "--help")
+func (s *AuthTestSuite) TestLoginHelp() {
+	output, err := s.Execute("auth", "login", "--help")
 	s.Require().NoError(err)
-	s.Require().Contains(output, "Login to the Opsani API")
+	s.Require().Contains(output, "Login to Opsani")
+}
+
+func (s *AuthTestSuite) TestLogoutHelp() {
+	output, err := s.Execute("auth", "logout", "--help")
+	s.Require().NoError(err)
+	s.Require().Contains(output, "Logout from Opsani")
 }
