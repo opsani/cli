@@ -35,7 +35,7 @@ func NewServoPluginCommand(baseCmd *BaseCommand) *cobra.Command {
 
 	servoPluginCobra := &cobra.Command{
 		Use:   "plugin",
-		Short: "Manage Servo Plugins",
+		Short: "Manage Servo plugins",
 		Args:  cobra.NoArgs,
 		PersistentPreRunE: ReduceRunEFuncs(
 			baseCmd.InitConfigRunE,

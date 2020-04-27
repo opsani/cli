@@ -28,7 +28,7 @@ func NewServoAssemblyCommand(baseCmd *BaseCommand) *cobra.Command {
 
 	servoAssemblyCobra := &cobra.Command{
 		Use:   "assembly",
-		Short: "Manage Servo Assemblies",
+		Short: "Manage Servo assemblies",
 		Args:  cobra.NoArgs,
 		PersistentPreRunE: ReduceRunEFuncs(
 			baseCmd.InitConfigRunE,

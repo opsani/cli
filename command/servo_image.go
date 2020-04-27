@@ -36,7 +36,7 @@ func NewServoImageCommand(baseCmd *BaseCommand) *cobra.Command {
 
 	servoImageCobra := &cobra.Command{
 		Use:   "image",
-		Short: "Manage Servo Images",
+		Short: "Manage Servo images",
 		Args:  cobra.NoArgs,
 		PersistentPreRunE: ReduceRunEFuncs(
 			baseCmd.InitConfigRunE,
