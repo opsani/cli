@@ -16,7 +16,6 @@ package command
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
 	"github.com/dustin/go-humanize"
@@ -137,7 +136,7 @@ func (cmd *servoPluginCommand) RunList(_ *cobra.Command, args []string) error {
 			repo.GetName(),
 			truncateStringToLimit(repo.GetDescription(), 48),
 			humanize.Time(repo.GetUpdatedAt().Time),
-			fmt.Sprintf("\x1b]8;;%s\x1b\\%s\x1b]8;;\x1b\\\n", repo.GetHTMLURL(), strings.TrimPrefix(repo.GetHTMLURL(), "https://github.com/")),
+			repo.GetHTMLURL(),
 		}
 		data = append(data, row)
 	}
