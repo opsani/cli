@@ -154,6 +154,44 @@ func (cmd *servoPluginCommand) RunSearch(_ *cobra.Command, args []string) error 
 }
 
 func (cmd *servoPluginCommand) RunInfo(_ *cobra.Command, args []string) error {
+	repoName := strings.TrimPrefix(args[0], "opsani/")
+
+	// Get repo details from GitHub
+	ctx := context.Background()
+	client := github.NewClient(nil)
+	repo, _, err := client.Repositories.Get(ctx, "opsani", repoName)
+	if err != nil {
+		return err
+	}
+
+	// Build a table outputting all the servo plugins
+	table := tablewriter.NewWriter(cmd.OutOrStdout())
+	table.SetAutoWrapText(false)
+	table.SetAutoFormatHeaders(true)
+	table.SetHeaderAlignment(tablewriter.ALIGN_LEFT)
+	table.SetAlignment(tablewriter.ALIGN_LEFT)
+	table.SetCenterSeparator("")
+	table.SetColumnSeparator("")
+	table.SetRowSeparator("")
+	table.SetHeaderLine(false)
+	table.SetBorder(false)
+	table.SetTablePadding("\t") // pad with tabs
+	table.SetNoWhiteSpace(true)
+
+	data := [][]string{}
+	headers := []string{"NAME", "DESCRIPTION", "UPDATED", "LAST PUSH", "URL", "GIT URL"}
+	data = append(data, []string{
+		repo.GetName(),
+		*repo.Description,
+		humanize.Time(repo.GetUpdatedAt().Time),
+		humanize.Time(repo.GetPushedAt().Time),
+		repo.GetHTMLURL(),
+		repo.GetGitURL(),
+	})
+	table.SetHeader(headers)
+	table.AppendBulk(data)
+	table.Render()
+
 	return nil
 }
 

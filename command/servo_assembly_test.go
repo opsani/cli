@@ -37,7 +37,7 @@ func (s *ServoAssemblyTestSuite) SetupTest() {
 func (s *ServoAssemblyTestSuite) TestRootHelp() {
 	output, err := s.Execute("servo", "assembly", "--help")
 	s.Require().NoError(err)
-	s.Require().Contains(output, "Manage Servo Assemblies")
+	s.Require().Contains(output, "Manage Servo assemblies")
 }
 
 func (s *ServoAssemblyTestSuite) TestListtHelp() {

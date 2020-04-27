@@ -37,7 +37,7 @@ func (s *ServoPluginTestSuite) SetupTest() {
 func (s *ServoPluginTestSuite) TestRootHelp() {
 	output, err := s.Execute("servo", "plugin", "--help")
 	s.Require().NoError(err)
-	s.Require().Contains(output, "Manage Servo Plugins")
+	s.Require().Contains(output, "Manage Servo plugins")
 }
 
 func (s *ServoPluginTestSuite) TestListtHelp() {
