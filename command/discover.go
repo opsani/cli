@@ -43,7 +43,6 @@ const hostArg = "host"
 const kubeconfigArg = "kubeconfig"
 
 func runIntelligentManifestBuilderCommand(cmd *cobra.Command, args []string) error {
-	ctx := context.Background()
 	imageRef, err := cmd.Flags().GetString(imageArg)
 	if err != nil {
 		return err
@@ -53,7 +52,11 @@ func runIntelligentManifestBuilderCommand(cmd *cobra.Command, args []string) err
 	if err != nil {
 		return err
 	}
+	return runIntelligentManifestBuilder(dockerHost, imageRef)
+}
 
+func runIntelligentManifestBuilder(dockerHost string, imageRef string) error {
+	ctx := context.Background()
 	di, err := NewDockerInterface(dockerHost)
 	if err != nil {
 		return err
