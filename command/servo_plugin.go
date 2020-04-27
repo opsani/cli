@@ -29,6 +29,13 @@ type servoPluginCommand struct {
 	*BaseCommand
 }
 
+func truncateStringToLimit(str string, limit int) string {
+	if len(str) <= limit {
+		return str
+	}
+	return str[0:limit] + "..."
+}
+
 // NewServoPluginCommand returns a new instance of the servo image command
 func NewServoPluginCommand(baseCmd *BaseCommand) *cobra.Command {
 	servoPluginCommand := servoPluginCommand{BaseCommand: baseCmd}
@@ -128,9 +135,9 @@ func (cmd *servoPluginCommand) RunList(_ *cobra.Command, args []string) error {
 	for _, repo := range allRepos {
 		row := []string{
 			repo.GetName(),
-			repo.GetDescription(),
+			truncateStringToLimit(repo.GetDescription(), 48),
 			humanize.Time(repo.GetUpdatedAt().Time),
-			fmt.Sprintf("\x1b]8;;%s\x1b\\%s\x1b]8;;\x1b\\\n", repo.GetHTMLURL(), repo.GetHTMLURL()),
+			fmt.Sprintf("\x1b]8;;%s\x1b\\%s\x1b]8;;\x1b\\\n", repo.GetHTMLURL(), strings.TrimPrefix(repo.GetHTMLURL(), "https://github.com/")),
 		}
 		data = append(data, row)
 	}
