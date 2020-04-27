@@ -16,9 +16,11 @@ package command
 
 import (
 	"context"
+	"os"
 	"strings"
 
 	"github.com/dustin/go-humanize"
+	"github.com/go-git/go-git/v5"
 	"github.com/google/go-github/github"
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
@@ -156,7 +158,23 @@ func (cmd *servoPluginCommand) RunInfo(_ *cobra.Command, args []string) error {
 }
 
 func (cmd *servoPluginCommand) RunClone(c *cobra.Command, args []string) error {
-	return nil
+	repoName := strings.TrimPrefix(args[0], "opsani/")
+
+	// Get repo details from GitHub
+	ctx := context.Background()
+	client := github.NewClient(nil)
+	repo, _, err := client.Repositories.Get(ctx, "opsani", repoName)
+	if err != nil {
+		return err
+	}
+
+	// Clone the given repository to the given directory
+	pwd, _ := os.Getwd()
+	_, err = git.PlainClone(pwd, false, &git.CloneOptions{
+		URL:      *repo.CloneURL,
+		Progress: os.Stdout,
+	})
+	return err
 }
 
 func (cmd *servoPluginCommand) RunFork(c *cobra.Command, args []string) error {
