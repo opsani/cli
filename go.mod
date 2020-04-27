@@ -20,10 +20,13 @@ require (
 	github.com/docker/docker v1.13.1
 	github.com/docker/go-connections v0.4.0 // indirect
 	github.com/docker/go-units v0.4.0 // indirect
+	github.com/dustin/go-humanize v1.0.0
 	github.com/fatih/color v1.9.0
 	github.com/go-resty/resty/v2 v2.2.0
 	github.com/goccy/go-yaml v1.4.3
 	github.com/golang/protobuf v1.4.0 // indirect
+	github.com/google/go-github v17.0.0+incompatible
+	github.com/google/go-querystring v1.0.0 // indirect
 	github.com/googleapis/gnostic v0.4.0 // indirect
 	github.com/gorilla/mux v1.7.4 // indirect
 	github.com/hinshun/vt10x v0.0.0-20180616224451-1954e6464174

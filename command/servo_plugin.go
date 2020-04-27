@@ -15,6 +15,13 @@
 package command
 
 import (
+	"context"
+	"fmt"
+	"strings"
+
+	"github.com/dustin/go-humanize"
+	"github.com/google/go-github/github"
+	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 )
 
@@ -79,6 +86,58 @@ func NewServoPluginCommand(baseCmd *BaseCommand) *cobra.Command {
 }
 
 func (cmd *servoPluginCommand) RunList(_ *cobra.Command, args []string) error {
+	client := github.NewClient(nil)
+
+	ctx := context.Background()
+	opt := new(github.RepositoryListByOrgOptions)
+	var allRepos []*github.Repository
+	for {
+		repos, resp, err := client.Repositories.ListByOrg(ctx, "opsani", opt)
+		if err != nil {
+			return err
+		}
+		for _, repo := range repos {
+			// Skip non-servo repos
+			if !strings.HasPrefix(*repo.Name, "servo-") {
+				continue
+			}
+			allRepos = append(allRepos, repo)
+		}
+		if resp.NextPage == 0 {
+			break
+		}
+		opt.Page = resp.NextPage
+	}
+
+	// Build a table outputting all the servo plugins
+	table := tablewriter.NewWriter(cmd.OutOrStdout())
+	table.SetAutoWrapText(false)
+	table.SetAutoFormatHeaders(true)
+	table.SetHeaderAlignment(tablewriter.ALIGN_LEFT)
+	table.SetAlignment(tablewriter.ALIGN_LEFT)
+	table.SetCenterSeparator("")
+	table.SetColumnSeparator("")
+	table.SetRowSeparator("")
+	table.SetHeaderLine(false)
+	table.SetBorder(false)
+	table.SetTablePadding("\t") // pad with tabs
+	table.SetNoWhiteSpace(true)
+
+	data := [][]string{}
+	headers := []string{"NAME", "DESCRIPTION", "UPDATED", "URL"}
+	for _, repo := range allRepos {
+		row := []string{
+			repo.GetName(),
+			repo.GetDescription(),
+			humanize.Time(repo.GetUpdatedAt().Time),
+			fmt.Sprintf("\x1b]8;;%s\x1b\\%s\x1b]8;;\x1b\\\n", repo.GetHTMLURL(), repo.GetHTMLURL()),
+		}
+		data = append(data, row)
+	}
+	table.SetHeader(headers)
+	table.AppendBulk(data)
+	table.Render()
+
 	return nil
 }
 

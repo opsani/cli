@@ -17,9 +17,11 @@ package command
 import (
 	"context"
 	"strings"
+	"time"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
+	"github.com/dustin/go-humanize"
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 )
@@ -75,6 +77,11 @@ func NewServoImageCommand(baseCmd *BaseCommand) *cobra.Command {
 	return servoImageCobra
 }
 
+func abbreviateImageID(id string) string {
+	id = strings.TrimPrefix(id, "sha256:")
+	return id[0:12]
+}
+
 func (cmd *servoImageCommand) RunList(_ *cobra.Command, args []string) error {
 	ctx := context.Background()
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
@@ -99,13 +106,17 @@ func (cmd *servoImageCommand) RunList(_ *cobra.Command, args []string) error {
 	table.SetBorder(false)
 	table.SetTablePadding("\t") // pad with tabs
 	table.SetNoWhiteSpace(true)
+	table.SetHeader([]string{"IMAGE", "ID", "CREATED", "SIZE"})
 
 	data := [][]string{}
 	for _, image := range images {
 		for _, repoTag := range image.RepoTags {
 			if strings.HasPrefix(repoTag, "opsani/") {
 				data = append(data, []string{
-					repoTag, image.ID,
+					repoTag,
+					abbreviateImageID(image.ID),
+					humanize.Time(time.Unix(image.Created, 0)),
+					humanize.Bytes(uint64(image.Size)),
 				})
 			}
 		}
