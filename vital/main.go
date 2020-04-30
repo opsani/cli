@@ -1,10 +1,18 @@
 package main
 
 import (
+	"context"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
+	"os"
 
 	"github.com/gofiber/fiber"
+	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/google"
+	"google.golang.org/api/gmail/v1"
 	"gopkg.in/yaml.v2"
 )
 
@@ -22,6 +30,57 @@ type AppConfig struct {
 	Profiles []ClientProfile `yaml:"profiles"`
 }
 
+func loadConfig() *AppConfig {
+	config := &AppConfig{}
+	data, err := ioutil.ReadFile(".config.yaml")
+	if err != nil {
+		panic(err)
+	}
+	err = yaml.Unmarshal([]byte(data), &config)
+	if err != nil {
+		panic(err)
+	}
+
+	return config
+}
+
+func tokenFromFile(file string) (*oauth2.Token, error) {
+	f, err := os.Open(file)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	tok := &oauth2.Token{}
+	err = json.NewDecoder(f).Decode(tok)
+	return tok, err
+}
+
+func getGmailService() *gmail.Service {
+	b, err := ioutil.ReadFile("credentials.json")
+	if err != nil {
+		log.Fatalf("Unable to read client secret file: %v", err)
+	}
+
+	// If modifying these scopes, delete your previously saved token.json.
+	config, err := google.ConfigFromJSON(b, gmail.GmailSendScope)
+	if err != nil {
+		log.Fatalf("Unable to parse client secret file to config: %v", err)
+	}
+
+	tokFile := "token.json"
+	tok, err := tokenFromFile(tokFile)
+	if err != nil {
+		panic(err)
+	}
+	httpClient := config.Client(context.Background(), tok)
+
+	srv, err := gmail.New(httpClient)
+	if err != nil {
+		log.Fatalf("Unable to retrieve Gmail client: %v", err)
+	}
+	return srv
+}
+
 func main() {
 	app := fiber.New()
 
@@ -29,8 +88,23 @@ func main() {
 	app.Static("/", "./assets")
 
 	app.Post("/signup", func(c *fiber.Ctx) {
-		fmt.Printf("Hello! name=%q, email=%q, app=%q",
-			c.FormValue("name"), c.FormValue("email"), c.FormValue("app_name"))
+		name := c.FormValue("name")
+		email := c.FormValue("email")
+		// appName := c.FormValue("app_name")
+		// Send the email via Gmail
+		gmailSvc := getGmailService()
+		var message gmail.Message
+		messageStr := fmt.Sprintf("From: 'vital@opsani.com'\r\n"+
+			"Reply-To: blake@opsani.com\r\n"+
+			"To: %s\r\n"+
+			"Subject: Welcome to Opsani Vital!\r\n"+
+			"\r\nHi %s,\nThank you for your interest in Opsani Vital.\n\nTo get started, install the Opsani CLI by executing: `curl http://localhost:5678/install.sh | sh`", email, name)
+
+		message.Raw = base64.StdEncoding.EncodeToString([]byte(messageStr))
+		_, err := gmailSvc.Users.Messages.Send("me", &message).Do()
+		if err != nil {
+			log.Fatalf("Unable to send message: %v", err)
+		}
 	})
 
 	// TODO: Template the script to send
@@ -41,15 +115,7 @@ func main() {
 	// 	fmt.Printf("Token: %s", c.Params("token"))
 	// })
 	app.Get("/init/:token", func(c *fiber.Ctx) {
-		config := AppConfig{}
-		data, err := ioutil.ReadFile(".config.yaml")
-		if err != nil {
-			panic(err)
-		}
-		err = yaml.Unmarshal([]byte(data), &config)
-		if err != nil {
-			panic(err)
-		}
+		config := loadConfig()
 
 		var profile *ClientProfile
 		for _, p := range config.Profiles {

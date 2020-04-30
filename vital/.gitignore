@@ -1,3 +1,5 @@
 .env
 .config.yaml
 vital
+credentials.json
+token.json
