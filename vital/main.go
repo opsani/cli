@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/gofiber/fiber"
+	"github.com/jordan-wright/email"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/gmail/v1"
@@ -90,24 +91,44 @@ func main() {
 
 	app.Post("/signup", func(c *fiber.Ctx) {
 		name := c.FormValue("name")
-		email := c.FormValue("email")
+		recipient := c.FormValue("email")
 		// appName := c.FormValue("app_name")
 		// Send the email via Gmail
 		config := loadConfig()
 		token := config.Profiles[0].InitToken
 		gmailSvc := getGmailService()
 		var message gmail.Message
-		messageStr := fmt.Sprintf("From: 'vital@opsani.com'\r\n"+
-			"Reply-To: blake@opsani.com\r\n"+
-			"To: %s\r\n"+
-			"Subject: Welcome to Opsani Vital!\r\n"+
-			"\r\nHi %s,\nThank you for your interest in Opsani Vital.\n\nTo get started, install the Opsani CLI by executing:\n\n`curl http://localhost:5678/install.sh/%s | sh`", email, name, token)
 
-		message.Raw = base64.StdEncoding.EncodeToString([]byte(messageStr))
-		_, err := gmailSvc.Users.Messages.Send("me", &message).Do()
+		body := fmt.Sprintf(`Hi %s,
+Thank you for your interest in Opsani Vital.
+We are eager to share the impact of continuous optimization on your engineering practices and business.
+
+The easiest way to get started is using the Opsani CLI. It will automatically link to your optimization
+engine and provides tutorials and auto-discovery capabilities to make integrating your app a breeze.
+
+> curl http://localhost:5678/install.sh/%s | sh
+
+Just follow the instructions from there!
+
+Cheers,
+- The Opsani Team
+`, name, token)
+		e := email.NewEmail()
+		e.From = "vital@opsani.com"
+		e.To = []string{recipient}
+		e.Subject = "Welcome to Opsani Vital!"
+		e.Text = []byte(body)
+
+		messagePayload, err := e.Bytes()
+		if err != nil {
+			panic(err)
+		}
+		message.Raw = base64.StdEncoding.EncodeToString(messagePayload)
+		_, err = gmailSvc.Users.Messages.Send("me", &message).Do()
 		if err != nil {
 			log.Fatalf("Unable to send message: %v", err)
 		}
+		fmt.Println("Sent email:", string(messagePayload))
 		c.Set("Content-Type", "text/html")
 		c.SendString(`<html><body><p>Success! Check your email for further instructions.</p></body></html`)
 	})
