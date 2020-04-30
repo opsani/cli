@@ -83,6 +83,8 @@ func (initCmd *initCommand) RunInitWithTokenCommand(_ *cobra.Command, args []str
 		}
 		initCmd.Println("\nOpsani CLI initialized")
 	}
+	initCmd.Println("\nBegin optimizing by working with an interactive demo via `opsani demo`")
+	initCmd.Println("Or jump right in to connecting your app by running `opsani vital`")
 	return nil
 }
 
