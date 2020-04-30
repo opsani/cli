@@ -1,38 +1,31 @@
 #!/bin/bash
 
+# NOTE: This script was shamelessly adapted from Rust
 # This is just a little script that can be downloaded from the internet to
-# install rustup. It just does platform detection, downloads the installer
-# and runs it.
+# install Opsani CLI. It just does platform detection, downloads the pre-built binary,
+# and installs it.
 
 set -u
 
-# If RUSTUP_UPDATE_ROOT is unset or empty, default it.
-RUSTUP_UPDATE_ROOT="${RUSTUP_UPDATE_ROOT:-https://static.rust-lang.org/rustup}"
+# If OPSANI_CLI_ROOT is unset or empty, default it.
+# RUSTUP_UPDATE_ROOT="${RUSTUP_UPDATE_ROOT:-https://static.rust-lang.org/rustup}"
+OPSANI_CLI_ROOT="${OPSANI_CLI_ROOT:-http://localhost:5678}"
+OPSANI_INIT_TOKEN="${OPSANI_INIT_TOKEN:-}"
 
 #XXX: If you change anything here, please make the same changes in setup_mode.rs
 usage() {
     cat 1>&2 <<EOF
-rustup-init 1.21.0 (fd87b86c6 2019-12-19)
-The installer for rustup
+opsani-cli-installer 0.1.0 (2020-04-30)
+The installer for Opsani CLI
 
 USAGE:
-    rustup-init [FLAGS] [OPTIONS]
+    opsani-cli-init [FLAGS] [OPTIONS]
 
 FLAGS:
     -v, --verbose           Enable verbose output
     -q, --quiet             Disable progress output
-    -y                      Disable confirmation prompt.
-        --no-modify-path    Don't configure the PATH environment variable
     -h, --help              Prints help information
     -V, --version           Prints version information
-
-OPTIONS:
-        --default-host <default-host>              Choose a default host triple
-        --default-toolchain <default-toolchain>    Choose a default toolchain to install
-        --default-toolchain none                   Do not install any toolchains
-        --profile [minimal|default|complete]       Choose a profile
-    -c, --component <components>...                Component name to also install
-    -t, --target <targets>...                      Target name to also install
 EOF
 }
 
@@ -49,18 +42,19 @@ main() {
     local _arch="$RETVAL"
     assert_nz "$_arch" "arch"
 
-    local _ext=""
+    local _ext=".tar.gz"
     case "$_arch" in
         *windows*)
-            _ext=".exe"
+            _ext=".zip"
             ;;
     esac
 
-    local _url="${RUSTUP_UPDATE_ROOT}/dist/${_arch}/rustup-init${_ext}"
+    #local _url="${RUSTUP_UPDATE_ROOT}/dist/${_arch}/rustup-init${_ext}"
+    local _url="${OPSANI_CLI_ROOT}/builds/opsani_v0.0.0-next_${_arch}${_ext}"
 
     local _dir
-    _dir="$(mktemp -d 2>/dev/null || ensure mktemp -d -t rustup)"
-    local _file="${_dir}/rustup-init${_ext}"
+    _dir="$(mktemp -d 2>/dev/null || ensure mktemp -d -t opsani-cli)"
+    local _file="${_dir}/opsani-cli${_ext}"
 
     local _ansi_escapes_are_valid=false
     if [ -t 2 ]; then
@@ -98,31 +92,28 @@ main() {
 
     ensure mkdir -p "$_dir"
     ensure downloader "$_url" "$_file"
-    ensure chmod u+x "$_file"
-    if [ ! -x "$_file" ]; then
-        printf '%s\n' "Cannot execute $_file (likely because of mounting /tmp as noexec)." 1>&2
-        printf '%s\n' "Please copy the file to a location where you can execute binaries and run ./rustup-init${_ext}." 1>&2
-        exit 1
-    fi
 
-    if [ "$need_tty" = "yes" ]; then
-        # The installer is going to want to ask for confirmation by
-        # reading stdin.  This script was piped into `sh` though and
-        # doesn't have stdin to pass to its children. Instead we're going
-        # to explicitly connect /dev/tty to the installer's stdin.
-        if [ ! -t 1 ]; then
-            err "Unable to run interactively. Run with -y to accept defaults, --help for additional options"
-        fi
-
-        ignore "$_file" "$@" < /dev/tty
-    else
-        ignore "$_file" "$@"
-    fi
+    # TODO: Need to handle Windows
+    ensure tar zxf "$_file" --strip 1 -C "$_dir"
+    cp "${_dir}/bin/opsani" opsani
 
     local _retval=$?
 
+    if [ "$_retval" -eq 0 ]; then        
+        if [ -z "$OPSANI_INIT_TOKEN" ]; then
+            msg="Opsani CLI installed. Init client by running \`opsani init\`"
+        else
+            msg="Opsani CLI installed. Init client by running \`opsani init $OPSANI_INIT_TOKEN\`"
+        fi
+        if $_ansi_escapes_are_valid; then
+            printf "\33[1minfo:\33[0m $msg\n" 1>&2
+        else
+            printf '%s\n' 'info: $msg' 1>&2
+        fi
+    fi
+
     ignore rm "$_file"
-    ignore rmdir "$_dir"
+    ignore rmdir "$_dir" 2> /dev/null # ignore directory not empty
 
     return "$_retval"
 }
@@ -190,33 +181,13 @@ get_architecture() {
 
     case "$_ostype" in
 
-        Android)
-            _ostype=linux-android
-            ;;
-
         Linux)
             _ostype=unknown-linux-$_clibtype
             _bitness=$(get_bitness)
             ;;
 
-        FreeBSD)
-            _ostype=unknown-freebsd
-            ;;
-
-        NetBSD)
-            _ostype=unknown-netbsd
-            ;;
-
-        DragonFly)
-            _ostype=unknown-dragonfly
-            ;;
-
         Darwin)
-            _ostype=apple-darwin
-            ;;
-
-        MINGW* | MSYS* | CYGWIN*)
-            _ostype=pc-windows-gnu
+            _ostype=macOS
             ;;
 
         *)
@@ -228,68 +199,15 @@ get_architecture() {
     case "$_cputype" in
 
         i386 | i486 | i686 | i786 | x86)
-            _cputype=i686
+            _cputype=386
             ;;
 
         xscale | arm)
-            _cputype=arm
-            if [ "$_ostype" = "linux-android" ]; then
-                _ostype=linux-androideabi
-            fi
-            ;;
-
-        armv6l)
-            _cputype=arm
-            if [ "$_ostype" = "linux-android" ]; then
-                _ostype=linux-androideabi
-            else
-                _ostype="${_ostype}eabihf"
-            fi
-            ;;
-
-        armv7l | armv8l)
-            _cputype=armv7
-            if [ "$_ostype" = "linux-android" ]; then
-                _ostype=linux-androideabi
-            else
-                _ostype="${_ostype}eabihf"
-            fi
-            ;;
-
-        aarch64)
-            _cputype=aarch64
+            _cputype=arm64
             ;;
 
         x86_64 | x86-64 | x64 | amd64)
-            _cputype=x86_64
-            ;;
-
-        mips)
-            _cputype=$(get_endianness mips '' el)
-            ;;
-
-        mips64)
-            if [ "$_bitness" -eq 64 ]; then
-                # only n64 ABI is supported for now
-                _ostype="${_ostype}abi64"
-                _cputype=$(get_endianness mips64 '' el)
-            fi
-            ;;
-
-        ppc)
-            _cputype=powerpc
-            ;;
-
-        ppc64)
-            _cputype=powerpc64
-            ;;
-
-        ppc64le)
-            _cputype=powerpc64le
-            ;;
-
-        s390x)
-            _cputype=s390x
+            _cputype=amd64
             ;;
 
         *)
@@ -330,13 +248,13 @@ get_architecture() {
         fi
     fi
 
-    _arch="${_cputype}-${_ostype}"
+    _arch="${_ostype}_${_cputype}"
 
     RETVAL="$_arch"
 }
 
 say() {
-    printf 'rustup: %s\n' "$1"
+    printf 'opsani-cli-installer: %s\n' "$1"
 }
 
 err() {
@@ -391,7 +309,9 @@ downloader() {
             echo "Warning: Not forcing TLS v1.2, this is potentially less secure"
             curl --silent --show-error --fail --location "$1" --output "$2"
         else
-            curl --proto '=https' --tlsv1.2 --silent --show-error --fail --location "$1" --output "$2"
+            # TODO: Disabled HTTPS checks for testing
+            #curl --proto '=https' --tlsv1.2 --silent --show-error --fail --location "$1" --output "$2"
+            curl --silent --show-error --fail --location "$1" --output "$2"
         fi
     elif [ "$_dld" = wget ]; then
         if ! check_help_for wget --https-only --secure-protocol; then

@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"strings"
 
 	"github.com/gofiber/fiber"
 	"golang.org/x/oauth2"
@@ -107,10 +108,19 @@ func main() {
 		}
 	})
 
-	// TODO: Template the script to send
-	// run `opsani init <token>`
-	// app.Get("/install.sh/:token", func(c *fiber.Ctx) {
-	// 	// Get the query param
+	// Returns an instance of the script that will round-trip the init token
+	app.Get("/install.sh/:token", func(c *fiber.Ctx) {
+		token := c.Params("token")
+		data, err := ioutil.ReadFile("assets/install.sh")
+		if err != nil {
+			panic(err)
+		}
+
+		// Replace our token value so it gets back to the user
+		tokenEnvVar := fmt.Sprintf("OPSANI_INIT_TOKEN=%s", token)
+		script := strings.Replace(string(data), `OPSANI_INIT_TOKEN="${OPSANI_INIT_TOKEN:-}"`, tokenEnvVar, 1)
+		c.SendString(script)
+	})
 
 	// 	fmt.Printf("Token: %s", c.Params("token"))
 	// })
