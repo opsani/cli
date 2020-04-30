@@ -121,6 +121,7 @@ func NewInitCommand(baseCommand *BaseCommand) *cobra.Command {
 	`,
 		Args: cobra.NoArgs,
 		RunE: initCmd.RunInitCommand,
+		PersistentPreRunE: initCmd.InitConfigRunE, // Skip loading the config file
 	}
 	cmd.Flags().BoolVar(&initCmd.confirmed, confirmedArg, false, "Write config without asking for confirmation")
 	return cmd

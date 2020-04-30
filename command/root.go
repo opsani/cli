@@ -245,7 +245,8 @@ func (baseCmd *BaseCommand) RequireConfigFileFlagToExistRunE(cmd *cobra.Command,
 	if configFilePath, err := cmd.Root().PersistentFlags().GetString("config"); err == nil {
 		if configFilePath != "" {
 			if _, err := os.Stat(baseCmd.ConfigFile); os.IsNotExist(err) {
-				return err
+				return fmt.Errorf("config file does not exist. Run %q and try again (%w)",
+					"opsani init", err)
 			}
 		}
 	} else {
@@ -283,12 +284,10 @@ func (baseCmd *BaseCommand) initConfig() error {
 	if err := baseCmd.viperCfg.ReadInConfig(); err == nil {
 		baseCmd.ConfigFile = baseCmd.viperCfg.ConfigFileUsed()
 	} else {
-
-		switch err.(type) {
-		case *os.PathError:
-		case *viper.ConfigFileNotFoundError:
-			// Ignore missing config files
-		default:
+		// Ignore config file not found or error
+		var perr *os.PathError
+		if !errors.As(err, &viper.ConfigFileNotFoundError{}) &&
+			!errors.As(err, &perr) {
 			return fmt.Errorf("error parsing configuration file: %w", err)
 		}
 	}
