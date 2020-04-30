@@ -11,7 +11,7 @@ app:
 	docker build -t vital_demo:latest .
 
 run:	
-	docker run --rm -it -p 5678:8080 -v `pwd`/assets:/app/assets vital_demo:latest
+	docker run --rm -it -p 5678:8080 -v `pwd`/.config.yaml:/app/.config.yaml -v `pwd`/assets:/app/assets vital_demo:latest
 
 build: snapshot app
 default: app run

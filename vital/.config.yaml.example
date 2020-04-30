@@ -1,0 +1,9 @@
+# Profiles represent Opsani clients that can be initialized 
+# via a single-use token
+profiles:
+  -
+    init_token: INIT_TOKEN
+    base_url: https://api.opsani.com/
+    app_id: OPSANI_APP
+    api_token: OPSANI_TOKEN
+    
