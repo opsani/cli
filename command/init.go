@@ -21,6 +21,7 @@ import (
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/AlecAivazis/survey/v2/terminal"
+	"github.com/go-resty/resty/v2"
 	"github.com/mgutz/ansi"
 	"github.com/spf13/cobra"
 )
@@ -31,6 +32,58 @@ type initCommand struct {
 	*BaseCommand
 
 	confirmed bool
+}
+
+type configResponse struct {
+	BaseURL string `json:"base_url"`
+	App     string `json:"app"`
+	Token   string `json:"token"`
+}
+
+func (initCmd *initCommand) RunInitWithTokenCommand(_ *cobra.Command, args []string) error {
+	initToken := args[0]
+
+	initCmd.Printf("Initializing with token: %s...\n", initToken)
+
+	var config configResponse
+	URL := fmt.Sprintf("http://localhost:5678/init/%s", initToken)
+	client := resty.New()
+	resp, err := client.R().
+		SetResult(&config).
+		Get(URL)
+	if err != nil {
+		return err
+	}
+	if !resp.IsSuccess() {
+		return fmt.Errorf("Failed initialization with token %q (%s)", initToken, resp.Body())
+	}
+
+	initCmd.SetBaseURL(config.BaseURL)
+	initCmd.SetApp(config.App)
+	initCmd.SetAccessToken(config.Token)
+
+	initCmd.Printf("\nOpsani config initialized:\n")
+	initCmd.PrettyPrintJSONObject(initCmd.GetAllSettings())
+	if !initCmd.confirmed {
+		prompt := &survey.Confirm{
+			Message: fmt.Sprintf("Write to %s?", initCmd.ConfigFile),
+		}
+		initCmd.AskOne(prompt, &initCmd.confirmed)
+	}
+	if initCmd.confirmed {
+		configDir := filepath.Dir(initCmd.ConfigFile)
+		if _, err := os.Stat(configDir); os.IsNotExist(err) {
+			err = os.Mkdir(configDir, 0755)
+			if err != nil {
+				return err
+			}
+		}
+		if err := initCmd.viperCfg.WriteConfigAs(initCmd.ConfigFile); err != nil {
+			return err
+		}
+		initCmd.Println("\nOpsani CLI initialized")
+	}
+	return nil
 }
 
 // RunInitCommand initializes Opsani CLI config
@@ -112,16 +165,22 @@ func (initCmd *initCommand) RunInitCommand(_ *cobra.Command, args []string) erro
 func NewInitCommand(baseCommand *BaseCommand) *cobra.Command {
 	initCmd := &initCommand{BaseCommand: baseCommand}
 	cmd := &cobra.Command{
-		Use:   "init",
+		Use:   "init [INIT_TOKEN]",
 		Short: "Initialize Opsani config",
 		Long: `Initializes an Opsani config file and acquires the required settings:
 	
 	  * 'app':   Opsani app to control (OPSANI_APP).
 	  * 'token': API token to authenticate with (OPSANI_TOKEN).
 	`,
-		Args: cobra.NoArgs,
-		RunE: initCmd.RunInitCommand,
+		Args:              cobra.MaximumNArgs(1),
 		PersistentPreRunE: initCmd.InitConfigRunE, // Skip loading the config file
+		RunE: func(c *cobra.Command, args []string) error {
+			if len(args) == 1 {
+				return initCmd.RunInitWithTokenCommand(c, args)
+			} else {
+				return initCmd.RunInitCommand(c, args)
+			}
+		},
 	}
 	cmd.Flags().BoolVar(&initCmd.confirmed, confirmedArg, false, "Write config without asking for confirmation")
 	return cmd
