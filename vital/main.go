@@ -93,19 +93,23 @@ func main() {
 		email := c.FormValue("email")
 		// appName := c.FormValue("app_name")
 		// Send the email via Gmail
+		config := loadConfig()
+		token := config.Profiles[0].InitToken
 		gmailSvc := getGmailService()
 		var message gmail.Message
 		messageStr := fmt.Sprintf("From: 'vital@opsani.com'\r\n"+
 			"Reply-To: blake@opsani.com\r\n"+
 			"To: %s\r\n"+
 			"Subject: Welcome to Opsani Vital!\r\n"+
-			"\r\nHi %s,\nThank you for your interest in Opsani Vital.\n\nTo get started, install the Opsani CLI by executing: `curl http://localhost:5678/install.sh | sh`", email, name)
+			"\r\nHi %s,\nThank you for your interest in Opsani Vital.\n\nTo get started, install the Opsani CLI by executing:\n\n`curl http://localhost:5678/install.sh/%s | sh`", email, name, token)
 
 		message.Raw = base64.StdEncoding.EncodeToString([]byte(messageStr))
 		_, err := gmailSvc.Users.Messages.Send("me", &message).Do()
 		if err != nil {
 			log.Fatalf("Unable to send message: %v", err)
 		}
+		c.Set("Content-Type", "text/html")
+		c.SendString(`<html><body><p>Success! Check your email for further instructions.</p></body></html`)
 	})
 
 	// Returns an instance of the script that will round-trip the init token
