@@ -2,23 +2,34 @@ package main
 
 import (
 	"fmt"
-	"log"
-	"net/http"
-	"html"
+	"os"
+	"github.com/gofiber/fiber"
 )
 
 func main() {
-	http.HandleFunc("/signup", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintf(w, "Hello, %q", html.EscapeString(r.URL.Path))
+	app := fiber.New()
+
+	// Serve static assets
+	app.Static("/", "./assets")
+
+	// TODO: Index serving static files
+	// builds, index, script
+	app.Post("/signup", func(c *fiber.Ctx) {
+		fmt.Printf("Hello! name=%q, email=%q, app=%q", 
+			c.FormValue("name"), c.FormValue("email"), c.FormValue("app_name"))
 	})
-	http.HandleFunc("/install", func(w http.ResponseWriter, r *http.Request) {
+
+	// TODO: Template the script to send
+	// run `opsani init <token>`
+	// app.Get("/install.sh/:token", func(c *fiber.Ctx) {
+	// 	// Get the query param
+
+	// 	fmt.Printf("Token: %s", c.Params("token"))
+	// })
+	app.Get("/token/:token", func(c *fiber.Ctx) {
 		// Get the query param
-		fmt.Fprintf(w, "Hello, %q", html.EscapeString(r.URL.Path))
-	})
-	http.HandleFunc("/token", func(w http.ResponseWriter, r *http.Request) {
-		// Get the query param
-		fmt.Fprintf(w, "Hello, %q", html.EscapeString(r.URL.Path))
-	})
-	log.Println("Starting up...")
-	log.Fatal(http.ListenAndServe(":8080", nil))
+		fmt.Printf("Token is %q", c.Params("token"))
+	})	
+
+	app.Listen(8080)
 }

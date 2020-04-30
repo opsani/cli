@@ -1,12 +1,17 @@
-.PHONY: build run
+.DEFAULT_GOAL := default
+.PHONY: snapshot app run
 
-build:
+snapshot:
 	cd .. && make snapshot
-	rm -rf builds/*
-	cp ../dist/opsani_*.{tar.gz,zip} builds/
-	docker-compose build
+	rm -rf assets/builds/*
+	cp ../dist/opsani_*.{tar.gz,zip} assets/builds/
 
-run:
-	docker-compose up
+app:
+	go build .
+	docker build -t vital_demo:latest .
 
-default: build
+run:	
+	docker run --rm -it -p 5678:8080 -v `pwd`/assets:/app/assets vital_demo:latest
+
+build: snapshot app
+default: app run
