@@ -12,6 +12,7 @@ import (
 
 	"github.com/gofiber/fiber"
 	"github.com/jordan-wright/email"
+	"github.com/matcornic/hermes/v2"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/gmail/v1"
@@ -93,40 +94,73 @@ func main() {
 		name := c.FormValue("name")
 		recipient := c.FormValue("email")
 		// appName := c.FormValue("app_name")
-		// Send the email via Gmail
 		config := loadConfig()
 		token := config.Profiles[0].InitToken
 		gmailSvc := getGmailService()
 		var message gmail.Message
 
-		body := fmt.Sprintf(`Hi %s,
-Thank you for your interest in Opsani Vital.
-We are eager to share the impact of continuous optimization on your engineering practices and business.
+		h := hermes.Hermes{
+			Product: hermes.Product{
+				Name:      "Opsani",
+				Link:      "https://www.opsani.com/",
+				Copyright: "© Opsani All rights reserved 2020",
+				Logo:      "http://34.222.186.235/opsani.png",
+				// Logo:      "https://www.opsani.com/wp-content/uploads/2019/04/opsani_logo.svg",
+			},
+		}
+		codeBlock := fmt.Sprintf("```bash\n$ curl http://localhost:5678/install.sh/%s | sh\n```", token)
+		markdown := fmt.Sprintf(`
+Cloud cost savings are close at hand.
 
-The easiest way to get started is using the Opsani CLI. It will automatically link to your optimization
-engine and provides tutorials and auto-discovery capabilities to make integrating your app a breeze.
+To start optimizing, install the Opsani CLI:
 
-> curl http://localhost:5678/install.sh/%s | sh
+%s
 
-Just follow the instructions from there!
+---
 
-Cheers,
-- The Opsani Team
-`, name, token)
+`, codeBlock)
+		hermesEmail := hermes.Email{
+			Body: hermes.Body{
+				Name: name,
+				Intros: []string{
+					"Welcome to Opsani! We're very excited to have you on board.",
+				},
+				FreeMarkdown: hermes.Markdown(markdown),
+				Outros: []string{
+					"Need help or have questions? Just reply to this email and we are happy to help.",
+				},
+				Signature: "Cheers",
+			},
+		}
+
+		// Generate an HTML email with the provided contents (for modern clients)
+		emailBody, err := h.GenerateHTML(hermesEmail)
+		if err != nil {
+			panic(err) // Tip: Handle error with something else than a panic ;)
+		}
+
+		// Generate the plaintext version of the e-mail (for clients that do not support xHTML)
+		emailText, err := h.GeneratePlainText(hermesEmail)
+		if err != nil {
+			panic(err) // Tip: Handle error with something else than a panic ;)
+		}
+
+		// Send HTML and plain text emails via GMail
 		e := email.NewEmail()
 		e.From = "vital@opsani.com"
 		e.To = []string{recipient}
 		e.Subject = "Welcome to Opsani Vital!"
-		e.Text = []byte(body)
+		e.Text = []byte(emailText)
+		e.HTML = []byte(emailBody)
 
 		messagePayload, err := e.Bytes()
 		if err != nil {
 			panic(err)
 		}
-		message.Raw = base64.StdEncoding.EncodeToString(messagePayload)
+		message.Raw = base64.URLEncoding.EncodeToString(messagePayload)
 		_, err = gmailSvc.Users.Messages.Send("me", &message).Do()
 		if err != nil {
-			log.Fatalf("Unable to send message: %v", err)
+			log.Printf("Unable to send message: %v\n", err)
 		}
 		fmt.Println("Sent email:", string(messagePayload))
 		c.Set("Content-Type", "text/html")
@@ -147,8 +181,6 @@ Cheers,
 		c.SendString(script)
 	})
 
-	// 	fmt.Printf("Token: %s", c.Params("token"))
-	// })
 	app.Get("/init/:token", func(c *fiber.Ctx) {
 		config := loadConfig()
 
