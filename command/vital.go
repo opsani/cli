@@ -17,11 +17,16 @@ package command
 import (
 	"context"
 	"fmt"
+	"io"
+	"log"
+	"os"
+	"os/exec"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/charmbracelet/glamour"
 	"github.com/mgutz/ansi"
 	"github.com/spf13/cobra"
+	"golang.org/x/crypto/ssh/terminal"
 )
 
 type vitalCommand struct {
@@ -86,29 +91,70 @@ As tasks are completed, artifacts will be generated and saved onto this workstat
 
 Everything is logged, you can be pause and resume at any time, and important items will require confirmation.
 
-Once this is wrapped up, you can start optimizing immediately.
-`
+Once this is wrapped up, you can start optimizing immediately.`
+
+	// Size paged output to the terminal
+	fd := int(os.Stdin.Fd())
+	oldState, err := terminal.MakeRaw(fd)
+	if err != nil {
+		return err
+	}
+	defer terminal.Restore(fd, oldState)
+
+	termWidth, _, err := terminal.GetSize(fd)
+	if err != nil {
+		return err
+	}
+
 	r, _ := glamour.NewTermRenderer(
 		// detect background color and pick either the default dark or light theme
 		glamour.WithStandardStyle("dark"),
 		// wrap output at specific width
-		glamour.WithWordWrap(80),
+		glamour.WithWordWrap(termWidth),
 	)
 	out, _ := r.Render(in)
-	fmt.Print(out)
 
+	var pager io.WriteCloser
+	cmd, pager := runPager()
+	fmt.Fprintln(pager, out)
+
+	// Let the user page
+	pager.Close()
+	err = cmd.Wait()
+	if err != nil {
+		return err
+	}
+
+	// Let's get on with it!
 	confirmed := false
 	prompt := &survey.Confirm{
 		Message: "Ready to get started?",
 	}
 	vitalCommand.AskOne(prompt, &confirmed)
-
 	if confirmed {
 		fmt.Printf("\n💥 Let's do this thing.\n")
 		return vitalCommand.RunVitalDiscovery(cobraCmd, args)
 	}
 
 	return nil
+}
+
+func runPager() (*exec.Cmd, io.WriteCloser) {
+	pager := os.Getenv("PAGER")
+	if pager == "" {
+		pager = "more"
+	}
+	cmd := exec.Command(pager)
+	out, err := cmd.StdinPipe()
+	if err != nil {
+		log.Fatal(err)
+	}
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Start(); err != nil {
+		log.Fatal(err)
+	}
+	return cmd, out
 }
 
 func (vitalCommand *vitalCommand) RunVitalDiscovery(cobraCmd *cobra.Command, args []string) error {
