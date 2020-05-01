@@ -126,6 +126,7 @@ Once this is wrapped up, you can start optimizing immediately.`
 	}
 
 	// Let's get on with it!
+	terminal.Restore(fd, oldState)
 	confirmed := false
 	prompt := &survey.Confirm{
 		Message: "Ready to get started?",
