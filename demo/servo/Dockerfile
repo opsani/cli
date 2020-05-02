@@ -1,10 +1,10 @@
-FROM golang:latest
+FROM golang:1.14-alpine
 
 # Install Python3 & Ansible
 RUN set -ex \
-    && apt-get update \
-    && apt-get install -y --no-install-recommends python3-pip python3-setuptools python3-wheel \
-    && apt-get install -y --no-install-recommends git
+    && apk update \
+    && apk add python3 py3-yaml \
+    && apk add git
 
 RUN go get github.com/tsenart/vegeta
 RUN go install github.com/tsenart/vegeta
