@@ -1,0 +1,24 @@
+application:
+  components:        
+    app:
+      settings:
+        key_size:
+          type: enum
+          unit: bits
+          value: 1024
+          values:
+            - 1024
+            - 2048
+            - 2560
+            - 4096
+
+prom:
+  prometheus_endpoint: http://prometheus:9090/
+  metrics:
+    requests_total:
+      query: demo_requests_total
+      unit: count
+
+vegeta:
+    target: GET http://app:8080/
+    rate: 3000/1m
