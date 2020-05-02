@@ -33,6 +33,5 @@ services:
     restart: always
     volumes:
       - ./config.yaml:/servo/config.yaml
-      - ./config.yaml:/servo/measure.d/config.yaml
       - ./opsani.token:/run/secrets/opsani.token
     command: --auth-token /run/secrets/opsani.token --account ${OPTUNE_ACCOUNT:?The Opsani Account Name must be configured.} ${OPTUNE_APP_ID:?The Opsani App ID must be configured.}

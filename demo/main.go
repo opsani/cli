@@ -1,6 +1,12 @@
 package main
 
 import (
+	"bytes"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
+	"encoding/asn1"
+	"encoding/pem"
 	"log"
 	"strconv"
 	"time"
@@ -14,6 +20,8 @@ import (
 
 const metricsPath string = "/metrics"
 const subsystemName string = "demo"
+
+var keySizeInBits int = 1024
 
 // Metrics maintains the values to be emitted to Prometheus
 type Metrics struct {
@@ -89,9 +97,42 @@ func main() {
 	})
 
 	app.Get("/", func(c *fiber.Ctx) {
+		// Generate RSA keys to make this interesting
+		reader := rand.Reader
+		key, _ := rsa.GenerateKey(reader, keySizeInBits)
+
+		var privateKey = &pem.Block{
+			Type:  "PRIVATE KEY",
+			Bytes: x509.MarshalPKCS1PrivateKey(key),
+		}
+		privateKeyPem := new(bytes.Buffer)
+		_ = pem.Encode(privateKeyPem, privateKey)
+
+		asn1Bytes, _ := asn1.Marshal(key.PublicKey)
+		var pemkey = &pem.Block{
+			Type:  "PUBLIC KEY",
+			Bytes: asn1Bytes,
+		}
+		publicKeyPem := new(bytes.Buffer)
+		_ = pem.Encode(publicKeyPem, pemkey)
+
 		c.JSON(fiber.Map{
-			"hello": "world",
+			"private_key": privateKeyPem.String(),
+			"public_key":  publicKeyPem.String(),
 		})
+	})
+
+	app.Put("/set/:size", func(c *fiber.Ctx) {
+		size := c.Params("size")
+		i, err := strconv.Atoi(size)
+		if err == nil {
+			keySizeInBits = i
+		}
+		c.SendStatus(200)
+		c.JSON(fiber.Map{
+			"size": keySizeInBits,
+		})
+		log.Println(string(c.Path()))
 	})
 
 	app.Listen(8080)

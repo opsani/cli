@@ -1,11 +1,15 @@
-application:
+statestore:
   components:        
     app:
+      cost_formula: "1"
       settings:
-        key_size:
+        mem:          
+          type: enum
+          unit: mb
+          value: 1024
+        key_size:          
           type: enum
           unit: bits
-          value: 1024
           values:
             - 1024
             - 2048
