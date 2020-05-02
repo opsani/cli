@@ -53,7 +53,7 @@ func (vitalCommand *vitalCommand) RunVital(cobraCmd *cobra.Command, args []strin
 
 ## Let's talk about your cloud costs
 
-It's the worst kept secret in modern tech. We're all spending way more on infrastructure than is necesary.
+It's the worst kept secret in tech. We're all spending way more on infrastructure than is necessary.
 
 But it's not our fault. Our applications have become too big and complicated to optimize.
 
