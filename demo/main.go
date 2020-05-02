@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber"
-	"github.com/gofiber/logger"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/valyala/fasthttp"
@@ -69,7 +68,6 @@ func prometheusHandler() fasthttp.RequestHandler {
 
 func main() {
 	app := fiber.New()
-	app.Use(logger.New())
 
 	// Wrap all our endpoints with metrics instrumentation
 	middleware := NewMiddleware()
