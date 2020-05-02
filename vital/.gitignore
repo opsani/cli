@@ -1,5 +1,9 @@
+# Config files
 .env
 .config.yaml
-vital
 credentials.json
 token.json
+
+# Built binaries
+vital
+opsani
