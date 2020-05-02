@@ -309,8 +309,8 @@ func (vitalCommand *vitalCommand) newSpinner() *spinner.Spinner {
 }
 
 func (vitalCommand *vitalCommand) successMessage(message string) string {
-	c := color.New(color.Bold, color.FgHiGreen).SprintFunc()
-	return fmt.Sprintf("%s %s\n", c("\u2713"), message)
+	c := color.New(color.FgGreen, color.Bold).SprintFunc()
+	return fmt.Sprintf("%s %s\n", c("\u2713 vital"), message)
 }
 
 func (vitalCommand *vitalCommand) failureMessage(message string) string {
