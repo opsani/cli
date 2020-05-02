@@ -21,10 +21,13 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/AlecAivazis/survey/v2/core"
 	"github.com/AlecAivazis/survey/v2/terminal"
+	"github.com/briandowns/spinner"
 	"github.com/docker/docker/pkg/term"
+	"github.com/fatih/color"
 	"github.com/mitchellh/go-homedir"
 	"github.com/opsani/cli/opsani"
 	"github.com/spf13/cobra"
@@ -295,6 +298,47 @@ func (baseCmd *BaseCommand) initConfig() error {
 	core.DisableColor = baseCmd.disableColors
 
 	return nil
+}
+
+func (vitalCommand *vitalCommand) newSpinner() *spinner.Spinner {
+	s := spinner.New(spinner.CharSets[14], 150*time.Millisecond)
+	s.Writer = vitalCommand.OutOrStdout()
+	s.Color("bold", "blue")
+	s.HideCursor = true
+	return s
+}
+
+func (vitalCommand *vitalCommand) successMessage(message string) string {
+	c := color.New(color.Bold, color.FgHiGreen).SprintFunc()
+	return fmt.Sprintf("%s %s\n", c("\u2713"), message)
+}
+
+func (vitalCommand *vitalCommand) failureMessage(message string) string {
+	c := color.New(color.Bold, color.FgHiRed).SprintFunc()
+	return fmt.Sprintf("%s %s\n", c("\u2717"), message)
+}
+
+// Task describes a long-running task that may succeed or fail
+type Task struct {
+	Description string
+	Success     string
+	Failure     string
+	Run         func() error
+}
+
+// RunTaskWithSpinnerStatus displays an animated spinner around the execution of the given func
+func (vitalCommand *vitalCommand) RunTaskWithSpinner(task Task) error {
+	s := vitalCommand.newSpinner()
+	s.Suffix = " " + task.Description
+	s.Start()
+	err := task.Run()
+	s.Stop()
+	if err == nil {
+		fmt.Fprintf(s.Writer, vitalCommand.successMessage(task.Success))
+	} else {
+		fmt.Fprintf(s.Writer, vitalCommand.failureMessage(task.Failure+": "+err.Error()))
+	}
+	return err
 }
 
 // NewAPIClient returns an Opsani API client configured using the active configuration
