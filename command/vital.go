@@ -15,15 +15,21 @@
 package command
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
+	"strings"
+	"text/template"
+	"time"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/charmbracelet/glamour"
+	"github.com/markbates/pkger"
 	"github.com/mgutz/ansi"
 	"github.com/spf13/cobra"
 	"golang.org/x/crypto/ssh/terminal"
@@ -48,6 +54,21 @@ func NewVitalCommand(baseCmd *BaseCommand) *cobra.Command {
 }
 
 func (vitalCommand *vitalCommand) RunVital(cobraCmd *cobra.Command, args []string) error {
+
+	return vitalCommand.InstallKubernetesManifests(cobraCmd, args)
+
+	vitalCommand.RunTaskWithSpinner(Task{
+		Description: "deploying optimization engine...",
+		Success:     "optimization engine deployed",
+		Failure:     "optimization engine deployment failed",
+		Run: func() error {
+			time.Sleep(1 * time.Second)
+			// return fmt.Errorf("sadasd")
+			return nil
+		},
+	})
+
+	return nil
 	in :=
 		`# Opsani Vital
 
@@ -184,4 +205,85 @@ func (vitalCommand *vitalCommand) RunVitalDiscovery(cobraCmd *cobra.Command, arg
 	// Start discovery
 	fmt.Printf("\n%s==>%s %sLaunching container...%s\n", blue, reset, whiteBold, reset)
 	return runIntelligentManifestBuilder("", imageRef)
+}
+
+func (vitalCommand *vitalCommand) run(name string, args ...string) error {
+	cmd := exec.Command(name, args...)
+	fmt.Printf("Executing: %s %v\n", name, args)
+	cmd.Stdout = vitalCommand.OutOrStdout()
+	cmd.Stderr = vitalCommand.ErrOrStderr()
+	return cmd.Run()
+}
+
+func init() {
+	pkger.Include("/demo/manifests")
+}
+
+func (vitalCommand *vitalCommand) InstallKubernetesManifests(cobraCmd *cobra.Command, args []string) error {
+	err := vitalCommand.run("kubectl", "create", "namespace", "opsani-servo")
+	if err != nil {
+		return err
+	}
+
+	err = vitalCommand.run("kubectl", "--kubeconfig", pathToDefaultKubeconfig(), "create", "secret", "generic", "opsani-servo-auth",
+		"--from-literal", fmt.Sprintf("token=%s", vitalCommand.AccessToken()), "--namespace", "opsani-servo")
+	if err != nil {
+		return err
+	}
+
+	org, app := vitalCommand.AppComponents()
+	vars := struct {
+		Account string
+		App     string
+	}{
+		Account: org,
+		App:     app,
+	}
+	err = pkger.Walk("/demo/manifests", func(path string, info os.FileInfo, err error) error {
+		if info.IsDir() || strings.HasPrefix(info.Name(), ".") {
+			return nil
+		}
+
+		f, err := pkger.Open(path)
+		if err != nil {
+			return err
+		}
+
+		manifestTemplate, err := ioutil.ReadAll(f)
+		if err != nil {
+			return err
+		}
+
+		fmt.Printf("Processing manifest %q", path)
+		tmpl, err := template.New("").Parse(string(manifestTemplate))
+		if err != nil {
+			panic(err)
+		}
+
+		cmd := exec.Command("kubectl", "--kubeconfig", pathToDefaultKubeconfig(), "apply", "-f", "-")
+		out, err := cmd.StdinPipe()
+		if err != nil {
+			log.Fatal(err)
+		}
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		if err := cmd.Start(); err != nil {
+			log.Fatal(err)
+		}
+		buf := new(bytes.Buffer)
+		err = tmpl.Execute(buf, vars)
+		if err != nil {
+			panic(err)
+		}
+		fmt.Println(buf)
+		fmt.Fprintln(out, buf)
+		out.Close()
+		if err := cmd.Wait(); err != nil {
+			log.Fatal(err)
+		}
+
+		return nil
+	})
+
+	return err
 }

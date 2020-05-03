@@ -8,7 +8,7 @@ services:
 
   app:
     build:
-      context: .
+      context: app/
     ports:
       - 8080:8080
     restart: always
@@ -29,9 +29,9 @@ services:
   
   servo:
     build:
-      context: servo/.
+      context: servo/
     restart: always
     volumes:
       - ./config.yaml:/servo/config.yaml
       - ./opsani.token:/run/secrets/opsani.token
-    command: --auth-token /run/secrets/opsani.token --account ${OPTUNE_ACCOUNT:?The Opsani Account Name must be configured.} ${OPTUNE_APP_ID:?The Opsani App ID must be configured.}
+    command: --auth-token /run/secrets/opsani.token --account dev.opsani.com blake
