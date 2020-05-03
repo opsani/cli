@@ -29,6 +29,7 @@ import (
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/charmbracelet/glamour"
+	"github.com/fatih/color"
 	"github.com/markbates/pkger"
 	"github.com/mgutz/ansi"
 	"github.com/spf13/cobra"
@@ -53,22 +54,89 @@ func NewVitalCommand(baseCmd *BaseCommand) *cobra.Command {
 	return cobraCmd
 }
 
-func (vitalCommand *vitalCommand) RunVital(cobraCmd *cobra.Command, args []string) error {
+// NewDemoCommand returns a new instance of the demo command
+func NewDemoCommand(baseCmd *BaseCommand) *cobra.Command {
+	vitalCommand := vitalCommand{BaseCommand: baseCmd}
+	cobraCmd := &cobra.Command{
+		Use:               "ignite",
+		Short:             "Light up an interactive demo",
+		Args:              cobra.NoArgs,
+		PersistentPreRunE: nil,
+		RunE:              vitalCommand.RunDemo,
+	}
 
-	return vitalCommand.InstallKubernetesManifests(cobraCmd, args)
+	return cobraCmd
+}
+
+func (vitalCommand *vitalCommand) RunDemo(cobraCmd *cobra.Command, args []string) error {
+	// TODO: Check for Docker
+	// Check for Minikube
+	// Check for existing instance and prompt to reset it
+	// Fake connecting to the Opsani backend and probing the environment
+	// Light up Minikube
+	// Open the console
+	fmt.Println("We are about to deploy a web app and a Servo in a local Kubernetes cluster.")
+	fmt.Println("Everything is isolated from your existing work and available to you under an Open Source license.")
+	confirmed := false
+	prompt := &survey.Confirm{
+		Message: "Ready to get started?",
+	}
+	vitalCommand.AskOne(prompt, &confirmed)
+	if !confirmed {
+		return nil
+	}
+	fmt.Printf("\n💥 Let's do this thing.\n")
 
 	vitalCommand.RunTaskWithSpinner(Task{
-		Description: "deploying optimization engine...",
-		Success:     "optimization engine deployed",
+		Description: "checking for Docker runtime...",
+		Success:     "Docker v19.03.8 found.",
+		Failure:     "optimization engine deployment failed",
+		Run: func() error {
+			time.Sleep(2 * time.Second)
+			return nil
+		},
+	})
+	vitalCommand.RunTaskWithSpinner(Task{
+		Description: "checking for Kubernetes...",
+		Success:     "Kubernetes v1.18.0 found.",
 		Failure:     "optimization engine deployment failed",
 		Run: func() error {
 			time.Sleep(1 * time.Second)
-			// return fmt.Errorf("sadasd")
+			return nil
+		},
+	})
+	vitalCommand.RunTaskWithSpinner(Task{
+		Description: "checking for minikube...",
+		Success:     "minikube v1.9.2 found.",
+		Failure:     "optimization engine deployment failed",
+		Run: func() error {
+			time.Sleep(1 * time.Second)
+			return nil
+		},
+	})
+	vitalCommand.RunTaskWithSpinner(Task{
+		Description: "creating a new minikube profile...",
+		Success:     `minikube profile "opsani-demo" created.`,
+		Failure:     "optimization engine deployment failed",
+		Run: func() error {
+			time.Sleep(1 * time.Second)
+			return nil
+		},
+	})
+	vitalCommand.RunTaskWithSpinner(Task{
+		Description: "asking Opsani for an optimization engine...",
+		Success:     "optimization engine acquired.",
+		Failure:     "optimization engine deployment failed",
+		Run: func() error {
+			time.Sleep(4 * time.Second)
 			return nil
 		},
 	})
 
-	return nil
+	return vitalCommand.InstallKubernetesManifests(cobraCmd, args)
+}
+
+func (vitalCommand *vitalCommand) RunVital(cobraCmd *cobra.Command, args []string) error {
 	in :=
 		`# Opsani Vital
 
@@ -207,12 +275,13 @@ func (vitalCommand *vitalCommand) RunVitalDiscovery(cobraCmd *cobra.Command, arg
 	return runIntelligentManifestBuilder("", imageRef)
 }
 
-func (vitalCommand *vitalCommand) run(name string, args ...string) error {
+func (vitalCommand *vitalCommand) run(name string, args ...string) (*bytes.Buffer, error) {
+	outputBuffer := new(bytes.Buffer)
 	cmd := exec.Command(name, args...)
-	fmt.Printf("Executing: %s %v\n", name, args)
-	cmd.Stdout = vitalCommand.OutOrStdout()
-	cmd.Stderr = vitalCommand.ErrOrStderr()
-	return cmd.Run()
+	cmd.Stdout = outputBuffer
+	cmd.Stderr = outputBuffer
+	err := cmd.Run()
+	return outputBuffer, err
 }
 
 func init() {
@@ -220,13 +289,35 @@ func init() {
 }
 
 func (vitalCommand *vitalCommand) InstallKubernetesManifests(cobraCmd *cobra.Command, args []string) error {
-	err := vitalCommand.run("kubectl", "create", "namespace", "opsani-servo")
+	err := vitalCommand.RunTaskWithSpinner(Task{
+		Description: "creating \"opsani-servo\" namespace...",
+		Success:     "created \"opsani-servo\" namespace.",
+		Failure:     "namespace creation failed.\n",
+		Run: func() error {
+			output, err := vitalCommand.run("kubectl", "create", "namespace", "opsani-servo")
+			if err != nil {
+				return fmt.Errorf("%s: %w", output, err)
+			}
+			return nil
+		},
+	})
 	if err != nil {
 		return err
 	}
 
-	err = vitalCommand.run("kubectl", "--kubeconfig", pathToDefaultKubeconfig(), "create", "secret", "generic", "opsani-servo-auth",
-		"--from-literal", fmt.Sprintf("token=%s", vitalCommand.AccessToken()), "--namespace", "opsani-servo")
+	err = vitalCommand.RunTaskWithSpinner(Task{
+		Description: "creating secrets...",
+		Success:     "your secrets are safe and sound.",
+		Failure:     "secret creation failed.\n",
+		Run: func() error {
+			output, err := vitalCommand.run("kubectl", "--kubeconfig", pathToDefaultKubeconfig(), "create", "secret", "generic", "opsani-servo-auth",
+				"--from-literal", fmt.Sprintf("token=%s", vitalCommand.AccessToken()), "--namespace", "opsani-servo")
+			if err != nil {
+				return fmt.Errorf("%s: %w", output, err)
+			}
+			return nil
+		},
+	})
 	if err != nil {
 		return err
 	}
@@ -244,46 +335,94 @@ func (vitalCommand *vitalCommand) InstallKubernetesManifests(cobraCmd *cobra.Com
 			return nil
 		}
 
-		f, err := pkger.Open(path)
-		if err != nil {
-			return err
+		// NOTE: The Prometheus manifests have custom resource definitions
+		// That take awhile to propogate
+		if info.Name() == "prometheus.yaml" {
+			vitalCommand.RunTaskWithSpinner(Task{
+				Description: "waiting for prometheus custom resource definition to propogate...",
+				Success:     "prometheus custom resource definition is now available.",
+				Run: func() error {
+					for {
+						c := exec.Command("kubectl", "get", "prometheuses")
+						err = c.Run()
+						if err == nil {
+							break
+						}
+						// Keep waiting
+						time.Sleep(2 * time.Second)
+					}
+					return nil
+				},
+			})
 		}
 
-		manifestTemplate, err := ioutil.ReadAll(f)
-		if err != nil {
-			return err
-		}
+		return vitalCommand.RunTaskWithSpinner(Task{
+			Description: fmt.Sprintf("applying manifest %q...", info.Name()),
+			Success:     fmt.Sprintf("manifest %q applied.", info.Name()),
+			Failure:     "FAILED!",
+			Run: func() error {
+				f, err := pkger.Open(path)
+				if err != nil {
+					return err
+				}
 
-		fmt.Printf("Processing manifest %q", path)
-		tmpl, err := template.New("").Parse(string(manifestTemplate))
-		if err != nil {
-			panic(err)
-		}
+				manifestTemplate, err := ioutil.ReadAll(f)
+				if err != nil {
+					return err
+				}
 
-		cmd := exec.Command("kubectl", "--kubeconfig", pathToDefaultKubeconfig(), "apply", "-f", "-")
-		out, err := cmd.StdinPipe()
-		if err != nil {
-			log.Fatal(err)
-		}
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		if err := cmd.Start(); err != nil {
-			log.Fatal(err)
-		}
-		buf := new(bytes.Buffer)
-		err = tmpl.Execute(buf, vars)
-		if err != nil {
-			panic(err)
-		}
-		fmt.Println(buf)
-		fmt.Fprintln(out, buf)
-		out.Close()
-		if err := cmd.Wait(); err != nil {
-			log.Fatal(err)
-		}
+				tmpl, err := template.New("").Parse(string(manifestTemplate))
+				if err != nil {
+					return err
+				}
 
-		return nil
+				cmd := exec.Command("kubectl", "--kubeconfig", pathToDefaultKubeconfig(), "apply", "--wait", "-f", "-")
+				out, err := cmd.StdinPipe()
+				if err != nil {
+					return err
+				}
+				outputBuffer := new(bytes.Buffer)
+				cmd.Stdout = outputBuffer
+				cmd.Stderr = outputBuffer
+				if err := cmd.Start(); err != nil {
+					return fmt.Errorf("%s: %w", outputBuffer, err)
+				}
+				buf := new(bytes.Buffer)
+				err = tmpl.Execute(buf, vars)
+				if err != nil {
+					panic(err)
+				}
+				fmt.Fprintln(out, buf)
+				out.Close()
+				if err := cmd.Wait(); err != nil {
+					return fmt.Errorf("%s: %w", buf, err)
+				}
+
+				return nil
+			}},
+		)
 	})
+
+	// Restart the Servo deployment in case Prometheus DNS was live
+	vitalCommand.run("kubectl", "rollout", "restart", "deployment", "opsani-servo", "-n", "opsani-servo")
+
+	// Boom we are ready to roll
+	c := color.New(color.FgBlue, color.Bold).SprintFunc()
+	fmt.Fprintf(vitalCommand.OutOrStdout(), "🔥  %s\n", c("Deployment completed."))
+	fmt.Fprintf(vitalCommand.OutOrStdout(), "\n\nThe local install of minikube is now running a Servo assembly\n"+
+		"that is connected to your Opsani optimization engine.\nYou can observe the logs by executing `kubectl get pods -A`\n"+
+		"and then issuing a `kubectl logs -f` command against the Servo pod.\n\n")
+
+	confirmed := false
+	prompt := &survey.Confirm{
+		Message: "The Servo will begin reporting results to the Opsani Console shortly.\nWould you like to go there now?",
+	}
+	vitalCommand.AskOne(prompt, &confirmed)
+	if confirmed {
+		org, appID := vitalCommand.GetAppComponents()
+		url := fmt.Sprintf("https://console.opsani.com/accounts/%s/applications/%s", org, appID)
+		openURLInDefaultBrowser(url)
+	}
 
 	return err
 }

@@ -117,6 +117,7 @@ We'd love to hear your feedback at <https://github.com/opsani/cli>`,
 	cobraCmd.AddCommand(NewCompletionCommand(rootCmd))
 	cobraCmd.AddCommand(NewServoCommand(rootCmd))
 	cobraCmd.AddCommand(NewVitalCommand(rootCmd))
+	cobraCmd.AddCommand(NewDemoCommand(rootCmd))
 
 	// Usage and help layout
 	cobra.AddTemplateFunc("hasSubCommands", hasSubCommands)
@@ -310,12 +311,12 @@ func (vitalCommand *vitalCommand) newSpinner() *spinner.Spinner {
 
 func (vitalCommand *vitalCommand) successMessage(message string) string {
 	c := color.New(color.FgGreen, color.Bold).SprintFunc()
-	return fmt.Sprintf("%s %s\n", c("\u2713 vital"), message)
+	return fmt.Sprintf("%s  %s\n", c("\u2713"), message)
 }
 
 func (vitalCommand *vitalCommand) failureMessage(message string) string {
 	c := color.New(color.Bold, color.FgHiRed).SprintFunc()
-	return fmt.Sprintf("%s %s\n", c("\u2717"), message)
+	return fmt.Sprintf("%s  %s\n", c("\u2717"), message)
 }
 
 // Task describes a long-running task that may succeed or fail
@@ -329,7 +330,7 @@ type Task struct {
 // RunTaskWithSpinnerStatus displays an animated spinner around the execution of the given func
 func (vitalCommand *vitalCommand) RunTaskWithSpinner(task Task) error {
 	s := vitalCommand.newSpinner()
-	s.Suffix = " " + task.Description
+	s.Suffix = "  " + task.Description
 	s.Start()
 	err := task.Run()
 	s.Stop()
