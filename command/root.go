@@ -337,7 +337,7 @@ func (vitalCommand *vitalCommand) RunTaskWithSpinner(task Task) error {
 	if err == nil {
 		fmt.Fprintf(s.Writer, vitalCommand.successMessage(task.Success))
 	} else {
-		fmt.Fprintf(s.Writer, vitalCommand.failureMessage(task.Failure+": "+err.Error()))
+		fmt.Fprintf(s.Writer, vitalCommand.failureMessage(task.Failure))
 	}
 	return err
 }
