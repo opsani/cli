@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: opsani-servo
-  namespace: opsani-servo
+  namespace: default
   labels:
     comp: opsani-servo
     optune.ai/exclude: '1'  # don't tune servo
