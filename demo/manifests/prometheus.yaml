@@ -5,4 +5,4 @@ metadata:
   labels:
     prometheus: k8s
 spec:
-  replicas: 2
+  replicas: 1
