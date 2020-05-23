@@ -90,30 +90,17 @@ nfpms:
       - deb
       - rpm
 
-# scoop:
-#   bucket:
-#     owner: opsani
-#     name: scoop-bucket
-#   homepage: https://github.com/opsani/cli
-#   skip_upload: auto
-#   description: Opsani CLI
-#   license: MIT
-  
-# Docker isn't finding the binaries
-# dockers:
-#   -
-#     goos: linux
-#     goarch: amd64
-#     goarm: '6'
-#     skip_push: true
-#     builds:
-#     - linux
-#     binaries:
-#     - bin/opsani
-#     image_templates:
-#     - "opsani/cli:latest"
-#     - "opsani/cli:{{ .Tag }}"
-#     dockerfile: Dockerfile
+scoop:
+  bucket:
+    owner: opsani
+    name: scoop-bucket
+  commit_author:
+    name: blakewatters
+    email: blake@opsani.com
+  homepage: https://github.com/opsani/cli
+  skip_upload: auto
+  description: Opsani CLI
+  license: Apache 2.0
 
 checksum:
   name_template: 'checksums.txt'
