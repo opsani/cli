@@ -126,6 +126,8 @@ func (s *InitTestSuite) TestInitWithExistingConfigDeclined() {
 	s.Require().EqualError(err, terminal.InterruptErr.Error())
 }
 
+// TODO: There is a missing test case with initializing against the default file (no --config)
+
 func (s *InitTestSuite) TestInitWithExistingConfigAccepted() {
 	configFile := test.TempConfigFileWithObj(map[string]interface{}{
 		"profiles": []map[string]string{

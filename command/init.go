@@ -38,6 +38,11 @@ func (initCmd *initCommand) RunInitCommand(_ *cobra.Command, args []string) erro
 	// Handle reinitialization case
 	overwrite := false
 	configFile := initCmd.viperCfg.ConfigFileUsed()
+	// NOTE: On first launch with no config file, Viper returns ""
+	// because no config file was resolved. There's probably a cleaner solution...
+	if configFile == "" {
+		configFile = initCmd.DefaultConfigFile()
+	}
 	if _, err := os.Stat(configFile); !os.IsNotExist(err) && !initCmd.confirmed {
 		initCmd.Println("Using config from:", configFile)
 		initCmd.PrettyPrintYAMLObject(initCmd.GetAllSettings())

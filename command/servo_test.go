@@ -62,7 +62,16 @@ func (s *ServoTestSuite) TestRunningServoSSHHelp() {
 }
 
 func (s *ServoTestSuite) TestRunningServoSSHInvalidServo() {
-	_, err := s.Execute("servo", "ssh", "fake-name")
+	configFile := test.TempConfigFileWithObj(map[string][]map[string]string{
+		"profiles": []map[string]string{
+			{
+				"name":  "default",
+				"app":   "example.com/app",
+				"token": "123456",
+			},
+		},
+	})
+	_, err := s.Execute(test.Args("--config", configFile.Name(), "servo", "ssh", "fake-name")...)
 	s.Require().EqualError(err, `no such servo "fake-name"`)
 }
 
