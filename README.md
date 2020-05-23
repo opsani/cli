@@ -61,6 +61,15 @@ $ brew tap opsani/tap
 $ brew install opsani-cli
 ```
 
+### Windows (scoop)
+
+Builds for Windows systems are available via scoop:
+
+```console
+$ scoop bucket add github-gh https://github.com/opsani/scoop-bucket.git
+$ scoop install opsani-cli
+```
+
 ### Linux
 
 Binary packages for Linux are available in RPM and DEB package formats.
