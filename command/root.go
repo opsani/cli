@@ -230,9 +230,9 @@ func (baseCmd *BaseCommand) InitConfigRunE(cmd *cobra.Command, args []string) er
 
 // RequireConfigFileFlagToExistRunE aborts command execution with an error if the config file specified via a flag does not exist
 func (baseCmd *BaseCommand) RequireConfigFileFlagToExistRunE(cmd *cobra.Command, args []string) error {
-	if configFilePath, err := cmd.Root().PersistentFlags().GetString("config"); err == nil {
+	if configFilePath, err := baseCmd.PersistentFlags().GetString("config"); err == nil {
 		if configFilePath != "" {
-			if _, err := os.Stat(baseCmd.configFile); os.IsNotExist(err) {
+			if _, err := os.Stat(configFilePath); os.IsNotExist(err) {
 				return fmt.Errorf("config file does not exist. Run %q and try again (%w)",
 					"opsani init", err)
 			}
@@ -260,7 +260,6 @@ func (baseCmd *BaseCommand) initConfig() error {
 		baseCmd.viperCfg.AddConfigPath(baseCmd.DefaultConfigPath())
 		baseCmd.viperCfg.SetConfigName("config")
 		baseCmd.viperCfg.SetConfigType(baseCmd.DefaultConfigType())
-		baseCmd.configFile = baseCmd.DefaultConfigFile()
 	}
 
 	// Set up environment variables
@@ -270,7 +269,6 @@ func (baseCmd *BaseCommand) initConfig() error {
 
 	// Load the configuration
 	if err := baseCmd.viperCfg.ReadInConfig(); err == nil {
-		baseCmd.configFile = baseCmd.viperCfg.ConfigFileUsed()
 		baseCmd.LoadProfile()
 	} else {
 		// Ignore config file not found or error

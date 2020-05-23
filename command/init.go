@@ -37,12 +37,13 @@ type initCommand struct {
 func (initCmd *initCommand) RunInitCommand(_ *cobra.Command, args []string) error {
 	// Handle reinitialization case
 	overwrite := false
-	if _, err := os.Stat(initCmd.configFile); !os.IsNotExist(err) && !initCmd.confirmed {
-		initCmd.Println("Using config from:", initCmd.configFile)
+	configFile := initCmd.viperCfg.ConfigFileUsed()
+	if _, err := os.Stat(configFile); !os.IsNotExist(err) && !initCmd.confirmed {
+		initCmd.Println("Using config from:", configFile)
 		initCmd.PrettyPrintYAMLObject(initCmd.GetAllSettings())
 
 		prompt := &survey.Confirm{
-			Message: fmt.Sprintf("Existing config found. Overwrite %s?", initCmd.configFile),
+			Message: fmt.Sprintf("Existing config found. Overwrite %s?", configFile),
 		}
 		err := initCmd.AskOne(prompt, &overwrite)
 		if err != nil {
@@ -93,19 +94,19 @@ func (initCmd *initCommand) RunInitCommand(_ *cobra.Command, args []string) erro
 	initCmd.PrettyPrintYAMLObject(initCmd.GetAllSettings())
 	if !initCmd.confirmed {
 		prompt := &survey.Confirm{
-			Message: fmt.Sprintf("Write to %s?", initCmd.configFile),
+			Message: fmt.Sprintf("Write to %s?", configFile),
 		}
 		initCmd.AskOne(prompt, &initCmd.confirmed)
 	}
 	if initCmd.confirmed {
-		configDir := filepath.Dir(initCmd.configFile)
+		configDir := filepath.Dir(configFile)
 		if _, err := os.Stat(configDir); os.IsNotExist(err) {
 			err = os.Mkdir(configDir, 0755)
 			if err != nil {
 				return err
 			}
 		}
-		if err := initCmd.viperCfg.WriteConfigAs(initCmd.configFile); err != nil {
+		if err := initCmd.viperCfg.WriteConfigAs(configFile); err != nil {
 			return err
 		}
 		initCmd.Println("\nOpsani CLI initialized")
