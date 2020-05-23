@@ -11,6 +11,10 @@ versioned in accordance with [Semantic Versioning](https://semver.org/spec/v2.0.
 - Servo assembly and connector management.
 - Interactive demo and tutorial experiences.
 
+## [0.1.3] - 2020-05-23
+### Added
+- Scoop builds for Windows users.
+
 ## [0.1.2] - 2020-05-23
 ### Fixed
 - Fixed init failure with missing config file.
