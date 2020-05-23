@@ -37,12 +37,12 @@ type initCommand struct {
 func (initCmd *initCommand) RunInitCommand(_ *cobra.Command, args []string) error {
 	// Handle reinitialization case
 	overwrite := false
-	if _, err := os.Stat(initCmd.ConfigFile); !os.IsNotExist(err) && !initCmd.confirmed {
-		initCmd.Println("Using config from:", initCmd.ConfigFile)
-		initCmd.PrettyPrintJSONObject(initCmd.GetAllSettings())
+	if _, err := os.Stat(initCmd.configFile); !os.IsNotExist(err) && !initCmd.confirmed {
+		initCmd.Println("Using config from:", initCmd.configFile)
+		initCmd.PrettyPrintYAMLObject(initCmd.GetAllSettings())
 
 		prompt := &survey.Confirm{
-			Message: fmt.Sprintf("Existing config found. Overwrite %s?", initCmd.ConfigFile),
+			Message: fmt.Sprintf("Existing config found. Overwrite %s?", initCmd.configFile),
 		}
 		err := initCmd.AskOne(prompt, &overwrite)
 		if err != nil {
@@ -52,55 +52,60 @@ func (initCmd *initCommand) RunInitCommand(_ *cobra.Command, args []string) erro
 			return terminal.InterruptErr
 		}
 	}
-	app := initCmd.App()
-	token := initCmd.AccessToken()
+
+	profile := Profile{
+		Name:    "default",
+		App:     initCmd.App(),
+		Token:   initCmd.AccessToken(),
+		BaseURL: initCmd.BaseURL(),
+	}
 	whiteBold := ansi.ColorCode("white+b")
 
-	if overwrite || app == "" {
+	if overwrite || profile.App == "" {
 		err := initCmd.AskOne(&survey.Input{
 			Message: "Opsani app (i.e. domain.com/app):",
-			Default: app,
-		}, &app, survey.WithValidator(survey.Required))
+			Default: profile.App,
+		}, &profile.App, survey.WithValidator(survey.Required))
 		if err != nil {
 			return err
 		}
 	} else {
-		initCmd.Printf("%si %sApp: %s%s%s%s\n", ansi.Blue, whiteBold, ansi.Reset, ansi.LightCyan, app, ansi.Reset)
+		initCmd.Printf("%si %sApp: %s%s%s%s\n", ansi.Blue, whiteBold, ansi.Reset, ansi.LightCyan, profile.App, ansi.Reset)
 	}
 
-	if overwrite || token == "" {
+	if overwrite || profile.Token == "" {
 		err := initCmd.AskOne(&survey.Input{
 			Message: "API Token:",
-			Default: token,
-		}, &token, survey.WithValidator(survey.Required))
+			Default: profile.Token,
+		}, &profile.Token, survey.WithValidator(survey.Required))
 		if err != nil {
 			return err
 		}
 	} else {
-		initCmd.Printf("%si %sAPI Token: %s%s%s%s\n", ansi.Blue, whiteBold, ansi.Reset, ansi.LightCyan, token, ansi.Reset)
+		initCmd.Printf("%si %sAPI Token: %s%s%s%s\n", ansi.Blue, whiteBold, ansi.Reset, ansi.LightCyan, profile.Token, ansi.Reset)
 	}
 
 	// Confirm that the user wants to write this config
-	initCmd.SetApp(app)
-	initCmd.SetAccessToken(token)
+	registry := NewProfileRegistry(initCmd.viperCfg)
+	registry.AddProfile(profile)
 
 	initCmd.Printf("\nOpsani config initialized:\n")
-	initCmd.PrettyPrintJSONObject(initCmd.GetAllSettings())
+	initCmd.PrettyPrintYAMLObject(initCmd.GetAllSettings())
 	if !initCmd.confirmed {
 		prompt := &survey.Confirm{
-			Message: fmt.Sprintf("Write to %s?", initCmd.ConfigFile),
+			Message: fmt.Sprintf("Write to %s?", initCmd.configFile),
 		}
 		initCmd.AskOne(prompt, &initCmd.confirmed)
 	}
 	if initCmd.confirmed {
-		configDir := filepath.Dir(initCmd.ConfigFile)
+		configDir := filepath.Dir(initCmd.configFile)
 		if _, err := os.Stat(configDir); os.IsNotExist(err) {
 			err = os.Mkdir(configDir, 0755)
 			if err != nil {
 				return err
 			}
 		}
-		if err := initCmd.viperCfg.WriteConfigAs(initCmd.ConfigFile); err != nil {
+		if err := initCmd.viperCfg.WriteConfigAs(initCmd.configFile); err != nil {
 			return err
 		}
 		initCmd.Println("\nOpsani CLI initialized")
@@ -119,8 +124,8 @@ func NewInitCommand(baseCommand *BaseCommand) *cobra.Command {
 	  * 'app':   Opsani app to control (OPSANI_APP).
 	  * 'token': API token to authenticate with (OPSANI_TOKEN).
 	`,
-		Args: cobra.NoArgs,
-		RunE: initCmd.RunInitCommand,
+		Args:              cobra.NoArgs,
+		RunE:              initCmd.RunInitCommand,
 		PersistentPreRunE: initCmd.InitConfigRunE, // Skip loading the config file
 	}
 	cmd.Flags().BoolVar(&initCmd.confirmed, confirmedArg, false, "Write config without asking for confirmation")

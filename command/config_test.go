@@ -76,8 +76,7 @@ func Strip(str string) string {
 }
 
 func (s *ConfigTestSuite) TestRunningWithInitializedConfig() {
-
-	configFile := test.TempConfigFileWithObj(map[string]interface{}{"app": "example.com/app1", "token": "123456"})
+	configFile := test.TempConfigFileWithObj(map[string]interface{}{"profiles": []map[string]string{{"app": "example.com/app1", "token": "123456"}}})
 	output, err := s.ExecuteArgs(ConfigFileArgs(configFile, "config"))
 	s.Require().NoError(err)
 	yaml := Strip(output)

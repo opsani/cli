@@ -83,9 +83,13 @@ func (s *InitTestSuite) TestTerminalConfirm() {
 }
 
 func (s *InitTestSuite) TestInitWithExistingConfigDeclinedL() {
-	configFile := test.TempConfigFileWithObj(map[string]string{
-		"app":   "example.com/app",
-		"token": "123456",
+	configFile := test.TempConfigFileWithObj(map[string]interface{}{
+		"profiles": []map[string]string{
+			{
+				"app":   "example.com/app",
+				"token": "123456",
+			},
+		},
 	})
 
 	context, err := s.ExecuteTestInteractively(test.Args("--config", configFile.Name(), "init"), func(t *test.InteractiveTestContext) error {
@@ -101,9 +105,13 @@ func (s *InitTestSuite) TestInitWithExistingConfigDeclinedL() {
 }
 
 func (s *InitTestSuite) TestInitWithExistingConfigDeclined() {
-	configFile := test.TempConfigFileWithObj(map[string]string{
-		"app":   "example.com/app",
-		"token": "123456",
+	configFile := test.TempConfigFileWithObj(map[string]interface{}{
+		"profiles": []map[string]string{
+			{
+				"app":   "example.com/app",
+				"token": "123456",
+			},
+		},
 	})
 
 	context, err := s.ExecuteTestInteractively(test.Args("--config", configFile.Name(), "init"), func(t *test.InteractiveTestContext) error {
@@ -119,9 +127,14 @@ func (s *InitTestSuite) TestInitWithExistingConfigDeclined() {
 }
 
 func (s *InitTestSuite) TestInitWithExistingConfigAccepted() {
-	configFile := test.TempConfigFileWithObj(map[string]string{
-		"app":   "example.com/app",
-		"token": "123456",
+	configFile := test.TempConfigFileWithObj(map[string]interface{}{
+		"profiles": []map[string]string{
+			{
+				"name":  "default",
+				"app":   "example.com/app",
+				"token": "123456",
+			},
+		},
 	})
 
 	context, err := s.ExecuteTestInteractively(test.Args("--config", configFile.Name(), "init"), func(t *test.InteractiveTestContext) error {
@@ -142,9 +155,11 @@ func (s *InitTestSuite) TestInitWithExistingConfigAccepted() {
 	s.T().Logf("Output buffer = %v", context.OutputBuffer().String())
 
 	// Check the config file
-	var config = map[string]interface{}{}
+	var config struct {
+		Profiles []command.Profile `yaml:"profiles"`
+	}
 	body, err := ioutil.ReadFile(configFile.Name())
 	yaml.Unmarshal(body, &config)
-	s.Require().Equal("dev.opsani.com/amazing-app", config["app"])
-	s.Require().Equal("123456", config["token"])
+	s.Require().Equal("dev.opsani.com/amazing-app", config.Profiles[1].App)
+	s.Require().Equal("123456", config.Profiles[1].Token)
 }

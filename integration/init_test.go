@@ -25,13 +25,24 @@ import (
 	"runtime"
 	"testing"
 
+	"github.com/opsani/cli/command"
 	"github.com/stretchr/testify/require"
 	"sigs.k8s.io/yaml"
 )
 
 const packagePath string = "github.com/opsani/cli"
 
-var defaultConfig = map[string]interface{}{"app": "example.com/app1", "token": "123456"}
+var defaultConfig = struct {
+	Profiles []command.Profile `yaml:"profiles"`
+}{
+	[]command.Profile{
+		{
+			Name:  "default",
+			App:   "example.com/app1",
+			Token: "123456",
+		},
+	},
+}
 
 var (
 	opsaniBinaryPath string

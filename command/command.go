@@ -21,7 +21,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/AlecAivazis/survey/v2/terminal"
@@ -31,7 +30,9 @@ import (
 	"github.com/goccy/go-yaml/printer"
 	"github.com/hokaccha/go-prettyjson"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
+	"gopkg.in/yaml.v2"
 )
 
 // Survey method wrappers
@@ -52,7 +53,9 @@ type BaseCommand struct {
 	rootCobraCommand *cobra.Command
 	viperCfg         *viper.Viper
 
-	ConfigFile            string
+	configFile            string
+	profileName           string
+	profile               *Profile
 	requestTracingEnabled bool
 	debugModeEnabled      bool
 	disableColors         bool
@@ -182,7 +185,18 @@ func format(attr color.Attribute) string {
 	return fmt.Sprintf("%s[%dm", escape, attr)
 }
 
-func (cmd *BaseCommand) prettyPrintYAML(bytes []byte, lineNumbers bool) error {
+// PrettyPrintYAMLObject pretty prints the given object marshalled into YAML
+func (cmd *BaseCommand) PrettyPrintYAMLObject(obj interface{}) error {
+	yaml, err := yaml.Marshal(obj)
+	if err != nil {
+		return err
+	}
+
+	return cmd.PrettyPrintYAML(yaml, false)
+}
+
+// PrettyPrintYAML pretty prints the given YAML byte array, optionally including line numbers
+func (cmd *BaseCommand) PrettyPrintYAML(bytes []byte, lineNumbers bool) error {
 	tokens := lexer.Tokenize(string(bytes))
 	var p printer.Printer
 	p.LineNumber = lineNumbers
@@ -234,9 +248,37 @@ func (cmd *BaseCommand) prettyPrintYAML(bytes []byte, lineNumbers bool) error {
 	return nil
 }
 
+// PersistentFlags returns the persistent FlagSet specifically set in the current command.
+func (cmd *BaseCommand) PersistentFlags() *pflag.FlagSet {
+	return cmd.rootCobraCommand.PersistentFlags()
+}
+
+// Flags returns the complete FlagSet that applies
+// to this command (local and persistent declared here and by all parents).
+func (cmd *BaseCommand) Flags() *pflag.FlagSet {
+	return cmd.rootCobraCommand.Flags()
+}
+
 // BaseURL returns the Opsani API base URL
+// The BaseURL is determined by config (args/env), active profile, or default
 func (cmd *BaseCommand) BaseURL() string {
-	return cmd.viperCfg.GetString(KeyBaseURL)
+	if baseURL := cmd.valueFromFlagOrEnv(KeyBaseURL, "OPSANI_BASE_URL"); baseURL != "" {
+		return baseURL
+	}
+	if cmd.profile != nil {
+		// return cmd.profile.BaseURL
+	}
+	return DefaultBaseURL
+}
+
+func (cmd *BaseCommand) valueFromFlagOrEnv(flagKey string, envKey string) string {
+	if value, _ := cmd.PersistentFlags().GetString(flagKey); value != "" {
+		return value
+	}
+	if value, set := os.LookupEnv(envKey); set {
+		return value
+	}
+	return ""
 }
 
 // BaseURLHostnameAndPort returns the hostname and port portion of Opsani base URL for summary display
@@ -252,29 +294,75 @@ func (cmd *BaseCommand) BaseURLHostnameAndPort() string {
 	return baseURLDescription
 }
 
-// SetBaseURL sets the Opsani API base URL
-func (cmd *BaseCommand) SetBaseURL(baseURL string) {
-	cmd.viperCfg.Set(KeyBaseURL, baseURL)
+func (cmd *BaseCommand) baseURLFromFlagsOrEnv() string {
+	return cmd.valueFromFlagOrEnv(KeyBaseURL, "OPSANI_BASE_URL")
+}
+
+func (cmd *BaseCommand) appFromFlagsOrEnv() string {
+	return cmd.valueFromFlagOrEnv(KeyApp, "OPSANI_APP")
+}
+
+func (cmd *BaseCommand) tokenFromFlagsOrEnv() string {
+	return cmd.valueFromFlagOrEnv(KeyToken, "OPSANI_TOKEN")
+}
+
+// LoadProfile loads the configuration for the specified profile
+func (cmd *BaseCommand) LoadProfile() (*Profile, error) {
+	registry := NewProfileRegistry(cmd.viperCfg)
+	profiles, err := registry.Profiles()
+	if err != nil || len(profiles) == 0 {
+		return nil, nil
+	}
+
+	var profile *Profile
+	if cmd.profileName == "" {
+		profile = &profiles[0]
+	} else {
+		profile = registry.ProfileNamed(cmd.profileName)
+		if profile == nil {
+			return nil, fmt.Errorf("no profile %q", cmd.profileName)
+		}
+	}
+
+	// Apply any config overrides
+	if profile != nil {
+		if baseURL := cmd.baseURLFromFlagsOrEnv(); baseURL != "" {
+			profile.BaseURL = baseURL
+		}
+		if app := cmd.appFromFlagsOrEnv(); app != "" {
+			profile.App = app
+		}
+		if token := cmd.tokenFromFlagsOrEnv(); token != "" {
+			profile.Token = token
+		}
+
+		cmd.profile = profile
+		registry.Set(profiles)
+	}
+
+	return profile, nil
 }
 
 // AccessToken returns the Opsani API access token
 func (cmd *BaseCommand) AccessToken() string {
-	return cmd.viperCfg.GetString(KeyToken)
-}
-
-// SetAccessToken sets the Opsani API access token
-func (cmd *BaseCommand) SetAccessToken(accessToken string) {
-	cmd.viperCfg.Set(KeyToken, accessToken)
+	if token := cmd.valueFromFlagOrEnv(KeyToken, "OPSANI_TOKEN"); token != "" {
+		return token
+	}
+	if cmd.profile != nil {
+		return cmd.profile.Token
+	}
+	return ""
 }
 
 // App returns the target Opsani app
 func (cmd *BaseCommand) App() string {
-	return cmd.viperCfg.GetString(KeyApp)
-}
-
-// SetApp sets the target Opsani app
-func (cmd *BaseCommand) SetApp(app string) {
-	cmd.viperCfg.Set(KeyApp, app)
+	if app := cmd.valueFromFlagOrEnv(KeyApp, "OPSANI_APP"); app != "" {
+		return app
+	}
+	if cmd.profile != nil {
+		return cmd.profile.App
+	}
+	return ""
 }
 
 // AppComponents returns the organization name and app ID as separate path components
@@ -308,126 +396,4 @@ func (cmd *BaseCommand) ColorOutput() bool {
 // SetColorOutput sets whether or not ANSI colors will be used for output
 func (cmd *BaseCommand) SetColorOutput(colorOutput bool) {
 	cmd.disableColors = !colorOutput
-}
-
-// Servos returns the Servos in the configuration
-func (cmd *BaseCommand) Servos() ([]Servo, error) {
-	servos := make([]Servo, 0)
-	err := cmd.viperCfg.UnmarshalKey("servos", &servos)
-	if err != nil {
-		return nil, err
-	}
-	return servos, nil
-}
-
-// lookupServo named returns the Servo with the given name and its index in the config
-func (cmd *BaseCommand) lookupServo(name string) (*Servo, int) {
-	var servo *Servo
-	servos, err := cmd.Servos()
-	if err != nil {
-		return nil, 0
-	}
-	var index int
-	for i, s := range servos {
-		if s.Name == name {
-			servo = &s
-			index = i
-			break
-		}
-	}
-
-	return servo, index
-}
-
-// ServoNamed named returns the Servo with the given name
-func (cmd *BaseCommand) ServoNamed(name string) *Servo {
-	servo, _ := cmd.lookupServo(name)
-	return servo
-}
-
-// AddServo adds a Servo to the config
-func (cmd *BaseCommand) AddServo(servo Servo) error {
-	servos, err := cmd.Servos()
-	if err != nil {
-		return err
-	}
-
-	servos = append(servos, servo)
-	cmd.viperCfg.Set("servos", servos)
-	return cmd.viperCfg.WriteConfig()
-}
-
-// RemoveServoNamed removes a Servo from the config with the given name
-func (cmd *BaseCommand) RemoveServoNamed(name string) error {
-	s, index := cmd.lookupServo(name)
-	if s == nil {
-		return fmt.Errorf("no such Servo %q", name)
-	}
-	servos, err := cmd.Servos()
-	if err != nil {
-		return err
-	}
-	servos = append(servos[:index], servos[index+1:]...)
-	cmd.viperCfg.Set("servos", servos)
-	return cmd.viperCfg.WriteConfig()
-}
-
-// RemoveServo removes a Servo from the config
-func (cmd *BaseCommand) RemoveServo(servo Servo) error {
-	return cmd.RemoveServoNamed(servo.Name)
-}
-
-// Servo represents a deployed Servo assembly running somewhere
-type Servo struct {
-	Name    string
-	User    string
-	Host    string
-	Port    string
-	Path    string
-	Bastion string
-}
-
-func (s Servo) HostAndPort() string {
-	h := s.Host
-	p := s.Port
-	if p == "" {
-		p = "22"
-	}
-	return strings.Join([]string{h, p}, ":")
-}
-
-func (s Servo) DisplayHost() string {
-	v := s.Host
-	if s.Port != "" && s.Port != "22" {
-		v = v + ":" + s.Port
-	}
-	return v
-}
-
-func (s Servo) DisplayPath() string {
-	if s.Path != "" {
-		return s.Path
-	}
-	return "~/"
-}
-
-func (s Servo) URL() string {
-	pathComponent := ""
-	if s.Path != "" {
-		if s.Port != "" && s.Port != "22" {
-			pathComponent = pathComponent + ":"
-		}
-		pathComponent = pathComponent + s.Path
-	}
-	return fmt.Sprintf("ssh://%s@%s:%s", s.User, s.DisplayHost(), pathComponent)
-}
-
-func (s Servo) BastionComponents() (string, string) {
-	components := strings.Split(s.Bastion, "@")
-	user := components[0]
-	host := components[1]
-	if !strings.Contains(host, ":") {
-		host = host + ":22"
-	}
-	return user, host
 }

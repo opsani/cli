@@ -48,7 +48,7 @@ func NewServoCommand(baseCmd *BaseCommand) *cobra.Command {
 
 	servoCmd := &cobra.Command{
 		Use:   "servo",
-		Short: "Manage Servos",
+		Short: "Manage servos",
 		Args:  cobra.NoArgs,
 		PersistentPreRunE: ReduceRunEFuncs(
 			baseCmd.InitConfigRunE,
@@ -62,7 +62,7 @@ func NewServoCommand(baseCmd *BaseCommand) *cobra.Command {
 		Use:         "list",
 		Annotations: map[string]string{"registry": "true"},
 		Aliases:     []string{"ls"},
-		Short:       "List Servos",
+		Short:       "List servos",
 		Args:        cobra.NoArgs,
 		RunE:        servoCommand.RunServoList,
 	}
@@ -70,9 +70,9 @@ func NewServoCommand(baseCmd *BaseCommand) *cobra.Command {
 	servoCmd.AddCommand(listCmd)
 	addCmd := &cobra.Command{
 		Use:                   "add [OPTIONS] [NAME]",
-		Long:                  "Add a Servo to the local registry",
+		Long:                  "Add a servo to the local registry",
 		Annotations:           map[string]string{"registry": "true"},
-		Short:                 "Add a Servo",
+		Short:                 "Add a servo",
 		Args:                  cobra.MaximumNArgs(1),
 		RunE:                  servoCommand.RunAddServo,
 		DisableFlagsInUseLine: true,
@@ -83,10 +83,10 @@ func NewServoCommand(baseCmd *BaseCommand) *cobra.Command {
 
 	removeCmd := &cobra.Command{
 		Use:                   "remove [OPTIONS] [NAME]",
-		Long:                  "Remove a Servo from the local registry",
+		Long:                  "Remove a servo from the local registry",
 		Annotations:           map[string]string{"registry": "true"},
 		Aliases:               []string{"rm"},
-		Short:                 "Remove a Servo",
+		Short:                 "Remove a servo",
 		Args:                  cobra.ExactArgs(1),
 		RunE:                  servoCommand.RunRemoveServo,
 		DisableFlagsInUseLine: true,
@@ -97,25 +97,25 @@ func NewServoCommand(baseCmd *BaseCommand) *cobra.Command {
 	// Servo Lifecycle
 	servoCmd.AddCommand(&cobra.Command{
 		Use:   "status",
-		Short: "Check Servo status",
+		Short: "Check servo status",
 		Args:  cobra.ExactArgs(1),
 		RunE:  servoCommand.RunServoStatus,
 	})
 	servoCmd.AddCommand(&cobra.Command{
 		Use:   "start",
-		Short: "Start the Servo",
+		Short: "Start the servo",
 		Args:  cobra.ExactArgs(1),
 		RunE:  servoCommand.RunServoStart,
 	})
 	servoCmd.AddCommand(&cobra.Command{
 		Use:   "stop",
-		Short: "Stop the Servo",
+		Short: "Stop the servo",
 		Args:  cobra.ExactArgs(1),
 		RunE:  servoCommand.RunServoStop,
 	})
 	servoCmd.AddCommand(&cobra.Command{
 		Use:   "restart",
-		Short: "Restart Servo",
+		Short: "Restart servo",
 		Args:  cobra.ExactArgs(1),
 		RunE:  servoCommand.RunServoRestart,
 	})
@@ -123,13 +123,13 @@ func NewServoCommand(baseCmd *BaseCommand) *cobra.Command {
 	// Servo Access
 	servoCmd.AddCommand(&cobra.Command{
 		Use:   "config",
-		Short: "Display the Servo config file",
+		Short: "Display the servo config file",
 		Args:  cobra.ExactArgs(1),
 		RunE:  servoCommand.RunServoConfig,
 	})
 	logsCmd := &cobra.Command{
 		Use:   "logs",
-		Short: "View logs on a Servo",
+		Short: "View logs on a servo",
 		Args:  cobra.ExactArgs(1),
 		RunE:  servoCommand.RunServoLogs,
 	}
@@ -141,7 +141,7 @@ func NewServoCommand(baseCmd *BaseCommand) *cobra.Command {
 	servoCmd.AddCommand(logsCmd)
 	servoCmd.AddCommand(&cobra.Command{
 		Use:   "ssh",
-		Short: "SSH into a Servo",
+		Short: "SSH into a servo",
 		Args:  cobra.ExactArgs(1),
 		RunE:  servoCommand.RunServoSSH,
 	})
@@ -204,26 +204,28 @@ func (servoCmd *servoCommand) RunAddServo(c *cobra.Command, args []string) error
 		}
 	}
 
-	return servoCmd.AddServo(servo)
+	registry := NewServoRegistry(servoCmd.viperCfg)
+	return registry.AddServo(servo)
 }
 
 func (servoCmd *servoCommand) RunRemoveServo(_ *cobra.Command, args []string) error {
+	registry := NewServoRegistry(servoCmd.viperCfg)
 	name := args[0]
-	servo := servoCmd.ServoNamed(name)
+	servo := registry.ServoNamed(name)
 	if servo == nil {
-		return fmt.Errorf("Unable to find Servo named %q", name)
+		return fmt.Errorf("Unable to find servo %q", name)
 	}
 
 	confirmed := servoCmd.force
 	if !confirmed {
 		prompt := &survey.Confirm{
-			Message: fmt.Sprintf("Remove Servo %q?", servo.Name),
+			Message: fmt.Sprintf("Remove servo %q?", servo.Name),
 		}
 		servoCmd.AskOne(prompt, &confirmed)
 	}
 
 	if confirmed {
-		return servoCmd.RemoveServo(*servo)
+		return registry.RemoveServo(*servo)
 	}
 
 	return nil
@@ -244,7 +246,8 @@ func (servoCmd *servoCommand) RunServoList(_ *cobra.Command, args []string) erro
 	table.SetNoWhiteSpace(true)
 
 	data := [][]string{}
-	servos, _ := servoCmd.Servos()
+	registry := NewServoRegistry(servoCmd.viperCfg)
+	servos, _ := registry.Servos()
 
 	if servoCmd.verbose {
 		headers := []string{"NAME", "USER", "HOST", "PATH"}
@@ -327,7 +330,7 @@ func (servoCmd *servoCommand) RunServoConfig(_ *cobra.Command, args []string) er
 
 	// We got the config, let's pretty print it
 	if err == nil {
-		servoCmd.prettyPrintYAML(outputBuffer.Bytes(), true)
+		servoCmd.PrettyPrintYAML(outputBuffer.Bytes(), true)
 	}
 	return err
 }
@@ -433,9 +436,10 @@ func (servoCmd *servoCommand) sshAgent() ssh.AuthMethod {
 }
 
 func (servoCmd *servoCommand) runInSSHSession(ctx context.Context, name string, runIt func(context.Context, Servo, *ssh.Session) error) error {
-	servo := servoCmd.ServoNamed(name)
+	registry := NewServoRegistry(servoCmd.viperCfg)
+	servo := registry.ServoNamed(name)
 	if servo == nil {
-		return fmt.Errorf("no such Servo %q", name)
+		return fmt.Errorf("no such servo %q", name)
 	}
 
 	// SSH client config

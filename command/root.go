@@ -38,6 +38,7 @@ const (
 	KeyBaseURL        = "base-url"
 	KeyApp            = "app"
 	KeyToken          = "token"
+	KeyProfile        = "profile"
 	KeyDebugMode      = "debug"
 	KeyRequestTracing = "trace-requests"
 	KeyEnvPrefix      = "OPSANI"
@@ -71,15 +72,10 @@ We'd love to hear your feedback at <https://github.com/opsani/cli>`,
 	rootCmd.rootCobraCommand = cobraCmd
 
 	// Bind our global configuration parameters
-	cobraCmd.PersistentFlags().String(KeyBaseURL, DefaultBaseURL, "Base URL for accessing the Opsani API")
+	cobraCmd.PersistentFlags().String(KeyBaseURL, "", "Base URL for accessing the Opsani API")
 	cobraCmd.PersistentFlags().MarkHidden(KeyBaseURL)
-	viperCfg.BindPFlag(KeyBaseURL, cobraCmd.PersistentFlags().Lookup(KeyBaseURL))
-
 	cobraCmd.PersistentFlags().String(KeyApp, "", "App to control (overrides config file and OPSANI_APP)")
-	viperCfg.BindPFlag(KeyApp, cobraCmd.PersistentFlags().Lookup(KeyApp))
-
 	cobraCmd.PersistentFlags().String(KeyToken, "", "API token to authenticate with (overrides config file and OPSANI_TOKEN)")
-	viperCfg.BindPFlag(KeyToken, cobraCmd.PersistentFlags().Lookup(KeyToken))
 
 	// Not stored in Viper
 	cobraCmd.PersistentFlags().BoolVarP(&rootCmd.debugModeEnabled, KeyDebugMode, "D", false, "Enable debug mode")
@@ -91,8 +87,9 @@ We'd love to hear your feedback at <https://github.com/opsani/cli>`,
 	cobraCmd.PersistentFlags().BoolVar(&rootCmd.disableColors, "no-colors", disableColors, "Disable colorized output")
 
 	configFileUsage := fmt.Sprintf("Location of config file (default \"%s\")", rootCmd.DefaultConfigFile())
-	cobraCmd.PersistentFlags().StringVar(&rootCmd.ConfigFile, "config", "", configFileUsage)
+	cobraCmd.PersistentFlags().StringVar(&rootCmd.configFile, "config", "", configFileUsage)
 	cobraCmd.MarkPersistentFlagFilename("config", "*.yaml", "*.yml")
+	cobraCmd.PersistentFlags().StringVarP(&rootCmd.profileName, KeyProfile, "p", "", "Profile to use (sets app, token, etc)")
 	cobraCmd.Flags().Bool("version", false, "Display version and exit")
 	cobraCmd.PersistentFlags().Bool("help", false, "Display help and exit")
 	cobraCmd.PersistentFlags().MarkHidden("help")
@@ -106,6 +103,7 @@ We'd love to hear your feedback at <https://github.com/opsani/cli>`,
 	cobraCmd.AddCommand(NewInitCommand(rootCmd))
 	cobraCmd.AddCommand(NewAppCommand(rootCmd))
 	cobraCmd.AddCommand(NewServoCommand(rootCmd))
+	cobraCmd.AddCommand(NewProfileCommand(rootCmd))
 
 	cobraCmd.AddCommand(NewConfigCommand(rootCmd))
 	cobraCmd.AddCommand(NewCompletionCommand(rootCmd))
@@ -177,11 +175,6 @@ func Execute() (cmd *cobra.Command, err error) {
 	rootCmd := NewRootCommand()
 	cobraCmd := rootCmd.rootCobraCommand
 
-	if err := rootCmd.initConfig(); err != nil {
-		rootCmd.PrintErr(err)
-		return cobraCmd, err
-	}
-
 	executedCmd, err := rootCmd.rootCobraCommand.ExecuteC()
 	if err != nil {
 		// Exit silently if the user bailed with control-c
@@ -239,7 +232,7 @@ func (baseCmd *BaseCommand) InitConfigRunE(cmd *cobra.Command, args []string) er
 func (baseCmd *BaseCommand) RequireConfigFileFlagToExistRunE(cmd *cobra.Command, args []string) error {
 	if configFilePath, err := cmd.Root().PersistentFlags().GetString("config"); err == nil {
 		if configFilePath != "" {
-			if _, err := os.Stat(baseCmd.ConfigFile); os.IsNotExist(err) {
+			if _, err := os.Stat(baseCmd.configFile); os.IsNotExist(err) {
 				return fmt.Errorf("config file does not exist. Run %q and try again (%w)",
 					"opsani init", err)
 			}
@@ -260,14 +253,14 @@ func (baseCmd *BaseCommand) RequireInitRunE(cmd *cobra.Command, args []string) e
 }
 
 func (baseCmd *BaseCommand) initConfig() error {
-	if baseCmd.ConfigFile != "" {
-		baseCmd.viperCfg.SetConfigFile(baseCmd.ConfigFile)
+	if baseCmd.configFile != "" {
+		baseCmd.viperCfg.SetConfigFile(baseCmd.configFile)
 	} else {
 		// Find Opsani config in home directory
 		baseCmd.viperCfg.AddConfigPath(baseCmd.DefaultConfigPath())
 		baseCmd.viperCfg.SetConfigName("config")
 		baseCmd.viperCfg.SetConfigType(baseCmd.DefaultConfigType())
-		baseCmd.ConfigFile = baseCmd.DefaultConfigFile()
+		baseCmd.configFile = baseCmd.DefaultConfigFile()
 	}
 
 	// Set up environment variables
@@ -277,7 +270,8 @@ func (baseCmd *BaseCommand) initConfig() error {
 
 	// Load the configuration
 	if err := baseCmd.viperCfg.ReadInConfig(); err == nil {
-		baseCmd.ConfigFile = baseCmd.viperCfg.ConfigFileUsed()
+		baseCmd.configFile = baseCmd.viperCfg.ConfigFileUsed()
+		baseCmd.LoadProfile()
 	} else {
 		// Ignore config file not found or error
 		var perr *os.PathError

@@ -15,9 +15,8 @@
 package command
 
 import (
-	"io/ioutil"
-
 	"github.com/spf13/cobra"
+	"gopkg.in/yaml.v2"
 )
 
 type configCommand struct {
@@ -39,11 +38,12 @@ func NewConfigCommand(baseCmd *BaseCommand) *cobra.Command {
 
 // RunConfig displays Opsani CLI config info
 func (configCmd *configCommand) Run(_ *cobra.Command, args []string) error {
-	configCmd.Println("Using config from:", configCmd.ConfigFile)
+	configCmd.Println("Using config from:", configCmd.configFile)
 
-	body, err := ioutil.ReadFile(configCmd.ConfigFile)
+	yaml, err := yaml.Marshal(configCmd.GetAllSettings())
 	if err != nil {
 		return err
 	}
-	return configCmd.prettyPrintYAML(body, false)
+
+	return configCmd.PrettyPrintYAML(yaml, false)
 }

@@ -39,46 +39,51 @@ func (s *ServoTestSuite) SetupTest() {
 func (s *ServoTestSuite) TestRunningServo() {
 	output, err := s.Execute("servo")
 	s.Require().NoError(err)
-	s.Require().Contains(output, "Manage Servos")
+	s.Require().Contains(output, "Manage servos")
 	s.Require().Contains(output, "Usage:")
 }
 
 func (s *ServoTestSuite) TestRunningServoHelp() {
 	output, err := s.Execute("servo", "--help")
 	s.Require().NoError(err)
-	s.Require().Contains(output, "Manage Servos")
+	s.Require().Contains(output, "Manage servos")
 }
 
 func (s *ServoTestSuite) TestRunningServoInvalidPositionalArg() {
 	output, err := s.Execute("servo", "--help", "sadasdsdas")
 	s.Require().NoError(err)
-	s.Require().Contains(output, "Manage Servos")
+	s.Require().Contains(output, "Manage servos")
 }
 
 func (s *ServoTestSuite) TestRunningServoSSHHelp() {
 	output, err := s.Execute("servo", "ssh", "--help")
 	s.Require().NoError(err)
-	s.Require().Contains(output, "SSH into a Servo")
+	s.Require().Contains(output, "SSH into a servo")
 }
 
 func (s *ServoTestSuite) TestRunningServoSSHInvalidServo() {
 	_, err := s.Execute("servo", "ssh", "fake-name")
-	s.Require().EqualError(err, `no such Servo "fake-name"`)
+	s.Require().EqualError(err, `no such servo "fake-name"`)
 }
 
 func (s *ServoTestSuite) TestRunningServoLogsHelp() {
 	output, err := s.Execute("servo", "logs", "--help")
 	s.Require().NoError(err)
-	s.Require().Contains(output, "View logs on a Servo")
+	s.Require().Contains(output, "View logs on a servo")
 }
 
 func (s *ServoTestSuite) TestRunningServoLogsInvalidServo() {
-	configFile := test.TempConfigFileWithObj(map[string]string{
-		"app":   "example.com/app",
-		"token": "123456",
+	configFile := test.TempConfigFileWithObj(map[string][]map[string]string{
+		"profiles": []map[string]string{
+			{
+				"name":  "default",
+				"app":   "example.com/app",
+				"token": "123456",
+			},
+		},
 	})
 	_, _, err := s.ExecuteC(test.Args("--config", configFile.Name(), "servo", "logs", "fake-name")...)
-	s.Require().EqualError(err, `no such Servo "fake-name"`)
+	s.Require().EqualError(err, `no such servo "fake-name"`)
 }
 
 func (s *ServoTestSuite) TestRunningServoFollowHelp() {
@@ -96,13 +101,18 @@ func (s *ServoTestSuite) TestRunningLogsTimestampsHelp() {
 func (s *ServoTestSuite) TestRunningAddHelp() {
 	output, err := s.Execute("servo", "add", "--help")
 	s.Require().NoError(err)
-	s.Require().Contains(output, "Add a Servo to the local registry")
+	s.Require().Contains(output, "Add a servo to the local registry")
 }
 
 func (s *ServoTestSuite) TestRunningAddNoInput() {
-	configFile := test.TempConfigFileWithObj(map[string]string{
-		"app":   "example.com/app",
-		"token": "123456",
+	configFile := test.TempConfigFileWithObj(map[string][]map[string]string{
+		"profiles": []map[string]string{
+			{
+				"name":  "default",
+				"app":   "example.com/app",
+				"token": "123456",
+			},
+		},
 	})
 	args := test.Args("--config", configFile.Name(), "servo", "add")
 	context, err := s.ExecuteTestInteractively(args, func(t *test.InteractiveTestContext) error {
@@ -140,9 +150,14 @@ func (s *ServoTestSuite) TestRunningAddNoInput() {
 }
 
 func (s *ServoTestSuite) TestRunningAddNoInputWithBastion() {
-	configFile := test.TempConfigFileWithObj(map[string]string{
-		"app":   "example.com/app",
-		"token": "123456",
+	configFile := test.TempConfigFileWithObj(map[string][]map[string]string{
+		"profiles": []map[string]string{
+			{
+				"name":  "default",
+				"app":   "example.com/app",
+				"token": "123456",
+			},
+		},
 	})
 	args := test.Args("--config", configFile.Name(), "servo", "add", "--bastion")
 	context, err := s.ExecuteTestInteractively(args, func(t *test.InteractiveTestContext) error {
@@ -186,19 +201,24 @@ func (s *ServoTestSuite) TestRunningAddNoInputWithBastion() {
 func (s *ServoTestSuite) TestRunningRemoveHelp() {
 	output, err := s.Execute("servo", "remove", "--help")
 	s.Require().NoError(err)
-	s.Require().Contains(output, "Remove a Servo")
+	s.Require().Contains(output, "Remove a servo")
 }
 
 func (s *ServoTestSuite) TestRunningConfigHelp() {
 	output, err := s.Execute("servo", "config", "--help")
 	s.Require().NoError(err)
-	s.Require().Contains(output, "Display the Servo config file")
+	s.Require().Contains(output, "Display the servo config file")
 }
 
 func (s *ServoTestSuite) TestRunningRemoveServoConfirmed() {
 	configFile := test.TempConfigFileWithObj(map[string]interface{}{
-		"app":   "example.com/app",
-		"token": "123456",
+		"profiles": []map[string]string{
+			{
+				"name":  "default",
+				"app":   "example.com/app",
+				"token": "123456",
+			},
+		},
 		"servos": []map[string]string{
 			{
 				"host": "dev.opsani.com",
@@ -211,7 +231,7 @@ func (s *ServoTestSuite) TestRunningRemoveServoConfirmed() {
 	})
 	args := test.Args("--config", configFile.Name(), "servo", "remove", "opsani-dev")
 	_, err := s.ExecuteTestInteractively(args, func(t *test.InteractiveTestContext) error {
-		t.RequireString(`Remove Servo "opsani-dev"?`)
+		t.RequireString(`Remove servo "opsani-dev"?`)
 		t.SendLine("Y")
 		t.ExpectEOF()
 		return nil
@@ -227,18 +247,28 @@ func (s *ServoTestSuite) TestRunningRemoveServoConfirmed() {
 
 func (s *ServoTestSuite) TestRunningRemoveServoUnknown() {
 	config := map[string]interface{}{
-		"app":   "example.com/app",
-		"token": "123456",
+		"profiles": []map[string]string{
+			{
+				"name":  "default",
+				"app":   "example.com/app",
+				"token": "123456",
+			},
+		},
 	}
 	configFile := test.TempConfigFileWithObj(config)
 	_, err := s.Execute("--config", configFile.Name(), "servo", "remove", "unknown")
-	s.Require().EqualError(err, `Unable to find Servo named "unknown"`)
+	s.Require().EqualError(err, `Unable to find servo "unknown"`)
 }
 
 func (s *ServoTestSuite) TestRunningRemoveServoForce() {
 	config := map[string]interface{}{
-		"app":   "example.com/app",
-		"token": "123456",
+		"profiles": []map[string]string{
+			{
+				"name":  "default",
+				"app":   "example.com/app",
+				"token": "123456",
+			},
+		},
 		"servos": []map[string]string{
 			{
 				"host": "dev.opsani.com",
@@ -262,8 +292,13 @@ func (s *ServoTestSuite) TestRunningRemoveServoForce() {
 
 func (s *ServoTestSuite) TestRunningRemoveServoDeclined() {
 	configFile := test.TempConfigFileWithObj(map[string]interface{}{
-		"app":   "example.com/app",
-		"token": "123456",
+		"profiles": []map[string]string{
+			{
+				"name":  "default",
+				"app":   "example.com/app",
+				"token": "123456",
+			},
+		},
 		"servos": []map[string]string{
 			{
 				"host": "dev.opsani.com",
@@ -276,7 +311,7 @@ func (s *ServoTestSuite) TestRunningRemoveServoDeclined() {
 	})
 	args := test.Args("--config", configFile.Name(), "servo", "remove", "opsani-dev")
 	_, err := s.ExecuteTestInteractively(args, func(t *test.InteractiveTestContext) error {
-		t.RequireString(`Remove Servo "opsani-dev"?`)
+		t.RequireString(`Remove servo "opsani-dev"?`)
 		t.SendLine("N")
 		t.ExpectEOF()
 		return nil
@@ -303,8 +338,13 @@ func (s *ServoTestSuite) TestRunningRemoveServoDeclined() {
 
 func (s *ServoTestSuite) TestRunningServoList() {
 	config := map[string]interface{}{
-		"app":   "example.com/app",
-		"token": "123456",
+		"profiles": []map[string]string{
+			{
+				"name":  "default",
+				"app":   "example.com/app",
+				"token": "123456",
+			},
+		},
 		"servos": []map[string]string{
 			{
 				"host": "dev.opsani.com",
@@ -323,8 +363,13 @@ func (s *ServoTestSuite) TestRunningServoList() {
 
 func (s *ServoTestSuite) TestRunningServoListVerbose() {
 	config := map[string]interface{}{
-		"app":   "example.com/app",
-		"token": "123456",
+		"profiles": []map[string]string{
+			{
+				"name":  "default",
+				"app":   "example.com/app",
+				"token": "123456",
+			},
+		},
 		"servos": []map[string]string{
 			{
 				"host": "dev.opsani.com",
