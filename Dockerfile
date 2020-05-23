@@ -33,5 +33,6 @@ COPY . .
 RUN go build -o bin/opsani .
 WORKDIR /dist
 RUN cp /build/bin/opsani .
+RUN cp /build/entrypoint.sh .
 
-CMD ["/dist/opsani"]
+ENTRYPOINT [ "/dist/entrypoint.sh" ]

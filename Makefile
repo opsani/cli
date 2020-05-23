@@ -11,7 +11,7 @@ $(warning "could not find richgo in $(PATH), run: go get -u github.com/kyoh86/ri
 TEST_RUNNER="go"
 endif
 
-.PHONY: build run fmt vet test deps clean license snapshot test_integration test_unit
+.PHONY: build run fmt vet test deps clean license snapshot test_integration test_unit image
 
 default: all
 
@@ -19,8 +19,11 @@ all: fmt vet test build
 
 build: deps
 	$(info ******************** building cli ********************)
-	pkger
 	go build -o $(BIN)/opsani main.go
+
+image: 
+	$(info ******************** building Docker image ********************)
+	docker build . -t opsani/cli:latest
 
 run:
 	go run main.go
