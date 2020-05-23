@@ -66,7 +66,7 @@ $ brew install opsani-cli
 Builds for Windows systems are available via scoop:
 
 ```console
-$ scoop bucket add github-gh https://github.com/opsani/scoop-bucket.git
+$ scoop bucket add opsani https://github.com/opsani/scoop-bucket.git
 $ scoop install opsani-cli
 ```
 
