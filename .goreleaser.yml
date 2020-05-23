@@ -1,4 +1,8 @@
-project_name: opsani
+project_name: opsani-cli'
+
+release:
+  prerelease: auto
+
 env:
   - GO111MODULE=on
   - GOPROXY=https://gocenter.io
@@ -34,19 +38,22 @@ archives:
     replacements:
       darwin: macOS
     format: tar.gz
+    files:
+      - LICENSE
   - id: windows
     builds: [windows]
     <<: *archive_defaults
     wrap_in_directory: false
     format: zip
+    files:
+      - LICENSE
 
 brews:
-  - name: 
-    
+  - name: opsani-cli
     ids: [nix]
     github:
       owner: opsani
-      name: homebrew-cli
+      name: homebrew-tap
     skip_upload: auto
     description: Opsani CLI
     homepage: https://github.com/opsani/cli
@@ -57,7 +64,7 @@ brews:
         depends_on "go"
       end
     install: |
-      system "make" if build.head?
+      system "make build" if build.head?
       bin.install "bin/opsani"
       (bash_completion/"opsani.sh").write `#{bin}/opsani completion -s bash`
       (zsh_completion/"_opsani").write `#{bin}/opsani completion -s zsh`
@@ -66,25 +73,25 @@ brews:
       help_text = shell_output("#{bin}/opsani --help")
       assert_includes help_text, "Usage:"
 
-nfpms:
-  - license: MIT
-    maintainer: Opsani
-    homepage: https://github.com/opsani/cli
-    bindir: /usr/local
-    dependencies:
-      - git
-    formats:
-      - deb
-      - rpm
+# nfpms:
+#   - license: MIT
+#     maintainer: Opsani
+#     homepage: https://github.com/opsani/cli
+#     bindir: /usr/local
+#     dependencies:
+#       - git
+#     formats:
+#       - deb
+#       - rpm
 
-scoop:
-  bucket:
-    owner: opsani
-    name: scoop-bucket
-  homepage: https://github.com/opsani/cli
-  skip_upload: auto
-  description: Opsani CLI
-  license: MIT
+# scoop:
+#   bucket:
+#     owner: opsani
+#     name: scoop-bucket
+#   homepage: https://github.com/opsani/cli
+#   skip_upload: auto
+#   description: Opsani CLI
+#   license: MIT
   
 # Docker isn't finding the binaries
 # dockers:
