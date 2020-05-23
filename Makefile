@@ -66,4 +66,10 @@ license:
 	addlicense -c "Opsani" -l apache -v Dockerfile *.go ./**/*.go
 
 snapshot:
+	$(info ******************** snapshotting ********************)
 	goreleaser --snapshot --skip-publish --rm-dist
+
+release:
+	$(info ******************** releasing ********************)
+	goreleaser --rm-dist
+	
