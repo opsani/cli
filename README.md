@@ -1,7 +1,7 @@
 # Opsani CLI
 
 Opsani CLI is cloud optimization in your terminal. It brings a suite of tools
-for configuring & deploying Servos, managing optimization runs, and interacting
+for configuring & deploying servos, managing optimization runs, and interacting
 with the optimization engine to your command line.
 
 ## Status
@@ -16,7 +16,7 @@ ticket on GitHub.
 ## Usage
 
 The CLI currently supports controling optimization lifecycle, managing
-configuration, and building Servo artifacts for connecting new apps to Opsani
+configuration, and building servo artifacts for connecting new apps to Opsani
 for optimization.
 
 To perform any meaningful work, you must first initialize the client via `opsani
@@ -25,23 +25,47 @@ init` and supply details about your app and API token.
 Once initialized, you can work with the app using the subcommands of `opsani
 app`.
 
-The `opsani discover` commands is an evolving system for auto-discovering the
-environment to facilitate rapid integration with the optimization engine.
-Discovery connects to Docker, Kubernetes, and Prometheus and can execute over an
-SSH channel via `opsani discover --host ssh://user@host`.
-
 Help is available via `opsani --help`.
+
+### Profiles
+
+To support users who work across a number of Opsani applications, the CLI supports
+named profiles. When the client is initialized, the first profile is named "default"
+and is auto-selected when no profile argument is supplied. Profiles can be managed via
+the `opsani profile` subcommands.
 
 ## Documentation
 
-Docs are forthcoming. Utilize the CLI help and read the code for now.
+The primary source of documentation at this stage is this README and the CLI help text.
 
 ## Installation
 
-Versioned releases are coming soon. Please build from source in the interim.
+Opsani CLI is distributed in several forms to support easy installation.
 
-`make install` is available on Unixy platforms and will drop the binary into
-/usr/local/bin. 
+### Binary Releases
+
+Versioned binaries for all platforms are distributed via GitHub: https://github.com/opsani/cli/releases.
+
+To download the latest release for your platform:
+
+```console
+$ curl --silent --location "https://github.com/opsani/cli/releases/latest/download/opsani-cli_$(uname -s)_amd64.tar.gz" | tar xz -C /tmp
+$ sudo mv /tmp/opsani /usr/local/bin
+```
+
+### Homebrew (macOS)
+
+Builds for macOS systems can be installed via Homebrew:
+
+```console
+$ brew tap opsani/tap
+$ brew install opsani-cli
+```
+
+### From Source
+
+The `Makefile` is configured with a `make install` target that will build and
+install the CLI into `/usr/local/bin/opsani` on Unixy platforms.
 
 ## Development
 
