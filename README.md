@@ -52,18 +52,7 @@ The primary source of documentation at this stage is this README and the CLI hel
 
 Opsani CLI is distributed in several forms to support easy installation.
 
-### Binary Releases
-
-Versioned binaries for all platforms are distributed via GitHub: https://github.com/opsani/cli/releases.
-
-To download the latest release for your platform:
-
-```console
-$ curl --silent --location "https://github.com/opsani/cli/releases/latest/download/opsani-cli_$(uname -s)_amd64.tar.gz" | tar xz -C /tmp
-$ sudo mv /tmp/opsani /usr/local/bin
-```
-
-### Homebrew (macOS)
+### macOS (Homebrew)
 
 Builds for macOS systems can be installed via Homebrew:
 
@@ -71,6 +60,34 @@ Builds for macOS systems can be installed via Homebrew:
 $ brew tap opsani/tap
 $ brew install opsani-cli
 ```
+
+### Linux
+
+Binary packages for Linux are available in RPM and DEB package formats.
+Download the appropriate package for your distribution of the [latest release](https://github.com/opsani/cli/releases/latest)
+and then install as detailed below.
+
+#### Debian/Ubuntu Linux
+
+`$ sudo apt install ./opsani-cli_*_linux_amd64.deb`
+
+#### Fedora Linux
+
+`$ sudo dnf install opsani-cli_*_linux_amd64.rpm`
+
+#### Centos Linux
+
+`$ sudo yum localinstall opsani-cli_*_linux_amd64.rpm`
+
+#### openSUSE/SUSE Linux
+
+`$ sudo zypper in opsani-cli_*_linux_amd64.rpm`
+
+### Binary Releases
+
+Versioned binaries for all platforms are distributed via GitHub: https://github.com/opsani/cli/releases.
+
+Download and install the appropriate build for your platform
 
 ### From Source
 

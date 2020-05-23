@@ -77,16 +77,18 @@ brews:
       help_text = shell_output("#{bin}/opsani --help")
       assert_includes help_text, "Usage:"
 
-# nfpms:
-#   - license: MIT
-#     maintainer: Opsani
-#     homepage: https://github.com/opsani/cli
-#     bindir: /usr/local
-#     dependencies:
-#       - git
-#     formats:
-#       - deb
-#       - rpm
+nfpms:
+  - license: Apache 2.0
+    maintainer: Blake Watters <blake@opsani.com>
+    vendor: Opsani
+    homepage: https://github.com/opsani/cli
+    description: Continuous Optimization in your terminal.
+    bindir: /usr/local
+    dependencies:
+      - git
+    formats:
+      - deb
+      - rpm
 
 # scoop:
 #   bucket:
