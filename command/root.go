@@ -64,7 +64,7 @@ We'd love to hear your feedback at <https://github.com/opsani/cli>`,
 		},
 		SilenceUsage:          true,
 		SilenceErrors:         true,
-		Version:               "0.1.1",
+		Version:               "0.1.2",
 		DisableFlagsInUseLine: true,
 	}
 

@@ -11,8 +11,11 @@ versioned in accordance with [Semantic Versioning](https://semver.org/spec/v2.0.
 - Servo assembly and connector management.
 - Interactive demo and tutorial experiences.
 
-## [0.1.1] - 2020-05-23
+## [0.1.2] - 2020-05-23
+### Fixed
+- Fixed init failure with missing config file.
 
+## [0.1.1] - 2020-05-23
 ### Added
 - Enabled build and release of RPM and DEB package artifacts.
 
