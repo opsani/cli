@@ -22,10 +22,20 @@ for optimization.
 To perform any meaningful work, you must first initialize the client via `opsani
 init` and supply details about your app and API token.
 
-Once initialized, you can work with the app using the subcommands of `opsani
-app`.
+Once initialized, you can work with the app using the subcommands of `opsani app`.
 
 Help is available via `opsani --help`.
+
+### Persistent & Ad-hoc Invocations
+
+The Opsani CLI is designed to be a flexible utility that is useful in day to day
+development & administration activities and suitable for integration into automated
+workflows. The CLI can maintain a persistent configuration in ~/.opsani or can be
+configured via environment variables and CLI arguments for automation tasks.
+
+Certain functionality such as the profile and servo registries are dependent on
+persistent storage and will emit an error if they are unavailable due to a configuration
+file not found condition.
 
 ### Profiles
 
@@ -66,6 +76,41 @@ $ brew install opsani-cli
 
 The `Makefile` is configured with a `make install` target that will build and
 install the CLI into `/usr/local/bin/opsani` on Unixy platforms.
+
+## Running via Docker
+
+Containerized releases of Opsani CLI are pushed to the Opsani organization on Docker Hub.
+To retrieve the latest container image:
+
+```console
+$ docker pull opsani/cli:latest
+or
+$ make image
+```
+
+Once the image is pulled, configuration must be provided to enable the CLI to function. There are
+a couple of options for supplying the configuration:
+
+1. **CLI Arguments** - Arguments can be directly supplied to the CLI via the Docker invocation: 
+`docker run -it --rm --name opsani-cli opsani/cli:latest --app example.com/app --token 123456`
+2. **Environment Variables** - Export `OPSANI_APP` and `OPSANI_TOKEN` into your shell and pass them
+through to the container: `docker run -it --rm --name opsani-cli -e OPSANI_APP=$OPSANI_APP -e OPSANI_TOKEN=$OPSANI_TOKEN opsani/cli:latest`
+3. **Config Volume** - Existing configuration files in your home directory can be shared with the container through a
+volume mount: `docker run -it --rm --name opsani-cli -v ~/.opsani:/root/.opsani opsani/cli:latest`
+
+Commands can then be appended to the end of the command just as when executing in a local shell.
+
+Note that running under a container for day to day work is typically unnecessary and inconvenient
+as Opsani CLI is distributed as a single statically linked binary.
+
+### Building a local image
+
+This repository includes a Dockerfile for building and running Opsani CLI in a
+container. To build the image from the Dockerfile:
+
+```console
+$ docker build . -t opsani/cli:latest
+```
 
 ## Development
 
