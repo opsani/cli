@@ -20,6 +20,8 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
+	"runtime/debug"
 	"strings"
 
 	"github.com/AlecAivazis/survey/v2/core"
@@ -46,6 +48,24 @@ const (
 	DefaultBaseURL = "https://api.opsani.com/"
 )
 
+var (
+	Version   = "dev"
+	Commit    = "none"
+	BuildDate = "unknown"
+	BuiltBy   = "unknown"
+)
+
+func changelogURL(version string) string {
+	path := "https://github.com/opsani/cli"
+	r := regexp.MustCompile(`^v?\d+\.\d+\.\d+(-[\w.]+)?$`)
+	if !r.MatchString(version) {
+		return fmt.Sprintf("%s/releases/latest", path)
+	}
+
+	url := fmt.Sprintf("%s/releases/tag/v%s", path, strings.TrimPrefix(version, "v"))
+	return url
+}
+
 // NewRootCommand returns a new instance of the root command for Opsani CLI
 func NewRootCommand() *BaseCommand {
 	// Create our base command to bind configuration
@@ -70,6 +90,21 @@ We'd love to hear your feedback at <https://github.com/opsani/cli>`,
 
 	// Link our root command to Cobra
 	rootCmd.rootCobraCommand = cobraCmd
+
+	// Set up versioning
+	if Version == "dev" {
+		if info, ok := debug.ReadBuildInfo(); ok && info.Main.Version != "(devel)" {
+			Version = info.Main.Version
+		}
+	}
+	Version = strings.TrimPrefix(Version, "v")
+	if BuildDate == "" {
+		cobraCmd.Version = Version
+	} else {
+		cobraCmd.Version = fmt.Sprintf("%s (%s)", Version, BuildDate)
+	}
+	versionOutput := fmt.Sprintf("Opsani CLI version %s\n%s\n", cobraCmd.Version, changelogURL(Version))
+	cobraCmd.SetVersionTemplate(versionOutput)
 
 	// Bind our global configuration parameters
 	cobraCmd.PersistentFlags().String(KeyBaseURL, "", "Base URL for accessing the Opsani API")
@@ -125,7 +160,6 @@ We'd love to hear your feedback at <https://github.com/opsani/cli>`,
 	cobraCmd.SetHelpTemplate(helpTemplate)
 	// cobraCmd.SetFlagErrorFunc(FlagErrorFunc)
 	cobraCmd.SetHelpCommand(helpCommand)
-	cobraCmd.SetVersionTemplate("Opsani CLI version {{.Version}}\n")
 
 	// See Execute()
 	cobraCmd.SetFlagErrorFunc(func(cmd *cobra.Command, err error) error {

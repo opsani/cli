@@ -16,7 +16,7 @@ builds:
   - <<: &build_defaults
       binary: bin/opsani
       ldflags:
-        - -s -w -X github.com/opsani/cli/opsani.Version={{.Version}} -X github.com/opsani/cli/opsani.BuildDate={{.Date}}
+        - -s -w -X github.com/opsani/cli/command.Version={{.Version}} -X github.com/opsani/cli/command.Commit={{.Commit}} -X github.com/opsani/cli/command.BuildDate={{.Date}} -X github.com/opsani/cli/command.BuiltBy=goreleaser
     id: macos
     goos: [darwin]
     goarch: [amd64]
