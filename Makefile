@@ -11,7 +11,7 @@ $(warning "could not find richgo in $(PATH), run: go get -u github.com/kyoh86/ri
 TEST_RUNNER="go"
 endif
 
-.PHONY: build run fmt vet test deps clean license
+.PHONY: build run fmt vet test deps clean license snapshot test_integration test_unit
 
 default: all
 
@@ -19,6 +19,7 @@ all: fmt vet test build
 
 build: deps
 	$(info ******************** building cli ********************)
+	pkger
 	go build -o $(BIN)/opsani main.go
 
 run:
@@ -28,17 +29,14 @@ fmt:
 	$(info ******************** checking formatting ********************)
 	@test -z $(shell gofmt -l $(SRC)) || (gofmt -d $(SRC); exit 1)
 
-.PHONY: test_unit
 test_unit:
 	$(info ******************** running unit tests ********************)
 	$(TEST_RUNNER) test -v ./command/... ./opsani/...
 
-.PHONY: test_integration
 test_integration:
 	$(info ******************** running integration tests ********************)
 	$(TEST_RUNNER) test -v ./integration/...
 
-.PHONY: test
 test: test_unit test_integration
 
 deps:
@@ -63,3 +61,6 @@ completion:
 license:
 	$(info ******************** licensing ********************)
 	addlicense -c "Opsani" -l apache -v Dockerfile *.go ./**/*.go
+
+snapshot:
+	goreleaser --snapshot --skip-publish --rm-dist
