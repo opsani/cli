@@ -17,6 +17,7 @@ package command_test
 import (
 	"fmt"
 	"io/ioutil"
+	"os"
 	"testing"
 
 	"github.com/AlecAivazis/survey/v2"
@@ -82,26 +83,21 @@ func (s *InitTestSuite) TestTerminalConfirm() {
 	s.Require().False(confirmed)
 }
 
-func (s *InitTestSuite) TestInitWithExistingConfigDeclinedL() {
-	configFile := test.TempConfigFileWithObj(map[string]interface{}{
-		"profiles": []map[string]string{
-			{
-				"app":   "example.com/app",
-				"token": "123456",
-			},
-		},
-	})
-
-	context, err := s.ExecuteTestInteractively(test.Args("--config", configFile.Name(), "init"), func(t *test.InteractiveTestContext) error {
-		t.RequireStringf("Using config from: %s", configFile.Name())
-		t.RequireStringf("Existing config found. Overwrite %s?", configFile.Name())
+func (s *InitTestSuite) TestInitWithExistingConfigDeclinedNoConfigFile() {
+	cfgName := "/tmp/this-will-never-exist.yaml"
+	os.Remove(cfgName)
+	context, err := s.ExecuteTestInteractively(test.Args("--config", cfgName, "init"), func(t *test.InteractiveTestContext) error {
+		t.ExpectMatch(expect.RegexpPattern("Opsani app"))
+		t.SendLine("dev.opsani.com/amazing-app")
+		t.RequireMatch(expect.RegexpPattern("API Token"))
+		t.SendLine("123456")
+		t.RequireMatch(expect.RegexpPattern(fmt.Sprintf("Write to %s?", cfgName)))
 		t.SendLine("N")
 		t.ExpectEOF()
 		return nil
 	})
 	s.T().Logf("The output buffer is: %v", context.OutputBuffer().String())
-	s.Require().Error(err)
-	s.Require().EqualError(err, terminal.InterruptErr.Error())
+	s.Require().NoError(err)
 }
 
 func (s *InitTestSuite) TestInitWithExistingConfigDeclined() {
@@ -164,4 +160,8 @@ func (s *InitTestSuite) TestInitWithExistingConfigAccepted() {
 	yaml.Unmarshal(body, &config)
 	s.Require().Equal("dev.opsani.com/amazing-app", config.Profiles[1].App)
 	s.Require().Equal("123456", config.Profiles[1].Token)
+}
+
+func (s *InitTestSuite) TestInitWithToken() {
+	s.T().Skip("Pending test for init with a token")
 }

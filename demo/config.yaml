@@ -1,0 +1,28 @@
+statestore:
+  components:        
+    app:
+      cost_formula: "1"
+      settings:
+        mem:          
+          type: enum
+          unit: mb
+          value: 1024
+        key_size:          
+          type: enum
+          unit: bits
+          values:
+            - 1024
+            - 2048
+            - 2560
+            - 4096
+
+prom:
+  prometheus_endpoint: http://prometheus:9090/
+  metrics:
+    requests_total:
+      query: demo_requests_total
+      unit: count
+
+vegeta:
+    target: GET http://app:8080/
+    rate: 3000/1m

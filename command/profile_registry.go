@@ -22,10 +22,10 @@ import (
 
 // Profile represents an Opsani app, token, and base URL
 type Profile struct {
-	Name    string `yaml:"name" mapstructure:"name"`
-	App     string `yaml:"app" mapstructure:"app"`
-	Token   string `yaml:"token" mapstructure:"token"`
-	BaseURL string `yaml:"base_url" mapstructure:"base_url"`
+	Name    string `yaml:"name" mapstructure:"name" json:"name"`
+	App     string `yaml:"app" mapstructure:"app" json:"app"`
+	Token   string `yaml:"token" mapstructure:"token" json:"token"`
+	BaseURL string `yaml:"base_url" mapstructure:"base_url" json:"base_url"`
 }
 
 // ProfileRegistry provides an interface for managing configuration of app profiles

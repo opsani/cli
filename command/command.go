@@ -91,6 +91,11 @@ func (cmd *BaseCommand) OutOrStdout() io.Writer {
 	return cmd.rootCobraCommand.OutOrStdout()
 }
 
+// ErrOrStderr returns output to stdout.
+func (cmd *BaseCommand) ErrOrStderr() io.Writer {
+	return cmd.rootCobraCommand.ErrOrStderr()
+}
+
 // Print is a convenience method to Print to the defined output, fallback to Stderr if not set.
 func (cmd *BaseCommand) Print(i ...interface{}) {
 	cmd.rootCobraCommand.Print(i...)
