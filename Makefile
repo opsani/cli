@@ -11,7 +11,11 @@ $(warning "could not find richgo in $(PATH), run: go get -u github.com/kyoh86/ri
 TEST_RUNNER="go"
 endif
 
-.PHONY: build run fmt vet test deps clean license snapshot test_integration test_unit
+ifeq (, $(shell which goreleaser))
+$(warning "could not find goreleaser in $(PATH), run: curl -sfL https://install.goreleaser.com/github.com/goreleaser/goreleaser.sh | sh")
+endif
+
+.PHONY: build run fmt vet test deps clean license snapshot test_integration test_unit image
 
 default: all
 
