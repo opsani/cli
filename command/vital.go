@@ -435,6 +435,9 @@ func (vitalCommand *vitalCommand) InstallKubernetesManifests(cobraCmd *cobra.Com
 			}},
 		)
 	})
+	if err != nil {
+		return err
+	}
 
 	// Wait for Prometheus to become alive
 	err = vitalCommand.RunTaskWithSpinner(Task{
