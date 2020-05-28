@@ -126,12 +126,14 @@ Manifests generated during deployment are written to **./manifests**.`
 			return nil
 		},
 	})
-	vitalCommand.RunTaskWithSpinner(Task{
+	vitalCommand.RunTask(Task{
 		Description: "creating a new minikube profile...",
 		Success:     fmt.Sprintf(`minikube profile %s created.`, bold("opsani-ignite")),
 		Failure:     "optimization engine deployment failed",
-		Run: func() error {
-			cmd := exec.Command("minikube", "start", "-p", "opsani-ignite")
+		RunW: func(w io.Writer) error {
+			cmd := exec.Command("minikube", "start", "--memory=4096", "--cpus=4", "-p", "opsani-ignite")
+			cmd.Stdout = w
+			cmd.Stderr = w
 			return cmd.Run()
 		},
 	})

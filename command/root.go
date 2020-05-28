@@ -17,6 +17,7 @@ package command
 import (
 	"errors"
 	"fmt"
+	"io"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -332,6 +333,11 @@ func (vitalCommand *vitalCommand) newSpinner() *spinner.Spinner {
 	return s
 }
 
+func (vitalCommand *vitalCommand) infoMessage(message string) string {
+	c := color.New(color.FgBlue, color.Bold).SprintFunc()
+	return fmt.Sprintf("%s  %s\n", c("\u24d8"), message)
+}
+
 func (vitalCommand *vitalCommand) successMessage(message string) string {
 	c := color.New(color.FgGreen, color.Bold).SprintFunc()
 	return fmt.Sprintf("%s  %s\n", c("\u2713"), message)
@@ -348,19 +354,41 @@ type Task struct {
 	Success     string
 	Failure     string
 	Run         func() error
+	RunW        func(w io.Writer) error
 }
 
 // RunTaskWithSpinnerStatus displays an animated spinner around the execution of the given func
-func (vitalCommand *vitalCommand) RunTaskWithSpinner(task Task) error {
+func (vitalCommand *vitalCommand) RunTaskWithSpinner(task Task) (err error) {
 	s := vitalCommand.newSpinner()
 	s.Suffix = "  " + task.Description
 	s.Start()
-	err := task.Run()
+	if task.RunW != nil {
+		err = task.RunW(s.Writer)
+	} else {
+		err = task.Run()
+	}
 	s.Stop()
 	if err == nil {
 		fmt.Fprintf(s.Writer, vitalCommand.successMessage(task.Success))
 	} else {
 		fmt.Fprintf(s.Writer, vitalCommand.failureMessage(task.Failure))
+	}
+	return err
+}
+
+// RunTask displays runs a task
+func (vitalCommand *vitalCommand) RunTask(task Task) (err error) {
+	w := os.Stdout
+	fmt.Fprintf(w, vitalCommand.infoMessage(task.Description))
+	if task.RunW != nil {
+		err = task.RunW(w)
+	} else {
+		err = task.Run()
+	}
+	if err == nil {
+		fmt.Fprintf(w, vitalCommand.successMessage(task.Success))
+	} else {
+		fmt.Fprintf(w, vitalCommand.failureMessage(task.Failure))
 	}
 	return err
 }
