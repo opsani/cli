@@ -128,7 +128,7 @@ We'd love to hear your feedback at <https://github.com/opsani/cli>`,
 	configFileUsage := fmt.Sprintf("Location of config file (default \"%s\")", rootCmd.DefaultConfigFile())
 	cobraCmd.PersistentFlags().StringVar(&rootCmd.configFile, "config", "", configFileUsage)
 	cobraCmd.MarkPersistentFlagFilename("config", "*.yaml", "*.yml")
-	cobraCmd.PersistentFlags().StringVarP(&rootCmd.profileName, KeyProfile, "p", "", "Profile to use (sets app, token, etc)")
+	cobraCmd.PersistentFlags().StringVarP(&rootCmd.profileName, KeyProfile, "p", os.Getenv("OPSANI_PROFILE"), "Profile to use (sets app, token, etc)")
 	cobraCmd.Flags().Bool("version", false, "Display version and exit")
 	cobraCmd.PersistentFlags().Bool("help", false, "Display help and exit")
 	cobraCmd.PersistentFlags().MarkHidden("help")
