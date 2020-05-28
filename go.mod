@@ -9,7 +9,7 @@ require (
 	github.com/alecthomas/assert v0.0.0-20170929043011-405dbfeb8e38
 	github.com/alecthomas/colour v0.1.0 // indirect
 	github.com/alecthomas/repr v0.0.0-20200325044227-4184120f674c // indirect
-	github.com/briandowns/spinner v1.11.0
+	github.com/briandowns/spinner v1.11.1
 	github.com/charmbracelet/glamour v0.1.0
 	github.com/docker/docker v1.13.1
 	github.com/fatih/color v1.9.0
@@ -46,7 +46,7 @@ require (
 	github.com/tidwall/sjson v1.1.1
 	golang.org/x/crypto v0.0.0-20200510223506-06a226fb4e37
 	golang.org/x/net v0.0.0-20200520182314-0ba52f642ac2 // indirect
-	golang.org/x/sys v0.0.0-20200519105757-fe76b779f299 // indirect
+	golang.org/x/sys v0.0.0-20200523222454-059865788121 // indirect
 	gopkg.in/check.v1 v1.0.0-20200227125254-8fa46927fb4f // indirect
 	gopkg.in/ini.v1 v1.56.0 // indirect
 	gopkg.in/yaml.v2 v2.3.0
