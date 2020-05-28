@@ -34,12 +34,6 @@ type initCommand struct {
 	confirmed bool
 }
 
-// type configResponse struct {
-//   BaseURL string `json:"base_url"`
-//   App     string `json:"app"`
-//   Token   string `json:"token"`
-// }
-
 func (initCmd *initCommand) RunInitWithTokenCommand(_ *cobra.Command, args []string) error {
 	initToken := args[0]
 
