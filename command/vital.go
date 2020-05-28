@@ -131,9 +131,10 @@ Manifests generated during deployment are written to **./manifests**.`
 		Success:     fmt.Sprintf(`minikube profile %s created.`, bold("opsani-ignite")),
 		Failure:     "optimization engine deployment failed",
 		RunW: func(w io.Writer) error {
-			cmd := exec.Command("minikube", "start", "--memory=4096", "--cpus=4", "-p", "opsani-ignite")
+			cmd := exec.Command("minikube", "start", "--memory=4096", "--cpus=4", "--wait=all", "-p", "opsani-ignite")
 			cmd.Stdout = w
 			cmd.Stderr = w
+			cmd.Stdin = os.Stdin
 			return cmd.Run()
 		},
 	})
@@ -442,7 +443,7 @@ func (vitalCommand *vitalCommand) InstallKubernetesManifests(cobraCmd *cobra.Com
 		Failure:     "failed waiting for prometheus pod",
 		Run: func() error {
 			outcome := make(chan error)
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 			defer cancel()
 			go func() {
 				for {
@@ -475,15 +476,15 @@ func (vitalCommand *vitalCommand) InstallKubernetesManifests(cobraCmd *cobra.Com
 	vitalCommand.run("kubectl", "rollout", "restart", "deployment", "opsani-servo")
 
 	// Boom we are ready to roll
-	boldBlue := color.New(color.FgHiCyan, color.Bold).SprintFunc()
+	boldBlue := color.New(color.FgHiBlue, color.Bold).SprintFunc()
 	fmt.Fprintf(vitalCommand.OutOrStdout(), "\n🔥 %s\n", boldBlue("We have ignition."))
 	fmt.Fprintf(vitalCommand.OutOrStdout(),
-		"\n%s Watch pod status: `%s`\n"+
-			"%s Follow servo logs: `%s`\n"+
-			"%s Open Opsani console: `%s`\n\n",
-		color.HiCyanString("ℹ"), color.YellowString("kubectl get pods --watch"),
-		color.HiCyanString("ℹ"), color.YellowString("kubectl logs -f deployment/opsani-servo"),
-		color.HiCyanString("ℹ"), color.YellowString("opsani app console"))
+		"\n%s  Watch pod status: `%s`\n"+
+			"%s  Follow servo logs: `%s`\n"+
+			"%s  Open Opsani console: `%s`\n\n",
+		color.HiBlueString("ℹ"), color.YellowString("kubectl get pods --watch"),
+		color.HiBlueString("ℹ"), color.YellowString("kubectl logs -f deployment/opsani-servo"),
+		color.HiBlueString("ℹ"), color.YellowString("opsani app console"))
 
 	bold := color.New(color.Bold).SprintfFunc()
 	vitalCommand.Println(bold("Optimization results will begin reporting in the console shortly."))
