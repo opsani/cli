@@ -11,6 +11,7 @@ before:
   hooks:
     - go mod download
     - go mod tidy
+    - pkger
 
 builds:
   - <<: &build_defaults

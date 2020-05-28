@@ -15,6 +15,10 @@ ifeq (, $(shell which goreleaser))
 $(warning "could not find goreleaser in $(PATH), run: curl -sfL https://install.goreleaser.com/github.com/goreleaser/goreleaser.sh | sh")
 endif
 
+ifeq (, $(shell which pkger))
+$(warning "could not find pkger in $(PATH), run: go get github.com/markbates/pkger/cmd/pkger")
+endif
+
 .PHONY: build run fmt vet test deps clean license snapshot test_integration test_unit image
 
 default: all
@@ -49,6 +53,7 @@ test: test_unit test_integration
 deps:
 	$(info ******************** downloading dependencies ********************)
 	go get -v ./...
+	pkger
 
 vet:
 	$(info ******************** vetting ********************)
