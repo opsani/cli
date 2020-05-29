@@ -26,8 +26,8 @@ data:
           query: demo_requests_total
           unit: count
     vegeta:
-      rate: 30000/m
+      rate: 50/1s
       duration: 1m45s
       target: GET http://web.default.svc.cluster.local:8080/
-      workers: 50
-      max-workers: 100
+      workers: 10
+      max-workers: 10
