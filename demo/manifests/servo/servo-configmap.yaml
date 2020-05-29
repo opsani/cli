@@ -27,7 +27,7 @@ data:
           unit: count
     vegeta:
       rate: 30000/m
-      duration: 5m
+      duration: 1m45s
       target: GET http://web.default.svc.cluster.local:8080/
       workers: 50
       max-workers: 100
