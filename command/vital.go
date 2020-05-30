@@ -132,7 +132,6 @@ Manifests generated during deployment are written to **./manifests**.`
 		},
 	})
 	vitalCommand.RunTaskWithSpinner(Task{
-		//
 		Description: "checking for minikube...",
 		Success:     fmt.Sprintf("minikube %s found.", bold("{{ .minikubeVersion }}")),
 		Failure:     "unable to find minikube",
@@ -150,6 +149,32 @@ Manifests generated during deployment are written to **./manifests**.`
 			return versionInfo, nil
 		},
 	})
+
+	// Check to see if there is already an ignite cluster
+	cmd := exec.Command("minikube", strings.Split("status -p opsani-ignite", " ")...)
+	err = cmd.Run()
+	if err == nil {
+		recreate := false
+		prompt := &survey.Confirm{
+			Message: fmt.Sprintf("There is an existing %s minikube profile. Do you want to recreate it?", "opsani-ignite"),
+		}
+		vitalCommand.AskOne(prompt, &recreate)
+		if recreate {
+			vitalCommand.RunTask(Task{
+				Description: "deleting existing minikube profile...",
+				Success:     fmt.Sprintf(`minikube profile %s deleted.`, bold("opsani-ignite")),
+				Failure:     "failed deletion of minikube profile",
+				RunW: func(w io.Writer) error {
+					cmd := exec.Command("minikube", "delete", "-p", "opsani-ignite")
+					cmd.Stdout = w
+					cmd.Stderr = w
+					cmd.Stdin = os.Stdin
+					return cmd.Run()
+				},
+			})
+		}
+	}
+
 	vitalCommand.RunTask(Task{
 		Description: "creating a new minikube profile...",
 		Success:     fmt.Sprintf(`minikube profile %s created.`, bold("opsani-ignite")),
@@ -481,6 +506,8 @@ func (vitalCommand *vitalCommand) InstallKubernetesManifests(cobraCmd *cobra.Com
 
 	// Restart the servo so it can talk to Prometheus
 	vitalCommand.run("kubectl", "rollout", "restart", "deployment", "servo")
+
+	// TODO: Register a servo for ignite
 
 	// Boom we are ready to roll
 	boldBlue := color.New(color.FgHiBlue, color.Bold).SprintFunc()
