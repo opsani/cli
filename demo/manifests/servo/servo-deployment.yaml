@@ -1,37 +1,39 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: opsani-servo
+  name: servo
   namespace: default
   labels:
-    comp: opsani-servo
+    comp: servo
     optune.ai/exclude: '1'  # don't tune servo
 spec:
   replicas: 1
   revisionHistoryLimit: 2
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
-      comp: opsani-servo
+      comp: servo
   template:
     metadata:
       labels:
-        comp: opsani-servo
+        comp: servo
     spec:
-      serviceAccountName: opsani-servo
+      serviceAccountName: servo-service-account
       volumes:
       - name: auth
         secret:
-          secretName: opsani-servo-auth
+          secretName: servo-token
       - name: config
         configMap:
-          name: opsani-servo-config
+          name: servo-config
 
       containers:
       - name: main
         image: blakewatters/servo-k8s-prom-vegeta
         args:
-        - {{ .App }}
-        - '--auth-token=/etc/opsani-auth/token'
+        - {{ .AppName }}
+        - '--auth-token=/etc/opsani/token'
         env:
         - name: OPTUNE_ACCOUNT
           value: {{ .Organization }}
@@ -41,7 +43,7 @@ spec:
           value: '0'
         volumeMounts:
         - name: auth
-          mountPath: '/etc/opsani-auth'
+          mountPath: '/etc/opsani'
           readOnly: true
         - name: config
           mountPath: /servo/config.yaml

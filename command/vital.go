@@ -457,7 +457,7 @@ func (vitalCommand *vitalCommand) InstallKubernetesManifests(cobraCmd *cobra.Com
 	}
 
 	// Restart the servo so it can talk to Prometheus
-	vitalCommand.run("kubectl", "rollout", "restart", "deployment", "opsani-servo")
+	vitalCommand.run("kubectl", "rollout", "restart", "deployment", "servo")
 
 	// Boom we are ready to roll
 	boldBlue := color.New(color.FgHiBlue, color.Bold).SprintFunc()
@@ -467,7 +467,7 @@ func (vitalCommand *vitalCommand) InstallKubernetesManifests(cobraCmd *cobra.Com
 			"%s  Follow servo logs: `%s`\n"+
 			"%s  Open Opsani console: `%s`\n\n",
 		color.HiBlueString("ℹ"), color.YellowString("kubectl get pods --watch"),
-		color.HiBlueString("ℹ"), color.YellowString("kubectl logs -f deployment/opsani-servo"),
+		color.HiBlueString("ℹ"), color.YellowString("kubectl logs -f deployment/servo"),
 		color.HiBlueString("ℹ"), color.YellowString("opsani app console"))
 
 	bold := color.New(color.Bold).SprintfFunc()

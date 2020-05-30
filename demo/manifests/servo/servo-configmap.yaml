@@ -2,7 +2,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: opsani-servo-config
+  name: servo-config
   namespace: default
 data:
   config.yaml: |

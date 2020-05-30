@@ -34,6 +34,11 @@ func (p Profile) Organization() string {
 	return filepath.Dir(p.App)
 }
 
+// AppName returns the name of the app
+func (p Profile) AppName() string {
+	return filepath.Base(p.App)
+}
+
 // ProfileRegistry provides an interface for managing configuration of app profiles
 type ProfileRegistry struct {
 	viper *viper.Viper
