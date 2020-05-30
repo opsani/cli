@@ -15,6 +15,7 @@
 package command
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -24,6 +25,7 @@ import (
 	"regexp"
 	"runtime/debug"
 	"strings"
+	"text/template"
 	"time"
 
 	"github.com/AlecAivazis/survey/v2/core"
@@ -355,6 +357,7 @@ type Task struct {
 	Failure     string
 	Run         func() error
 	RunW        func(w io.Writer) error
+	RunV        func() (interface{}, error)
 }
 
 // RunTaskWithSpinnerStatus displays an animated spinner around the execution of the given func
@@ -362,16 +365,26 @@ func (vitalCommand *vitalCommand) RunTaskWithSpinner(task Task) (err error) {
 	s := vitalCommand.newSpinner()
 	s.Suffix = "  " + task.Description
 	s.Start()
-	if task.RunW != nil {
+	var templateVars interface{}
+	if task.RunV != nil {
+		templateVars, err = task.RunV()
+	} else if task.RunW != nil {
 		err = task.RunW(s.Writer)
 	} else {
 		err = task.Run()
 	}
 	s.Stop()
+
 	if err == nil {
-		fmt.Fprintf(s.Writer, vitalCommand.successMessage(task.Success))
+		tmpl, err := template.New("").Parse(task.Success)
+		successMessage := new(bytes.Buffer)
+		err = tmpl.Execute(successMessage, templateVars)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(s.Writer, vitalCommand.successMessage(string(successMessage.Bytes())))
 	} else {
-		fmt.Fprintf(s.Writer, vitalCommand.failureMessage(task.Failure))
+		fmt.Fprintf(s.Writer, vitalCommand.failureMessage(fmt.Sprintf("%s: %s", task.Failure, err)))
 	}
 	return err
 }

@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -88,7 +89,6 @@ Manifests generated during deployment are written to **./manifests**.`
 	if err != nil {
 		return err
 	}
-	// TODO: Implement dependency checks and versioning
 	confirmed := false
 	prompt := &survey.Confirm{
 		Message: "Ready to get started?",
@@ -102,35 +102,58 @@ Manifests generated during deployment are written to **./manifests**.`
 	bold := color.New(color.Bold).SprintFunc()
 	vitalCommand.RunTaskWithSpinner(Task{
 		Description: "checking for Docker runtime...",
-		Success:     fmt.Sprintf("Docker %s found.", bold("v19.03.8")),
-		Failure:     "optimization engine deployment failed",
-		Run: func() error {
-			time.Sleep(2 * time.Second)
-			return nil
+		Success:     fmt.Sprintf("Docker %s found.", bold("{{.Version}}")),
+		Failure:     "unable to find Docker",
+		RunV: func() (interface{}, error) {
+			cmd := exec.Command("docker", strings.Split("version --format v{{.Client.Version}}", " ")...)
+			output, err := cmd.CombinedOutput()
+			if err != nil {
+				return nil, err
+			}
+			return struct{ Version string }{Version: strings.TrimSpace(string(output))}, nil
 		},
 	})
 	vitalCommand.RunTaskWithSpinner(Task{
 		Description: "checking for Kubernetes...",
-		Success:     fmt.Sprintf("Kubernetes %s found.", bold("v1.18.0")),
-		Failure:     "optimization engine deployment failed",
-		Run: func() error {
-			time.Sleep(1 * time.Second)
-			return nil
+		Success:     fmt.Sprintf("Kubernetes %s found.", bold("{{ .clientVersion.gitVersion }}")),
+		Failure:     "unable to find Kubernetes",
+		RunV: func() (interface{}, error) {
+			cmd := exec.Command("kubectl", strings.Split("version --client -o json", " ")...)
+			output, err := cmd.CombinedOutput()
+			if err != nil {
+				return nil, err
+			}
+			var versionInfo map[string]map[string]string
+			err = json.Unmarshal(output, &versionInfo)
+			if err != nil {
+				return nil, err
+			}
+			return versionInfo, nil
 		},
 	})
 	vitalCommand.RunTaskWithSpinner(Task{
+		//
 		Description: "checking for minikube...",
-		Success:     fmt.Sprintf("minikube %s found.", bold("v1.9.2")),
-		Failure:     "optimization engine deployment failed",
-		Run: func() error {
-			time.Sleep(1 * time.Second)
-			return nil
+		Success:     fmt.Sprintf("minikube %s found.", bold("{{ .minikubeVersion }}")),
+		Failure:     "unable to find minikube",
+		RunV: func() (interface{}, error) {
+			cmd := exec.Command("minikube", strings.Split("version -o json", " ")...)
+			output, err := cmd.CombinedOutput()
+			if err != nil {
+				return nil, err
+			}
+			var versionInfo map[string]string
+			err = json.Unmarshal(output, &versionInfo)
+			if err != nil {
+				return nil, err
+			}
+			return versionInfo, nil
 		},
 	})
 	vitalCommand.RunTask(Task{
 		Description: "creating a new minikube profile...",
 		Success:     fmt.Sprintf(`minikube profile %s created.`, bold("opsani-ignite")),
-		Failure:     "optimization engine deployment failed",
+		Failure:     "failed creation of minikube profile",
 		RunW: func(w io.Writer) error {
 			cmd := exec.Command("minikube", "start", "--memory=4096", "--cpus=4", "--wait=all", "-p", "opsani-ignite")
 			cmd.Stdout = w
@@ -142,7 +165,7 @@ Manifests generated during deployment are written to **./manifests**.`
 	vitalCommand.RunTaskWithSpinner(Task{
 		Description: "asking Opsani for an optimization engine...",
 		Success:     "optimization engine acquired.",
-		Failure:     "optimization engine deployment failed",
+		Failure:     "failed trying to acquire an optimization engine",
 		Run: func() error {
 			time.Sleep(4 * time.Second)
 			return nil
