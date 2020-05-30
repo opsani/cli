@@ -16,6 +16,7 @@ package command
 
 import (
 	"fmt"
+	"path/filepath"
 
 	"github.com/spf13/viper"
 )
@@ -26,6 +27,11 @@ type Profile struct {
 	App     string `yaml:"app" mapstructure:"app" json:"app"`
 	Token   string `yaml:"token" mapstructure:"token" json:"token"`
 	BaseURL string `yaml:"base_url" mapstructure:"base_url" json:"base_url"`
+}
+
+// Organization returns the domain of the organization that owns the app
+func (p Profile) Organization() string {
+	return filepath.Dir(p.App)
 }
 
 // ProfileRegistry provides an interface for managing configuration of app profiles

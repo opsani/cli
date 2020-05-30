@@ -34,7 +34,7 @@ spec:
         - '--auth-token=/etc/opsani-auth/token'
         env:
         - name: OPTUNE_ACCOUNT
-          value: {{ .Account }}
+          value: {{ .Organization }}
         - name: OPTUNE_NAMESPACE
           value: default
         - name: OPTUNE_USE_DEFAULT_NAMESPACE

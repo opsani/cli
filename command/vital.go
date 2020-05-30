@@ -17,6 +17,7 @@ package command
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -307,6 +308,7 @@ func (vitalCommand *vitalCommand) RunVitalDiscovery(cobraCmd *cobra.Command, arg
 	return nil
 }
 
+// TODO: This just duplicates exec.CombinedOutput
 func (vitalCommand *vitalCommand) run(name string, args ...string) (*bytes.Buffer, error) {
 	outputBuffer := new(bytes.Buffer)
 	cmd := exec.Command(name, args...)
@@ -321,24 +323,6 @@ func init() {
 }
 
 func (vitalCommand *vitalCommand) InstallKubernetesManifests(cobraCmd *cobra.Command, args []string) error {
-	// TODO: This needs to be a manifest
-	err := vitalCommand.RunTaskWithSpinner(Task{
-		Description: "creating secrets...",
-		Success:     "your secrets are safe and sound.",
-		Failure:     "secret creation failed.\n",
-		Run: func() error {
-			output, err := vitalCommand.run("kubectl", "--kubeconfig", pathToDefaultKubeconfig(), "create", "secret", "generic", "opsani-servo-auth",
-				"--from-literal", fmt.Sprintf("token=%s", vitalCommand.AccessToken()))
-			if err != nil {
-				return fmt.Errorf("%s: %w", output, err)
-			}
-			return nil
-		},
-	})
-	if err != nil {
-		return err
-	}
-
 	if _, err := os.Stat("manifests"); os.IsNotExist(err) {
 		e := os.Mkdir("manifests", 0755)
 		if e != nil {
@@ -346,15 +330,7 @@ func (vitalCommand *vitalCommand) InstallKubernetesManifests(cobraCmd *cobra.Com
 		}
 	}
 
-	org, app := vitalCommand.AppComponents()
-	vars := struct {
-		Account string
-		App     string
-	}{
-		Account: org,
-		App:     app,
-	}
-	err = pkger.Walk("/demo/manifests", func(path string, info os.FileInfo, err error) error {
+	err := pkger.Walk("/demo/manifests", func(path string, info os.FileInfo, err error) error {
 		if info.IsDir() || strings.HasPrefix(info.Name(), ".") {
 			return nil
 		}
@@ -391,12 +367,17 @@ func (vitalCommand *vitalCommand) InstallKubernetesManifests(cobraCmd *cobra.Com
 					return err
 				}
 
+				manifestName := filepath.Base(path)
 				manifestTemplate, err := ioutil.ReadAll(f)
 				if err != nil {
 					return err
 				}
 
-				tmpl, err := template.New("").Parse(string(manifestTemplate))
+				tmpl, err := template.New("").Funcs(template.FuncMap{
+					"base64encode": func(v string) string {
+						return base64.StdEncoding.EncodeToString([]byte(v))
+					},
+				}).Parse(string(manifestTemplate))
 				if err != nil {
 					return err
 				}
@@ -410,17 +391,17 @@ func (vitalCommand *vitalCommand) InstallKubernetesManifests(cobraCmd *cobra.Com
 				cmd.Stdout = outputBuffer
 				cmd.Stderr = outputBuffer
 				if err := cmd.Start(); err != nil {
-					return fmt.Errorf("%s: %w", outputBuffer, err)
+					return fmt.Errorf("failed applying manifest %q: %w\n%s", manifestName, err, outputBuffer)
 				}
 				renderedManifest := new(bytes.Buffer)
-				err = tmpl.Execute(renderedManifest, vars)
+				err = tmpl.Execute(renderedManifest, *vitalCommand.profile)
 				if err != nil {
 					panic(err)
 				}
 				fmt.Fprintln(kubeCtlPipe, renderedManifest)
 				kubeCtlPipe.Close()
 				if err := cmd.Wait(); err != nil {
-					return fmt.Errorf("%s: %w", outputBuffer, err)
+					return fmt.Errorf("failed applying manifest %q: %w\n%s", manifestName, err, outputBuffer)
 				}
 
 				// Write the manifest
