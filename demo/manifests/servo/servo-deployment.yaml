@@ -30,7 +30,7 @@ spec:
 
       containers:
       - name: main
-        image: blakewatters/servo-k8s-prom-vegeta
+        image: opsani/servo-k8s-prom-vegeta:latest
         args:
         - {{ .AppName }}
         - '--auth-token=/etc/opsani/token'
