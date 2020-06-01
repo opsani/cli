@@ -18,11 +18,17 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
+	"log"
 	"net"
 	"os"
+	"os/exec"
+	"os/signal"
 	"strings"
+	"syscall"
 
 	"github.com/AlecAivazis/survey/v2"
+	"github.com/kr/pty"
 	"github.com/mitchellh/go-homedir"
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
@@ -96,25 +102,25 @@ func NewServoCommand(baseCmd *BaseCommand) *cobra.Command {
 
 	// Servo Lifecycle
 	servoCmd.AddCommand(&cobra.Command{
-		Use:   "status",
+		Use:   "status [NAME]",
 		Short: "Check servo status",
 		Args:  cobra.ExactArgs(1),
 		RunE:  servoCommand.RunServoStatus,
 	})
 	servoCmd.AddCommand(&cobra.Command{
-		Use:   "start",
+		Use:   "start [NAME]",
 		Short: "Start the servo",
 		Args:  cobra.ExactArgs(1),
 		RunE:  servoCommand.RunServoStart,
 	})
 	servoCmd.AddCommand(&cobra.Command{
-		Use:   "stop",
+		Use:   "stop [NAME]",
 		Short: "Stop the servo",
 		Args:  cobra.ExactArgs(1),
 		RunE:  servoCommand.RunServoStop,
 	})
 	servoCmd.AddCommand(&cobra.Command{
-		Use:   "restart",
+		Use:   "restart [NAME]",
 		Short: "Restart servo",
 		Args:  cobra.ExactArgs(1),
 		RunE:  servoCommand.RunServoRestart,
@@ -122,28 +128,29 @@ func NewServoCommand(baseCmd *BaseCommand) *cobra.Command {
 
 	// Servo Access
 	servoCmd.AddCommand(&cobra.Command{
-		Use:   "config",
+		Use:   "config [NAME]",
 		Short: "Display the servo config file",
 		Args:  cobra.ExactArgs(1),
 		RunE:  servoCommand.RunServoConfig,
 	})
 	logsCmd := &cobra.Command{
-		Use:   "logs",
-		Short: "View logs on a servo",
+		Use:   "logs [NAME]",
+		Short: "View servo logs",
 		Args:  cobra.ExactArgs(1),
 		RunE:  servoCommand.RunServoLogs,
 	}
 
+	// TODO: Normalize across drivers
 	logsCmd.Flags().BoolVarP(&servoCommand.follow, "follow", "f", false, "Follow log output")
 	logsCmd.Flags().BoolVarP(&servoCommand.timestamps, "timestamps", "t", false, "Show timestamps")
 	logsCmd.Flags().StringVarP(&servoCommand.lines, "lines", "l", "25", `Number of lines to show from the end of the logs (or "all").`)
 
 	servoCmd.AddCommand(logsCmd)
 	servoCmd.AddCommand(&cobra.Command{
-		Use:   "ssh",
-		Short: "SSH into a servo",
+		Use:   "shell [NAME]",
+		Short: "Open an interactive shell on the servo",
 		Args:  cobra.ExactArgs(1),
-		RunE:  servoCommand.RunServoSSH,
+		RunE:  servoCommand.RunServoShell,
 	})
 
 	return servoCmd
@@ -231,6 +238,7 @@ func (servoCmd *servoCommand) RunRemoveServo(_ *cobra.Command, args []string) er
 	return nil
 }
 
+// TODO: Update for various types
 func (servoCmd *servoCommand) RunServoList(_ *cobra.Command, args []string) error {
 	table := tablewriter.NewWriter(servoCmd.OutOrStdout())
 	table.SetAutoWrapText(false)
@@ -285,43 +293,83 @@ func (servoCmd *servoCommand) RunServoList(_ *cobra.Command, args []string) erro
 	return nil
 }
 
-func (servoCmd *servoCommand) RunServoStatus(_ *cobra.Command, args []string) error {
+// ServoCommander defines a standard interface for interacting with servo deployments
+type ServoCommander interface {
+	Status() error // TODO: pass io.Writer for output, ssh interface for bastion
+	Start() error
+	Stop() error
+	Restart() error
+	Logs() error // TODO: tail/follow
+	Config() error
+	Shell() error
+}
+
+// Args is a convenience function that converts a variadic list of strings into an array
+func Args(args ...string) []string {
+	return args
+}
+
+// ArgsS is a convenience function that converts a space delimited string into an array of args
+func ArgsS(args string) []string {
+	return strings.Split(args, " ")
+}
+
+// DockerComposeServoCommander supports interaction with servos deployed via Docker Compose
+type DockerComposeServoCommander struct {
+	servo      Servo
+	follow     bool
+	timestamps bool
+	lines      string
+}
+
+// Status outputs the servo status
+func (c *DockerComposeServoCommander) Status() error {
 	ctx := context.Background()
-	return servoCmd.runInSSHSession(ctx, args[0], func(ctx context.Context, servo Servo, session *ssh.Session) error {
-		return servoCmd.runDockerComposeOverSSH("ps", nil, servo, session)
+	return c.runInSSHSession(ctx, func(ctx context.Context, session *ssh.Session) error {
+		return c.runDockerComposeOverSSH("ps", nil, session)
 	})
 }
 
-func (servoCmd *servoCommand) RunServoStart(_ *cobra.Command, args []string) error {
+// Start starts the servo
+func (c *DockerComposeServoCommander) Start() error {
 	ctx := context.Background()
-	return servoCmd.runInSSHSession(ctx, args[0], func(ctx context.Context, servo Servo, session *ssh.Session) error {
-		return servoCmd.runDockerComposeOverSSH("up -d", nil, servo, session)
+	return c.runInSSHSession(ctx, func(ctx context.Context, session *ssh.Session) error {
+		return c.runDockerComposeOverSSH("up -d", nil, session)
 	})
 }
 
-func (servoCmd *servoCommand) RunServoStop(_ *cobra.Command, args []string) error {
+// Stop stops the servo
+func (c *DockerComposeServoCommander) Stop() error {
 	ctx := context.Background()
-	return servoCmd.runInSSHSession(ctx, args[0], func(ctx context.Context, servo Servo, session *ssh.Session) error {
-		return servoCmd.runDockerComposeOverSSH("down", nil, servo, session)
+	return c.runInSSHSession(ctx, func(ctx context.Context, session *ssh.Session) error {
+		return c.runDockerComposeOverSSH("down", nil, session)
 	})
 }
 
-func (servoCmd *servoCommand) RunServoRestart(_ *cobra.Command, args []string) error {
+// Restart restrarts the servo
+func (c *DockerComposeServoCommander) Restart() error {
 	ctx := context.Background()
-	return servoCmd.runInSSHSession(ctx, args[0], func(ctx context.Context, servo Servo, session *ssh.Session) error {
-		return servoCmd.runDockerComposeOverSSH("down && docker-compse up -d", nil, servo, session)
+	return c.runInSSHSession(ctx, func(ctx context.Context, session *ssh.Session) error {
+		return c.runDockerComposeOverSSH("down && docker-compse up -d", nil, session)
 	})
 }
 
-func (servoCmd *servoCommand) RunServoConfig(_ *cobra.Command, args []string) error {
+// Logs outputs the servo logs
+func (c *DockerComposeServoCommander) Logs() error {
+	ctx := context.Background()
+	return c.runInSSHSession(ctx, c.runLogsSSHSession)
+}
+
+// Config returns the servo config file
+func (c *DockerComposeServoCommander) Config() error {
 	ctx := context.Background()
 	outputBuffer := new(bytes.Buffer)
-	err := servoCmd.runInSSHSession(ctx, args[0], func(ctx context.Context, servo Servo, session *ssh.Session) error {
+	err := c.runInSSHSession(ctx, func(ctx context.Context, session *ssh.Session) error {
 		session.Stdout = outputBuffer
 		session.Stderr = os.Stderr
 
 		sshCmd := make([]string, 3)
-		if path := servo.Path; path != "" {
+		if path := c.servo.Path; path != "" {
 			sshCmd = append(sshCmd, "cd", path+"&&")
 		}
 		sshCmd = append(sshCmd, "cat", "config.yaml")
@@ -330,53 +378,50 @@ func (servoCmd *servoCommand) RunServoConfig(_ *cobra.Command, args []string) er
 
 	// We got the config, let's pretty print it
 	if err == nil {
-		servoCmd.PrettyPrintYAML(outputBuffer.Bytes(), true)
+		// TODO: refactor (new shared interface!)
+		// servoCmd.PrettyPrintYAML(outputBuffer.Bytes(), true)
+		panic("sadasd")
 	}
 	return err
 }
 
-func (servoCmd *servoCommand) RunServoLogs(_ *cobra.Command, args []string) error {
+// Shell establishes an interactive shell with the servo
+func (c *DockerComposeServoCommander) Shell() error {
 	ctx := context.Background()
-	return servoCmd.runInSSHSession(ctx, args[0], servoCmd.runLogsSSHSession)
+	return c.runInSSHSession(ctx, c.runShellOnSSHSession)
 }
 
-// RunConfig displays Opsani CLI config info
-func (servoCmd *servoCommand) RunServoSSH(_ *cobra.Command, args []string) error {
-	ctx := context.Background()
-	return servoCmd.runInSSHSession(ctx, args[0], servoCmd.runShellOnSSHSession)
-}
-
-func (servoCmd *servoCommand) runDockerComposeOverSSH(cmd string, args []string, servo Servo, session *ssh.Session) error {
+func (c *DockerComposeServoCommander) runDockerComposeOverSSH(cmd string, args []string, session *ssh.Session) error {
 	session.Stdout = os.Stdout
 	session.Stderr = os.Stderr
 
-	if path := servo.Path; path != "" {
+	if path := c.servo.Path; path != "" {
 		args = append(args, "cd", path+"&&")
 	}
 	args = append(args, "docker-compose", cmd)
 	return session.Run(strings.Join(args, " "))
 }
 
-func (servoCmd *servoCommand) runLogsSSHSession(ctx context.Context, servo Servo, session *ssh.Session) error {
+func (c *DockerComposeServoCommander) runLogsSSHSession(ctx context.Context, session *ssh.Session) error {
 	session.Stdout = os.Stdout
 	session.Stderr = os.Stderr
 
 	args := []string{}
-	if path := servo.Path; path != "" {
+	if path := c.servo.Path; path != "" {
 		args = append(args, "cd", path+"&&")
 	}
 	args = append(args, "docker-compose logs")
-	args = append(args, "--tail "+servoCmd.lines)
-	if servoCmd.follow {
+	args = append(args, "--tail "+c.lines)
+	if c.follow {
 		args = append(args, "--follow")
 	}
-	if servoCmd.timestamps {
+	if c.timestamps {
 		args = append(args, "--timestamps")
 	}
 	return session.Run(strings.Join(args, " "))
 }
 
-func (servoCmd *servoCommand) runShellOnSSHSession(ctx context.Context, servo Servo, session *ssh.Session) error {
+func (c *DockerComposeServoCommander) runShellOnSSHSession(ctx context.Context, session *ssh.Session) error {
 	fd := int(os.Stdin.Fd())
 	state, err := terminal.MakeRaw(fd)
 	if err != nil {
@@ -424,26 +469,205 @@ func (servoCmd *servoCommand) runShellOnSSHSession(ctx context.Context, servo Se
 	return err
 }
 
+//////////////////
+
+// KubernetesServoCommander supports interaction with servos deployed via Kubernetes
+type KubernetesServoCommander struct {
+	servo Servo
+}
+
+// Status outputs the servo status
+func (c *KubernetesServoCommander) Status() error {
+	argsS := fmt.Sprintf("-n %v describe deployments/%v", c.servo.Namespace, c.servo.Deployment)
+	cmd := exec.Command("kubectl", ArgsS(argsS)...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+// Start starts the servo
+func (c *KubernetesServoCommander) Start() error {
+	argsS := fmt.Sprintf("-n %v scale --replicas=1 deployments/%v", c.servo.Namespace, c.servo.Deployment)
+	cmd := exec.Command("kubectl", ArgsS(argsS)...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+// Stop stops the servo
+func (c *KubernetesServoCommander) Stop() error {
+	argsS := fmt.Sprintf("-n %v scale --replicas=0 deployments/%v", c.servo.Namespace, c.servo.Deployment)
+	cmd := exec.Command("kubectl", ArgsS(argsS)...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+// Restart restarts the servo
+func (c *KubernetesServoCommander) Restart() error {
+	argsS := fmt.Sprintf("-n %v rollout restart deployment/%v", c.servo.Namespace, c.servo.Deployment)
+	cmd := exec.Command("kubectl", ArgsS(argsS)...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+// Logs outputs the servo logs
+// TODO: -f options
+func (c *KubernetesServoCommander) Logs() error {
+	argsS := fmt.Sprintf("-n %v logs -f deployment/%v", c.servo.Namespace, c.servo.Deployment)
+	cmd := exec.Command("kubectl", ArgsS(argsS)...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+// Config outputs the servo config
+func (c *KubernetesServoCommander) Config() error {
+	argsS := fmt.Sprintf("-n %v exec deployment/%v -- cat /servo/config.yaml", c.servo.Namespace, c.servo.Deployment)
+	cmd := exec.Command("kubectl", ArgsS(argsS)...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	// TODO: YAML highlighting
+	return cmd.Run()
+}
+
+// Shell establishes an interactive shell with the servo
+func (c *KubernetesServoCommander) Shell() error {
+	argsS := fmt.Sprintf("-n %v exec -it deployment/%v -- /bin/bash", c.servo.Namespace, c.servo.Deployment)
+	cmd := exec.Command("kubectl", ArgsS(argsS)...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	// Start the command with a pty.
+	ptmx, err := pty.Start(cmd)
+	if err != nil {
+		return err
+	}
+	// Make sure to close the pty at the end.
+	defer func() { _ = ptmx.Close() }() // Best effort.
+
+	// Handle pty size.
+	ch := make(chan os.Signal, 1)
+	signal.Notify(ch, syscall.SIGWINCH)
+	go func() {
+		for range ch {
+			if err := pty.InheritSize(os.Stdin, ptmx); err != nil {
+				log.Printf("error resizing pty: %s", err)
+			}
+		}
+	}()
+	ch <- syscall.SIGWINCH // Initial resize.
+
+	// Set stdin in raw mode.
+	oldState, err := terminal.MakeRaw(int(os.Stdin.Fd()))
+	if err != nil {
+		return err
+	}
+	defer func() { _ = terminal.Restore(int(os.Stdin.Fd()), oldState) }() // Best effort.
+
+	// Copy stdin to the pty and the pty to stdout.
+	go func() { _, _ = io.Copy(ptmx, os.Stdin) }()
+	_, err = io.Copy(os.Stdout, ptmx)
+	return err
+}
+
+// NewServoCommander creates and returns an appropriate commander for a given servo
+func NewServoCommander(servo Servo) (ServoCommander, error) {
+	if servo.Type == "docker-compose" {
+		return &DockerComposeServoCommander{servo: servo}, nil
+	} else if servo.Type == "kubernetes" {
+		return &KubernetesServoCommander{servo: servo}, nil
+	}
+	return nil, fmt.Errorf("no driver for servo %q (type %q)", servo.Name, servo.Type)
+}
+
+func (servoCmd *servoCommand) driverForServoNamed(name string) (ServoCommander, error) {
+	registry := NewServoRegistry(servoCmd.viperCfg)
+	servo := registry.ServoNamed(name)
+	if servo == nil {
+		return nil, fmt.Errorf("no such servo %q", name)
+	}
+
+	return NewServoCommander(*servo)
+}
+
+func (servoCmd *servoCommand) RunServoStatus(_ *cobra.Command, args []string) error {
+	commander, err := servoCmd.driverForServoNamed(args[0])
+	if commander == nil {
+		return err
+	}
+	return commander.Status()
+}
+
+func (servoCmd *servoCommand) RunServoStart(_ *cobra.Command, args []string) error {
+	commander, err := servoCmd.driverForServoNamed(args[0])
+	if commander == nil {
+		return err
+	}
+	return commander.Start()
+}
+
+func (servoCmd *servoCommand) RunServoStop(_ *cobra.Command, args []string) error {
+	commander, err := servoCmd.driverForServoNamed(args[0])
+	if commander == nil {
+		return err
+	}
+	return commander.Stop()
+}
+
+func (servoCmd *servoCommand) RunServoRestart(_ *cobra.Command, args []string) error {
+	commander, err := servoCmd.driverForServoNamed(args[0])
+	if commander == nil {
+		return err
+	}
+	return commander.Restart()
+}
+
+func (servoCmd *servoCommand) RunServoConfig(_ *cobra.Command, args []string) error {
+	commander, err := servoCmd.driverForServoNamed(args[0])
+	if commander == nil {
+		return err
+	}
+	return commander.Config()
+}
+
+func (servoCmd *servoCommand) RunServoLogs(_ *cobra.Command, args []string) error {
+	commander, err := servoCmd.driverForServoNamed(args[0])
+	if commander == nil {
+		return err
+	}
+	if c, ok := commander.(*DockerComposeServoCommander); ok {
+		c.follow = servoCmd.follow
+		c.timestamps = servoCmd.timestamps
+		c.lines = servoCmd.lines
+	}
+	return commander.Logs()
+}
+
+func (servoCmd *servoCommand) RunServoShell(_ *cobra.Command, args []string) error {
+	commander, err := servoCmd.driverForServoNamed(args[0])
+	if commander == nil {
+		return err
+	}
+	return commander.Shell()
+}
+
 ///
 /// SSH Primitives
 ///
 
-func (servoCmd *servoCommand) sshAgent() ssh.AuthMethod {
+func sshAgent() ssh.AuthMethod {
 	if sshAgent, err := net.Dial("unix", os.Getenv("SSH_AUTH_SOCK")); err == nil {
 		return ssh.PublicKeysCallback(agent.NewClient(sshAgent).Signers)
 	}
 	return nil
 }
 
-func (servoCmd *servoCommand) runInSSHSession(ctx context.Context, name string, runIt func(context.Context, Servo, *ssh.Session) error) error {
-	registry := NewServoRegistry(servoCmd.viperCfg)
-	servo := registry.ServoNamed(name)
-	if servo == nil {
-		return fmt.Errorf("no such servo %q", name)
-	}
-
+// TODO: convert to standalone func
+func (c *DockerComposeServoCommander) runInSSHSession(ctx context.Context, runIt func(context.Context, *ssh.Session) error) error {
 	// SSH client config
-	knownHosts, err := homedir.Expand("~/.ssh/known_hosts")
+	knownHosts, err := homedir.Expand("~/.ssh/known_hosts") // TODO: Windows support
 	if err != nil {
 		return err
 	}
@@ -452,21 +676,21 @@ func (servoCmd *servoCommand) runInSSHSession(ctx context.Context, name string, 
 		return err
 	}
 	config := &ssh.ClientConfig{
-		User: servo.User,
+		User: c.servo.User,
 		Auth: []ssh.AuthMethod{
-			servoCmd.sshAgent(),
+			sshAgent(),
 		},
 		HostKeyCallback: hostKeyCallback,
 	}
 
 	// Support bastion hosts via redialing
 	var sshClient *ssh.Client
-	if servo.Bastion != "" {
-		user, host := servo.BastionComponents()
+	if c.servo.Bastion != "" {
+		user, host := c.servo.BastionComponents()
 		bastionConfig := &ssh.ClientConfig{
 			User: user,
 			Auth: []ssh.AuthMethod{
-				servoCmd.sshAgent(),
+				sshAgent(),
 			},
 			HostKeyCallback: hostKeyCallback,
 		}
@@ -478,13 +702,13 @@ func (servoCmd *servoCommand) runInSSHSession(ctx context.Context, name string, 
 		}
 
 		// Establish a new connection thrrough the bastion
-		conn, err := bastionClient.Dial("tcp", servo.HostAndPort())
+		conn, err := bastionClient.Dial("tcp", c.servo.HostAndPort())
 		if err != nil {
 			return err
 		}
 
 		// Build a new SSH connection on top of the bastion connection
-		ncc, chans, reqs, err := ssh.NewClientConn(conn, servo.HostAndPort(), config)
+		ncc, chans, reqs, err := ssh.NewClientConn(conn, c.servo.HostAndPort(), config)
 		if err != nil {
 			return err
 		}
@@ -492,7 +716,7 @@ func (servoCmd *servoCommand) runInSSHSession(ctx context.Context, name string, 
 		// Now connection a client on top of it
 		sshClient = ssh.NewClient(ncc, chans, reqs)
 	} else {
-		sshClient, err = ssh.Dial("tcp", servo.HostAndPort(), config)
+		sshClient, err = ssh.Dial("tcp", c.servo.HostAndPort(), config)
 		if err != nil {
 			return err
 		}
@@ -511,5 +735,5 @@ func (servoCmd *servoCommand) runInSSHSession(ctx context.Context, name string, 
 		sshClient.Close()
 	}()
 
-	return runIt(ctx, *servo, session)
+	return runIt(ctx, session)
 }

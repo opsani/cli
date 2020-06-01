@@ -201,6 +201,11 @@ func Args(args ...string) []string {
 	return args
 }
 
+// ArgsS is a convenience function that converts a space delimited string into an array of args
+func ArgsS(args string) []string {
+	return strings.Split(args, " ")
+}
+
 // InteractiveProcessFunc instances are functions that represent the process side of an interactive terminal
 type InteractiveProcessFunc func(*InteractiveExecutionContext) error
 

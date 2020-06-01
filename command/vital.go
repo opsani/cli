@@ -156,7 +156,7 @@ Manifests generated during deployment are written to **./manifests**.`
 	if err == nil {
 		recreate := false
 		prompt := &survey.Confirm{
-			Message: fmt.Sprintf("There is an existing %s minikube profile. Do you want to recreate it?", "opsani-ignite"),
+			Message: fmt.Sprintf(" There is an existing %q minikube profile. Do you want to recreate it?", "opsani-ignite"),
 		}
 		vitalCommand.AskOne(prompt, &recreate)
 		if recreate {
@@ -507,7 +507,16 @@ func (vitalCommand *vitalCommand) InstallKubernetesManifests(cobraCmd *cobra.Com
 	// Restart the servo so it can talk to Prometheus
 	vitalCommand.run("kubectl", "rollout", "restart", "deployment", "servo")
 
-	// TODO: Register a servo for ignite
+	// Register a servo
+	registry := NewServoRegistry(vitalCommand.viperCfg)
+	if registry.ServoNamed("ignite") == nil {
+		registry.AddServo(Servo{
+			Name:       "ignite",
+			Type:       "kubernetes",
+			Namespace:  "default",
+			Deployment: "servo",
+		})
+	}
 
 	// Boom we are ready to roll
 	boldBlue := color.New(color.FgHiBlue, color.Bold).SprintFunc()
@@ -515,9 +524,11 @@ func (vitalCommand *vitalCommand) InstallKubernetesManifests(cobraCmd *cobra.Com
 	fmt.Fprintf(vitalCommand.OutOrStdout(),
 		"\n%s  Watch pod status: `%s`\n"+
 			"%s  Follow servo logs: `%s`\n"+
+			"%s  View servo commands: `%s`\n"+
 			"%s  Open Opsani console: `%s`\n\n",
 		color.HiBlueString("ℹ"), color.YellowString("kubectl get pods --watch"),
-		color.HiBlueString("ℹ"), color.YellowString("kubectl logs -f deployment/servo"),
+		color.HiBlueString("ℹ"), color.YellowString("opsani servo logs -f ignite"),
+		color.HiBlueString("ℹ"), color.YellowString("opsani servo --help"),
 		color.HiBlueString("ℹ"), color.YellowString("opsani app console"))
 
 	bold := color.New(color.Bold).SprintfFunc()

@@ -102,11 +102,19 @@ func (sr *ServoRegistry) RemoveServo(servo Servo) error {
 
 // Servo represents a deployed Servo assembly running somewhere
 type Servo struct {
-	Name    string `yaml:"name" mapstructure:"name"`
-	User    string `yaml:"user" mapstructure:"user"`
-	Host    string `yaml:"host" mapstructure:"host"`
-	Port    string `yaml:"port" mapstructure:"port"`
-	Path    string `yaml:"path" mapstructure:"path"`
+	Name string `yaml:"name" mapstructure:"name"`
+	Type string `yaml:"type" mapstructure:"type"`
+
+	// Docker Compose
+	User string `yaml:"user" mapstructure:"user"`
+	Host string `yaml:"host" mapstructure:"host"`
+	Port string `yaml:"port" mapstructure:"port"`
+	Path string `yaml:"path" mapstructure:"path"`
+
+	// Kubernetes
+	Namespace  string `yaml:"namespace" mapstructure:"namespace"`
+	Deployment string `yaml:"deployment" mapstructure:"deployment"`
+
 	Bastion string `yaml:"bastion" mapstructure:"bastion"`
 }
 

@@ -19,7 +19,7 @@ require (
 	github.com/google/go-cmp v0.4.0 // indirect
 	github.com/hinshun/vt10x v0.0.0-20180616224451-1954e6464174
 	github.com/hokaccha/go-prettyjson v0.0.0-20190818114111-108c894c2c0e
-	github.com/kr/pty v1.1.8 // indirect
+	github.com/kr/pty v1.1.8
 	github.com/kr/text v0.2.0 // indirect
 	github.com/markbates/pkger v0.16.0
 	github.com/mattn/go-colorable v0.1.6 // indirect
