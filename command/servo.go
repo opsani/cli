@@ -38,6 +38,16 @@ import (
 	"golang.org/x/crypto/ssh/terminal"
 )
 
+// Args is a convenience function that converts a variadic list of strings into an array
+func Args(args ...string) []string {
+	return args
+}
+
+// ArgsS is a convenience function that converts a space delimited string into an array of args
+func ArgsS(args string) []string {
+	return strings.Split(args, " ")
+}
+
 // NOTE: Binding vars instead of using flags because the call stack is messy atm
 type servoCommand struct {
 	*BaseCommand
@@ -140,7 +150,6 @@ func NewServoCommand(baseCmd *BaseCommand) *cobra.Command {
 		RunE:  servoCommand.RunServoLogs,
 	}
 
-	// TODO: Normalize across drivers
 	logsCmd.Flags().BoolVarP(&servoCommand.follow, "follow", "f", false, "Follow log output")
 	logsCmd.Flags().BoolVarP(&servoCommand.timestamps, "timestamps", "t", false, "Show timestamps")
 	logsCmd.Flags().StringVarP(&servoCommand.lines, "lines", "l", "25", `Number of lines to show from the end of the logs (or "all").`)
@@ -171,42 +180,77 @@ func (servoCmd *servoCommand) RunAddServo(c *cobra.Command, args []string) error
 		}
 	}
 
-	if servo.User == "" {
-		err := servoCmd.AskOne(&survey.Input{
-			Message: "User?",
-		}, &servo.User, survey.WithValidator(survey.Required))
+	if servo.Type == "" {
+		err := servoCmd.AskOne(&survey.Select{
+			Message: "Choose a color:",
+			Options: []string{"kubernetes", "docker-compose"},
+			Default: "kubernetes",
+		}, &servo.Type, survey.WithValidator(survey.Required))
 		if err != nil {
 			return err
 		}
 	}
 
-	if servo.Host == "" {
-		err := servoCmd.AskOne(&survey.Input{
-			Message: "Host?",
-		}, &servo.Host, survey.WithValidator(survey.Required))
-		if err != nil {
-			return err
-		}
-	}
-
-	if servo.Path == "" {
-		err := servoCmd.AskOne(&survey.Input{
-			Message: "Path? (optional)",
-		}, &servo.Path)
-		if err != nil {
-			return err
-		}
-	}
-
-	// Handle bastion hosts
-	if flagSet, _ := c.Flags().GetBool("bastion"); flagSet {
-		servo.Bastion, _ = c.Flags().GetString("bastion-host")
-		if servo.Bastion == "" {
+	if servo.Type == "kubernetes" {
+		if servo.User == "" {
 			err := servoCmd.AskOne(&survey.Input{
-				Message: "Bastion host? (format is user@host[:port])",
-			}, &servo.Bastion)
+				Message: "Namespace?",
+				Default: "opsani",
+			}, &servo.Namespace, survey.WithValidator(survey.Required))
 			if err != nil {
 				return err
+			}
+		}
+
+		if servo.Host == "" {
+			err := servoCmd.AskOne(&survey.Input{
+				Message: "Deployment?",
+				Default: "servo",
+			}, &servo.Deployment, survey.WithValidator(survey.Required))
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	if servo.Type == "docker-compose" {
+		if servo.User == "" {
+			err := servoCmd.AskOne(&survey.Input{
+				Message: "User?",
+			}, &servo.User, survey.WithValidator(survey.Required))
+			if err != nil {
+				return err
+			}
+		}
+
+		if servo.Host == "" {
+			err := servoCmd.AskOne(&survey.Input{
+				Message: "Host?",
+			}, &servo.Host, survey.WithValidator(survey.Required))
+			if err != nil {
+				return err
+			}
+		}
+
+		if servo.Path == "" {
+			err := servoCmd.AskOne(&survey.Input{
+				Message: "Path? (optional)",
+			}, &servo.Path)
+			if err != nil {
+				return err
+			}
+		}
+
+		// Handle bastion hosts
+		if flagSet, _ := c.Flags().GetBool("bastion"); flagSet {
+			servo.Bastion, _ = c.Flags().GetString("bastion-host")
+			if servo.Bastion == "" {
+				err := servoCmd.AskOne(&survey.Input{
+					Message: "Bastion host? (format is user@host[:port])",
+				}, &servo.Bastion)
+				if err != nil {
+					return err
+				}
 			}
 		}
 	}
@@ -238,7 +282,6 @@ func (servoCmd *servoCommand) RunRemoveServo(_ *cobra.Command, args []string) er
 	return nil
 }
 
-// TODO: Update for various types
 func (servoCmd *servoCommand) RunServoList(_ *cobra.Command, args []string) error {
 	table := tablewriter.NewWriter(servoCmd.OutOrStdout())
 	table.SetAutoWrapText(false)
@@ -258,10 +301,13 @@ func (servoCmd *servoCommand) RunServoList(_ *cobra.Command, args []string) erro
 	servos, _ := registry.Servos()
 
 	if servoCmd.verbose {
-		headers := []string{"NAME", "USER", "HOST", "PATH"}
+		headers := []string{"NAME", "TYPE", "NAMESPACE", "DEPLOYMENT", "USER", "HOST", "PATH"}
 		for _, servo := range servos {
 			row := []string{
 				servo.Name,
+				servo.Type,
+				servo.Namespace,
+				servo.Deployment,
 				servo.User,
 				servo.DisplayHost(),
 				servo.DisplayPath(),
@@ -279,7 +325,8 @@ func (servoCmd *servoCommand) RunServoList(_ *cobra.Command, args []string) erro
 		for _, servo := range servos {
 			row := []string{
 				servo.Name,
-				servo.URL(),
+				servo.Type,
+				servo.Description(),
 			}
 			if servo.Bastion != "" {
 				row = append(row, fmt.Sprintf("(via %s)", servo.Bastion))
@@ -293,37 +340,30 @@ func (servoCmd *servoCommand) RunServoList(_ *cobra.Command, args []string) erro
 	return nil
 }
 
-// ServoCommander defines a standard interface for interacting with servo deployments
-type ServoCommander interface {
+type servoLogsArgs struct {
+	Follow     bool
+	Timestamps bool
+	Lines      string
+}
+
+// ServoDriver defines a standard interface for interacting with servo deployments
+type ServoDriver interface {
 	Status() error // TODO: pass io.Writer for output, ssh interface for bastion
 	Start() error
 	Stop() error
 	Restart() error
-	Logs() error // TODO: tail/follow
+	Logs(args servoLogsArgs) error
 	Config() error
 	Shell() error
 }
 
-// Args is a convenience function that converts a variadic list of strings into an array
-func Args(args ...string) []string {
-	return args
-}
-
-// ArgsS is a convenience function that converts a space delimited string into an array of args
-func ArgsS(args string) []string {
-	return strings.Split(args, " ")
-}
-
-// DockerComposeServoCommander supports interaction with servos deployed via Docker Compose
-type DockerComposeServoCommander struct {
-	servo      Servo
-	follow     bool
-	timestamps bool
-	lines      string
+// DockerComposeServoDriver supports interaction with servos deployed via Docker Compose
+type DockerComposeServoDriver struct {
+	servo Servo
 }
 
 // Status outputs the servo status
-func (c *DockerComposeServoCommander) Status() error {
+func (c *DockerComposeServoDriver) Status() error {
 	ctx := context.Background()
 	return c.runInSSHSession(ctx, func(ctx context.Context, session *ssh.Session) error {
 		return c.runDockerComposeOverSSH("ps", nil, session)
@@ -331,7 +371,7 @@ func (c *DockerComposeServoCommander) Status() error {
 }
 
 // Start starts the servo
-func (c *DockerComposeServoCommander) Start() error {
+func (c *DockerComposeServoDriver) Start() error {
 	ctx := context.Background()
 	return c.runInSSHSession(ctx, func(ctx context.Context, session *ssh.Session) error {
 		return c.runDockerComposeOverSSH("up -d", nil, session)
@@ -339,7 +379,7 @@ func (c *DockerComposeServoCommander) Start() error {
 }
 
 // Stop stops the servo
-func (c *DockerComposeServoCommander) Stop() error {
+func (c *DockerComposeServoDriver) Stop() error {
 	ctx := context.Background()
 	return c.runInSSHSession(ctx, func(ctx context.Context, session *ssh.Session) error {
 		return c.runDockerComposeOverSSH("down", nil, session)
@@ -347,7 +387,7 @@ func (c *DockerComposeServoCommander) Stop() error {
 }
 
 // Restart restrarts the servo
-func (c *DockerComposeServoCommander) Restart() error {
+func (c *DockerComposeServoDriver) Restart() error {
 	ctx := context.Background()
 	return c.runInSSHSession(ctx, func(ctx context.Context, session *ssh.Session) error {
 		return c.runDockerComposeOverSSH("down && docker-compse up -d", nil, session)
@@ -355,13 +395,31 @@ func (c *DockerComposeServoCommander) Restart() error {
 }
 
 // Logs outputs the servo logs
-func (c *DockerComposeServoCommander) Logs() error {
+func (c *DockerComposeServoDriver) Logs(logsArgs servoLogsArgs) error {
 	ctx := context.Background()
-	return c.runInSSHSession(ctx, c.runLogsSSHSession)
+	return c.runInSSHSession(ctx, func(ctx context.Context, session *ssh.Session) error {
+		// TODO: Needs to be passed in
+		session.Stdout = os.Stdout
+		session.Stderr = os.Stderr
+
+		args := []string{}
+		if path := c.servo.Path; path != "" {
+			args = append(args, "cd", path+"&&")
+		}
+		args = append(args, "docker-compose logs")
+		args = append(args, "--tail "+logsArgs.Lines)
+		if logsArgs.Follow {
+			args = append(args, "--follow")
+		}
+		if logsArgs.Timestamps {
+			args = append(args, "--timestamps")
+		}
+		return session.Run(strings.Join(args, " "))
+	})
 }
 
 // Config returns the servo config file
-func (c *DockerComposeServoCommander) Config() error {
+func (c *DockerComposeServoDriver) Config() error {
 	ctx := context.Background()
 	outputBuffer := new(bytes.Buffer)
 	err := c.runInSSHSession(ctx, func(ctx context.Context, session *ssh.Session) error {
@@ -378,20 +436,19 @@ func (c *DockerComposeServoCommander) Config() error {
 
 	// We got the config, let's pretty print it
 	if err == nil {
-		// TODO: refactor (new shared interface!)
-		// servoCmd.PrettyPrintYAML(outputBuffer.Bytes(), true)
-		panic("sadasd")
+		prettyYAML, _ := PrettyPrintYAMLToString(outputBuffer.Bytes(), true, true)
+		_, err = os.Stdout.Write([]byte(prettyYAML + "\n"))
 	}
 	return err
 }
 
 // Shell establishes an interactive shell with the servo
-func (c *DockerComposeServoCommander) Shell() error {
+func (c *DockerComposeServoDriver) Shell() error {
 	ctx := context.Background()
 	return c.runInSSHSession(ctx, c.runShellOnSSHSession)
 }
 
-func (c *DockerComposeServoCommander) runDockerComposeOverSSH(cmd string, args []string, session *ssh.Session) error {
+func (c *DockerComposeServoDriver) runDockerComposeOverSSH(cmd string, args []string, session *ssh.Session) error {
 	session.Stdout = os.Stdout
 	session.Stderr = os.Stderr
 
@@ -402,26 +459,7 @@ func (c *DockerComposeServoCommander) runDockerComposeOverSSH(cmd string, args [
 	return session.Run(strings.Join(args, " "))
 }
 
-func (c *DockerComposeServoCommander) runLogsSSHSession(ctx context.Context, session *ssh.Session) error {
-	session.Stdout = os.Stdout
-	session.Stderr = os.Stderr
-
-	args := []string{}
-	if path := c.servo.Path; path != "" {
-		args = append(args, "cd", path+"&&")
-	}
-	args = append(args, "docker-compose logs")
-	args = append(args, "--tail "+c.lines)
-	if c.follow {
-		args = append(args, "--follow")
-	}
-	if c.timestamps {
-		args = append(args, "--timestamps")
-	}
-	return session.Run(strings.Join(args, " "))
-}
-
-func (c *DockerComposeServoCommander) runShellOnSSHSession(ctx context.Context, session *ssh.Session) error {
+func (c *DockerComposeServoDriver) runShellOnSSHSession(ctx context.Context, session *ssh.Session) error {
 	fd := int(os.Stdin.Fd())
 	state, err := terminal.MakeRaw(fd)
 	if err != nil {
@@ -471,13 +509,13 @@ func (c *DockerComposeServoCommander) runShellOnSSHSession(ctx context.Context, 
 
 //////////////////
 
-// KubernetesServoCommander supports interaction with servos deployed via Kubernetes
-type KubernetesServoCommander struct {
+// KubernetesServoDriver supports interaction with servos deployed via Kubernetes
+type KubernetesServoDriver struct {
 	servo Servo
 }
 
 // Status outputs the servo status
-func (c *KubernetesServoCommander) Status() error {
+func (c *KubernetesServoDriver) Status() error {
 	argsS := fmt.Sprintf("-n %v describe deployments/%v", c.servo.Namespace, c.servo.Deployment)
 	cmd := exec.Command("kubectl", ArgsS(argsS)...)
 	cmd.Stdout = os.Stdout
@@ -486,7 +524,7 @@ func (c *KubernetesServoCommander) Status() error {
 }
 
 // Start starts the servo
-func (c *KubernetesServoCommander) Start() error {
+func (c *KubernetesServoDriver) Start() error {
 	argsS := fmt.Sprintf("-n %v scale --replicas=1 deployments/%v", c.servo.Namespace, c.servo.Deployment)
 	cmd := exec.Command("kubectl", ArgsS(argsS)...)
 	cmd.Stdout = os.Stdout
@@ -495,7 +533,7 @@ func (c *KubernetesServoCommander) Start() error {
 }
 
 // Stop stops the servo
-func (c *KubernetesServoCommander) Stop() error {
+func (c *KubernetesServoDriver) Stop() error {
 	argsS := fmt.Sprintf("-n %v scale --replicas=0 deployments/%v", c.servo.Namespace, c.servo.Deployment)
 	cmd := exec.Command("kubectl", ArgsS(argsS)...)
 	cmd.Stdout = os.Stdout
@@ -504,7 +542,7 @@ func (c *KubernetesServoCommander) Stop() error {
 }
 
 // Restart restarts the servo
-func (c *KubernetesServoCommander) Restart() error {
+func (c *KubernetesServoDriver) Restart() error {
 	argsS := fmt.Sprintf("-n %v rollout restart deployment/%v", c.servo.Namespace, c.servo.Deployment)
 	cmd := exec.Command("kubectl", ArgsS(argsS)...)
 	cmd.Stdout = os.Stdout
@@ -513,27 +551,44 @@ func (c *KubernetesServoCommander) Restart() error {
 }
 
 // Logs outputs the servo logs
-// TODO: -f options
-func (c *KubernetesServoCommander) Logs() error {
-	argsS := fmt.Sprintf("-n %v logs -f deployment/%v", c.servo.Namespace, c.servo.Deployment)
-	cmd := exec.Command("kubectl", ArgsS(argsS)...)
+func (c *KubernetesServoDriver) Logs(logsArgs servoLogsArgs) error {
+	deploymentArg := fmt.Sprintf("deployments/%v", c.servo.Deployment)
+	args := Args("-n", c.servo.Namespace, "logs", deploymentArg)
+
+	if logsArgs.Lines != "" {
+		args = append(args, "--tail="+logsArgs.Lines)
+	}
+	if logsArgs.Follow {
+		args = append(args, "--follow")
+	}
+	if logsArgs.Timestamps {
+		args = append(args, "--timestamps")
+	}
+
+	cmd := exec.Command("kubectl", args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
 }
 
 // Config outputs the servo config
-func (c *KubernetesServoCommander) Config() error {
+func (c *KubernetesServoDriver) Config() error {
+	outputBuffer := new(bytes.Buffer)
 	argsS := fmt.Sprintf("-n %v exec deployment/%v -- cat /servo/config.yaml", c.servo.Namespace, c.servo.Deployment)
 	cmd := exec.Command("kubectl", ArgsS(argsS)...)
-	cmd.Stdout = os.Stdout
+	cmd.Stdout = outputBuffer
 	cmd.Stderr = os.Stderr
-	// TODO: YAML highlighting
-	return cmd.Run()
+	if err := cmd.Run(); err != nil {
+		return nil
+	}
+
+	prettyYAML, _ := PrettyPrintYAMLToString(outputBuffer.Bytes(), true, true)
+	_, err := os.Stdout.Write([]byte(prettyYAML + "\n"))
+	return err
 }
 
 // Shell establishes an interactive shell with the servo
-func (c *KubernetesServoCommander) Shell() error {
+func (c *KubernetesServoDriver) Shell() error {
 	argsS := fmt.Sprintf("-n %v exec -it deployment/%v -- /bin/bash", c.servo.Namespace, c.servo.Deployment)
 	cmd := exec.Command("kubectl", ArgsS(argsS)...)
 	cmd.Stdout = os.Stdout
@@ -573,16 +628,16 @@ func (c *KubernetesServoCommander) Shell() error {
 }
 
 // NewServoCommander creates and returns an appropriate commander for a given servo
-func NewServoCommander(servo Servo) (ServoCommander, error) {
+func NewServoCommander(servo Servo) (ServoDriver, error) {
 	if servo.Type == "docker-compose" {
-		return &DockerComposeServoCommander{servo: servo}, nil
+		return &DockerComposeServoDriver{servo: servo}, nil
 	} else if servo.Type == "kubernetes" {
-		return &KubernetesServoCommander{servo: servo}, nil
+		return &KubernetesServoDriver{servo: servo}, nil
 	}
 	return nil, fmt.Errorf("no driver for servo %q (type %q)", servo.Name, servo.Type)
 }
 
-func (servoCmd *servoCommand) driverForServoNamed(name string) (ServoCommander, error) {
+func (servoCmd *servoCommand) driverForServoNamed(name string) (ServoDriver, error) {
 	registry := NewServoRegistry(servoCmd.viperCfg)
 	servo := registry.ServoNamed(name)
 	if servo == nil {
@@ -637,12 +692,12 @@ func (servoCmd *servoCommand) RunServoLogs(_ *cobra.Command, args []string) erro
 	if commander == nil {
 		return err
 	}
-	if c, ok := commander.(*DockerComposeServoCommander); ok {
-		c.follow = servoCmd.follow
-		c.timestamps = servoCmd.timestamps
-		c.lines = servoCmd.lines
+	logsArgs := servoLogsArgs{
+		Follow:     servoCmd.follow,
+		Timestamps: servoCmd.timestamps,
+		Lines:      servoCmd.lines,
 	}
-	return commander.Logs()
+	return commander.Logs(logsArgs)
 }
 
 func (servoCmd *servoCommand) RunServoShell(_ *cobra.Command, args []string) error {
@@ -665,7 +720,7 @@ func sshAgent() ssh.AuthMethod {
 }
 
 // TODO: convert to standalone func
-func (c *DockerComposeServoCommander) runInSSHSession(ctx context.Context, runIt func(context.Context, *ssh.Session) error) error {
+func (c *DockerComposeServoDriver) runInSSHSession(ctx context.Context, runIt func(context.Context, *ssh.Session) error) error {
 	// SSH client config
 	knownHosts, err := homedir.Expand("~/.ssh/known_hosts") // TODO: Windows support
 	if err != nil {

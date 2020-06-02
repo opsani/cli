@@ -200,12 +200,12 @@ func (cmd *BaseCommand) PrettyPrintYAMLObject(obj interface{}) error {
 	return cmd.PrettyPrintYAML(yaml, false)
 }
 
-// PrettyPrintYAML pretty prints the given YAML byte array, optionally including line numbers
-func (cmd *BaseCommand) PrettyPrintYAML(bytes []byte, lineNumbers bool) error {
+// PrettyPrintYAMLToString pretty formats the given YAML byte array, optionally including line numbers
+func PrettyPrintYAMLToString(bytes []byte, colorize bool, lineNumbers bool) (string, error) {
 	tokens := lexer.Tokenize(string(bytes))
 	var p printer.Printer
 	p.LineNumber = lineNumbers
-	if cmd.ColorOutput() {
+	if colorize {
 		p.LineNumberFormat = func(num int) string {
 			fn := color.New(color.Bold, color.FgHiWhite).SprintFunc()
 			return fn(fmt.Sprintf("%2d | ", num))
@@ -247,10 +247,14 @@ func (cmd *BaseCommand) PrettyPrintYAML(bytes []byte, lineNumbers bool) error {
 			}
 		}
 	}
+	return p.PrintTokens(tokens), nil
+}
 
-	// writer := colorable.NewColorableStdout()
-	cmd.OutOrStdout().Write([]byte(p.PrintTokens(tokens) + "\n"))
-	return nil
+// PrettyPrintYAML pretty prints the given YAML byte array, optionally including line numbers
+func (cmd *BaseCommand) PrettyPrintYAML(bytes []byte, lineNumbers bool) error {
+	prettyYAML, _ := PrettyPrintYAMLToString(bytes, cmd.ColorOutput(), lineNumbers)
+	_, err := cmd.OutOrStdout().Write([]byte(prettyYAML + "\n"))
+	return err
 }
 
 // PersistentFlags returns the persistent FlagSet specifically set in the current command.

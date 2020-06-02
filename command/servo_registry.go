@@ -118,6 +118,16 @@ type Servo struct {
 	Bastion string `yaml:"bastion" mapstructure:"bastion"`
 }
 
+// Description returns a textual description of the servo
+func (s Servo) Description() string {
+	if s.Type == "docker-compose" {
+		return s.URL()
+	} else if s.Type == "kubernetes" {
+		return fmt.Sprintf("namespaces/%s/deployments/%s", s.Namespace, s.Deployment)
+	}
+	return ""
+}
+
 // HostAndPort returns a string with the host and port when different from 22
 func (s Servo) HostAndPort() string {
 	h := s.Host
@@ -139,6 +149,9 @@ func (s Servo) DisplayHost() string {
 
 // DisplayPath returns the path that the Servo is installed at
 func (s Servo) DisplayPath() string {
+	if s.Type != "docker-compose" {
+		return ""
+	}
 	if s.Path != "" {
 		return s.Path
 	}
