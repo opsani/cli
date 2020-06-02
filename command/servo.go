@@ -131,7 +131,7 @@ func NewServoCommand(baseCmd *BaseCommand) *cobra.Command {
 	})
 	servoCmd.AddCommand(&cobra.Command{
 		Use:   "restart [NAME]",
-		Short: "Restart servo",
+		Short: "Restart the servo",
 		Args:  cobra.ExactArgs(1),
 		RunE:  servoCommand.RunServoRestart,
 	})
@@ -139,7 +139,7 @@ func NewServoCommand(baseCmd *BaseCommand) *cobra.Command {
 	// Servo Access
 	servoCmd.AddCommand(&cobra.Command{
 		Use:   "config [NAME]",
-		Short: "Display the servo config file",
+		Short: "View servo config file",
 		Args:  cobra.ExactArgs(1),
 		RunE:  servoCommand.RunServoConfig,
 	})
