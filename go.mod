@@ -11,6 +11,7 @@ require (
 	github.com/alecthomas/repr v0.0.0-20200325044227-4184120f674c // indirect
 	github.com/briandowns/spinner v1.11.1
 	github.com/charmbracelet/glamour v0.1.0
+	github.com/creack/pty v1.1.11
 	github.com/docker/docker v1.13.1
 	github.com/fatih/color v1.9.0
 	github.com/fsnotify/fsnotify v1.4.9 // indirect
@@ -19,7 +20,7 @@ require (
 	github.com/google/go-cmp v0.4.0 // indirect
 	github.com/hinshun/vt10x v0.0.0-20180616224451-1954e6464174
 	github.com/hokaccha/go-prettyjson v0.0.0-20190818114111-108c894c2c0e
-	github.com/kr/pty v1.1.8
+	github.com/kr/pty v1.1.8 // indirect
 	github.com/kr/text v0.2.0 // indirect
 	github.com/markbates/pkger v0.17.0
 	github.com/mattn/go-colorable v0.1.6 // indirect

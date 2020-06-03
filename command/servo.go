@@ -28,7 +28,7 @@ import (
 	"syscall"
 
 	"github.com/AlecAivazis/survey/v2"
-	"github.com/kr/pty"
+	"github.com/creack/pty"
 	"github.com/mitchellh/go-homedir"
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
