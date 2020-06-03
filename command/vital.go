@@ -69,7 +69,48 @@ func NewDemoCommand(baseCmd *BaseCommand) *cobra.Command {
 		RunE:              vitalCommand.RunDemo,
 	}
 
+	loadGenCmd := &cobra.Command{
+		Use:               "loadgen",
+		Short:             "Learn about load generation in Opsani",
+		Args:              cobra.NoArgs,
+		PersistentPreRunE: nil,
+		RunE:              vitalCommand.RunLearnLoadgen,
+	}
+	cobraCmd.AddCommand(loadGenCmd)
+
 	return cobraCmd
+}
+
+func (vitalCommand *vitalCommand) RunLearnLoadgen(cobraCmd *cobra.Command, args []string) error {
+	markdown := `# Opsani Ignite - Load Generation
+
+Ignite is deployed with a load generation utility called [Vegeta](https://github.com/tsenart/vegeta).
+
+It is a versatile, Golang based utility that supplies a constant request rate.
+
+Vegeta is embedded within the servo assembly and is directly executed by the 
+[servo-vegeta](https://github.com/opsani/servo-vegeta) connector to supply load during the *measure*
+phase of a step.
+
+The Vegeta configuration is part of the servo **config.yaml** file that is populated by
+the **ConfigMap** defined in the **./manifests/servo/servo-configmap.yaml**. The configuration
+is nested under the **vegeta** key in the YAML.
+
+To better understand the relationship between the load generation profile and how Opsani
+evaluates performance and cost, try making changes to the **rate** key.
+
+By default, the manifest is configured with a constant rate of **50/1s**, instructing Vegeta
+to deliver 50 requests every second for the **duration** of the test.
+
+Try increasing the rate to **500/1s** and applying the new manifest via:` + "\n\n  `kubectl apply -f ./manifests/servo/servo-configmap.yaml`" +
+		`
+
+Then return to the Opsani Console and observe the differences in the data points reported.`
+	err := vitalCommand.DisplayMarkdown(markdown, true)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (vitalCommand *vitalCommand) RunDemo(cobraCmd *cobra.Command, args []string) error {
