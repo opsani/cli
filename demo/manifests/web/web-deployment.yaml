@@ -12,9 +12,13 @@ spec:
   revisionHistoryLimit: 2
   selector:
     matchLabels:
-      comp: web
+      comp: web  
   template:
     metadata:
+      annotations:
+        prometheus.io/path: /metrics
+        prometheus.io/port: '8080'
+        prometheus.io/scrape: 'true'
       labels:
         comp: web
     spec:
