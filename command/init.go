@@ -182,8 +182,8 @@ func NewInitCommand(baseCommand *BaseCommand) *cobra.Command {
 		Short: "Initialize Opsani config",
 		Long: `Initializes an Opsani config file and acquires the required settings:
 	
-	  * 'app':   Opsani app to control (OPSANI_APP).
-	  * 'token': API token to authenticate with (OPSANI_TOKEN).
+    * 'app':   Opsani app to control (OPSANI_APP).
+    * 'token': API token to authenticate with (OPSANI_TOKEN).
 	`,
 		Args:              cobra.MaximumNArgs(1),
 		PersistentPreRunE: initCmd.InitConfigRunE, // Skip loading the config file
