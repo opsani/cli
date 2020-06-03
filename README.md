@@ -26,6 +26,17 @@ Once initialized, you can work with the app using the subcommands of `opsani app
 
 Help is available via `opsani --help`.
 
+### Environment Variables
+
+Opsani CLI respects a few key environment variables, when present:
+
+| Variable | Description |
+|----------|-------------|
+| `OPSANI_APP` | Sets the app to interact with |
+| `OPSANI_TOKEN` | Sets the API authentication token |
+| `OPSANI_BASE_URL` | Sets the base URL for reaching Opsani API |
+| `OPSANI_PROFILE` | Sets the profile to use (implies an app, token, and base URL) |
+
 ### Persistent & Ad-hoc Invocations
 
 The Opsani CLI is designed to be a flexible utility that is useful in day to day
