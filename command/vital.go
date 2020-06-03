@@ -378,6 +378,7 @@ func (vitalCommand *vitalCommand) InstallKubernetesManifests(cobraCmd *cobra.Com
 		}
 	}
 
+	bold := color.New(color.Bold).SprintFunc()
 	err := pkger.Walk("/demo/manifests", func(path string, info os.FileInfo, err error) error {
 		if info.IsDir() || strings.HasPrefix(info.Name(), ".") {
 			return nil
@@ -404,7 +405,6 @@ func (vitalCommand *vitalCommand) InstallKubernetesManifests(cobraCmd *cobra.Com
 			})
 		}
 
-		bold := color.New(color.Bold).SprintFunc()
 		return vitalCommand.RunTaskWithSpinner(Task{
 			Description: fmt.Sprintf("applying manifest %s...", bold(info.Name())),
 			Success:     fmt.Sprintf("manifest %s applied.", bold(info.Name())),
@@ -520,18 +520,18 @@ func (vitalCommand *vitalCommand) InstallKubernetesManifests(cobraCmd *cobra.Com
 
 	// Boom we are ready to roll
 	boldBlue := color.New(color.FgHiBlue, color.Bold).SprintFunc()
-	fmt.Fprintf(vitalCommand.OutOrStdout(), "\n🔥 %s\n", boldBlue("We have ignition."))
+	fmt.Fprintf(vitalCommand.OutOrStdout(), "\n🔥 %s\n", boldBlue("We have ignition"))
+	fmt.Fprintf(vitalCommand.OutOrStdout(), "\nYour Servo is running in the %s deployment in Kubernetes\n", bold("servo"))
+	fmt.Fprintf(vitalCommand.OutOrStdout(), "It has been registered as %s in the CLI\n", bold("ignite"))
 	fmt.Fprintf(vitalCommand.OutOrStdout(),
-		"\n%s  Watch pod status: `%s`\n"+
+		"\n%s  View servo commands: `%s`\n"+
 			"%s  Follow servo logs: `%s`\n"+
-			"%s  View servo commands: `%s`\n"+
+			"%s  Watch pod status: `%s`\n"+
 			"%s  Open Opsani console: `%s`\n\n",
-		color.HiBlueString("ℹ"), color.YellowString("kubectl get pods --watch"),
-		color.HiBlueString("ℹ"), color.YellowString("opsani servo logs -f ignite"),
 		color.HiBlueString("ℹ"), color.YellowString("opsani servo --help"),
+		color.HiBlueString("ℹ"), color.YellowString("opsani servo logs -f ignite"),
+		color.HiBlueString("ℹ"), color.YellowString("kubectl get pods --watch"),
 		color.HiBlueString("ℹ"), color.YellowString("opsani app console"))
-
-	bold := color.New(color.Bold).SprintfFunc()
 	vitalCommand.Println(bold("Optimization results will begin reporting in the console shortly."))
 
 	return err
