@@ -59,7 +59,7 @@ func NewVitalCommand(baseCmd *BaseCommand) *cobra.Command {
 }
 
 // NewDemoCommand returns a new instance of the demo command
-func NewDemoCommand(baseCmd *BaseCommand) *cobra.Command {
+func NewIgniteCommand(baseCmd *BaseCommand) *cobra.Command {
 	vitalCommand := vitalCommand{BaseCommand: baseCmd}
 	cobraCmd := &cobra.Command{
 		Use:               "ignite",
@@ -544,6 +544,30 @@ func (vitalCommand *vitalCommand) InstallKubernetesManifests(cobraCmd *cobra.Com
 	if err != nil {
 		return err
 	}
+
+	// Apply the desired backend configuration
+	err = vitalCommand.RunTaskWithSpinner(Task{
+		Description: "configuring optimizer for ignite...",
+		Success:     "optimizer configured.",
+		Failure:     "failed configuring optimizer for ignite",
+		Run: func() error {
+			client := vitalCommand.NewAPIClient()
+			body, err := json.MarshalIndent(map[string]map[string]string{
+				"optimization": {
+					"perf": "latency_90th",
+				},
+			}, "", "  ")
+			if err != nil {
+				return err
+			}
+
+			_, err = client.PatchConfigFromBody(body, true)
+			if err != nil {
+				return err
+			}
+			return nil
+		},
+	})
 
 	// Restart the servo so it can talk to Prometheus
 	vitalCommand.run("kubectl", "rollout", "restart", "deployment", "servo")
