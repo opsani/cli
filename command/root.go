@@ -149,8 +149,7 @@ We'd love to hear your feedback at <https://github.com/opsani/cli>`,
 	cobraCmd.AddCommand(NewConfigCommand(rootCmd))
 	cobraCmd.AddCommand(NewCompletionCommand(rootCmd))
 
-	cobraCmd.AddCommand(NewVitalCommand(rootCmd))
-	cobraCmd.AddCommand(NewDemoCommand(rootCmd))
+	cobraCmd.AddCommand(NewIgniteCommand(rootCmd))
 
 	// Usage and help layout
 	cobra.AddTemplateFunc("hasSubCommands", hasSubCommands)
