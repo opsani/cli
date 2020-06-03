@@ -521,17 +521,18 @@ func (vitalCommand *vitalCommand) InstallKubernetesManifests(cobraCmd *cobra.Com
 	// Boom we are ready to roll
 	boldBlue := color.New(color.FgHiBlue, color.Bold).SprintFunc()
 	fmt.Fprintf(vitalCommand.OutOrStdout(), "\n🔥 %s\n", boldBlue("We have ignition"))
-	fmt.Fprintf(vitalCommand.OutOrStdout(), "\nYour Servo is running in the %s deployment in Kubernetes\n", bold("servo"))
-	fmt.Fprintf(vitalCommand.OutOrStdout(), "It has been registered as %s in the CLI\n", bold("ignite"))
+	fmt.Fprintf(vitalCommand.OutOrStdout(), "\n%s  Servo running in %s Kubernetes deployment\n", color.HiBlueString("ℹ"), bold("servo"))
+	fmt.Fprintf(vitalCommand.OutOrStdout(), "%s  Servo registered as %s in the CLI\n", color.HiBlueString("ℹ"), bold("ignite"))
+	fmt.Fprintf(vitalCommand.OutOrStdout(), "%s  Manifests written to %s\n", color.HiBlueString("ℹ"), bold("./manifests"))
 	fmt.Fprintf(vitalCommand.OutOrStdout(),
 		"\n%s  View servo commands: `%s`\n"+
 			"%s  Follow servo logs: `%s`\n"+
 			"%s  Watch pod status: `%s`\n"+
 			"%s  Open Opsani console: `%s`\n\n",
-		color.HiBlueString("ℹ"), color.YellowString("opsani servo --help"),
-		color.HiBlueString("ℹ"), color.YellowString("opsani servo logs -f ignite"),
-		color.HiBlueString("ℹ"), color.YellowString("kubectl get pods --watch"),
-		color.HiBlueString("ℹ"), color.YellowString("opsani app console"))
+		color.HiGreenString("❯"), color.YellowString("opsani servo --help"),
+		color.HiGreenString("❯"), color.YellowString("opsani servo logs -f ignite"),
+		color.HiGreenString("❯"), color.YellowString("kubectl get pods --watch"),
+		color.HiGreenString("❯"), color.YellowString("opsani app console"))
 	vitalCommand.Println(bold("Optimization results will begin reporting in the console shortly."))
 
 	return err
