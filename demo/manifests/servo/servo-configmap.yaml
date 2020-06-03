@@ -27,7 +27,7 @@ data:
       prometheus_endpoint: http://prometheus-operated.default.svc.cluster.local:9090
       metrics:
         requests_total:
-          query: demo_requests_total
+          query: demo_requests_total OR on() vector(0)
           unit: count
     vegeta:
       rate: 50/1s
