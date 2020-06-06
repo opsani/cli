@@ -30,6 +30,19 @@ import (
 	"github.com/go-resty/resty/v2"
 )
 
+// APIError represents an error returned by the Opsani API
+type APIError struct {
+	Status    string `json:"status"`
+	Message   string `json:"message"`
+	Traceback string `json:"traceback"`
+	Version   string `json:"version"`
+}
+
+// Error returns an error representation of the API error
+func (err APIError) Error() string {
+	return fmt.Sprintf("request failed: %s (%s)", err.Message, err.Status)
+}
+
 // Client provides a high level interface to the Opsani API
 type Client struct {
 	restyClient *resty.Client
@@ -46,6 +59,19 @@ func NewClient() *Client {
 			"User-Agent":   "Opsani CLI",
 		}).
 		SetHostURL("https://api.opsani.com")
+
+	// Return errors for 4xx and 5xx responses
+	rc.OnAfterResponse(func(c *resty.Client, resp *resty.Response) error {
+		if resp.IsError() {
+			apiError := resp.Error().(*APIError)
+			if apiError != nil && *apiError != (APIError{}) {
+				return apiError
+			}
+			return fmt.Errorf("request failed (%q): %s", resp.Status(), resp.Body())
+		}
+
+		return nil
+	})
 	return createClientWithRestyClient(rc)
 }
 
@@ -145,14 +171,6 @@ func (c *Client) PatchConfigFromBody(body interface{}, apply bool) (*resty.Respo
 /**
 Lifecycle
 */
-
-// APIError represents an error returned by the Opsani API
-type APIError struct {
-	Status    string `json:"status"`
-	Message   string `json:"message"`
-	Traceback string `json:"traceback"`
-	Version   string `json:"version"`
-}
 
 func (c *Client) stateURLPath() string {
 	return c.appResourceURLPath("state")

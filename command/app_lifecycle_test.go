@@ -57,3 +57,8 @@ func (s *AppLifecycleTestSuite) TestRunningAppStatusHelp() {
 	s.Require().NoError(err)
 	s.Require().Contains(output, "Check app status")
 }
+
+func (s *AppLifecycleTestSuite) TestRunningAppRestartNoSuchProfile() {
+	_, err := s.Execute("app", "-p", "invalid", "restart")
+	s.Require().Error(err, `no profile "invalid"`)
+}

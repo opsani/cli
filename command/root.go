@@ -311,7 +311,9 @@ func (baseCmd *BaseCommand) initConfig() error {
 
 	// Load the configuration
 	if err := baseCmd.viperCfg.ReadInConfig(); err == nil {
-		baseCmd.LoadProfile()
+		if _, err = baseCmd.LoadProfile(); err != nil {
+			return err
+		}
 	} else {
 		// Ignore config file not found or error
 		var perr *os.PathError
