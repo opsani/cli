@@ -93,10 +93,8 @@ func (s *ClientTestSuite) TestStartAppAlreadyStartedError() {
 	client := opsani.NewClient()
 	client.SetBaseURL(ts.URL)
 	resp, err := client.StartApp()
-	s.Require().Nil(err)
+	s.Require().Error(err)
 	result := resp.Result()
 	s.Require().Empty(result)
-	respErr := resp.Error()
-	s.Require().NotNil(respErr)
-	s.Require().Equal(&responseObj, respErr)
+	s.Require().Equal(&responseObj, err)
 }
