@@ -93,7 +93,7 @@ Vegeta is embedded within the servo assembly and is directly executed by the
 phase of a step.
 
 The Vegeta configuration is part of the servo **config.yaml** file that is populated by
-the **ConfigMap** defined in the **./manifests/servo/servo-configmap.yaml**. The configuration
+the **ConfigMap** defined in the **./manifests/servo-configmap.yaml**. The configuration
 is nested under the **vegeta** key in the YAML.
 
 To better understand the relationship between the load generation profile and how Opsani
@@ -102,10 +102,11 @@ evaluates performance and cost, try making changes to the **rate** key.
 By default, the manifest is configured with a constant rate of **50/1s**, instructing Vegeta
 to deliver 50 requests every second for the **duration** of the test.
 
-Try increasing the rate to **500/1s** and applying the new manifest via:` + "\n\n  `kubectl apply -f ./manifests/servo/servo-configmap.yaml`" +
-		`
+Try increasing the rate to **500/1s** and applying the new manifest via:
 
-Then return to the Opsani Console and observe the differences in the data points reported.`
+` + "```console\nkubectl apply -f ./manifests/servo-configmap.yaml\nopsani servo restart ignite\n```" + `
+
+Then return to the Opsani Console and observe the differences in the next data points reported (~2 minutes later).`
 	err := vitalCommand.DisplayMarkdown(markdown, true)
 	if err != nil {
 		return err
