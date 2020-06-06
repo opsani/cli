@@ -352,11 +352,12 @@ Once this is wrapped up, you can start optimizing immediately.`
 }
 
 func runPager() (*exec.Cmd, io.WriteCloser) {
-	pager := os.Getenv("PAGER")
-	if pager == "" {
-		pager = "more"
-	}
-	cmd := exec.Command(pager)
+	// pager := os.Getenv("PAGER")
+	// if pager == "" {
+	// 	pager = "more"
+	// }
+	// pager := "less"
+	cmd := exec.Command("less", ArgsS("-F -g -i -M -R -S -w -X -z-4")...)
 	out, err := cmd.StdinPipe()
 	if err != nil {
 		log.Fatal(err)
