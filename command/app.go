@@ -26,8 +26,9 @@ import (
 // NewAppCommand returns a new `opsani app` command instance
 func NewAppCommand(baseCmd *BaseCommand) *cobra.Command {
 	appCmd := &cobra.Command{
-		Use:   "app",
-		Short: "Manage apps",
+		Use:     "app",
+		Aliases: []string{"optimizer"},
+		Short:   "Manage apps",
 
 		// All commands require an initialized client
 		PersistentPreRunE: baseCmd.InitConfigRunE,
