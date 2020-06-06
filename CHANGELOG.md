@@ -11,6 +11,11 @@ versioned in accordance with [Semantic Versioning](https://semver.org/spec/v2.0.
 - Servo assembly and connector management.
 - Interactive demo and tutorial experiences.
 
+## [0.1.4] - 2020-06-06
+### Fixed
+- Emit an error when attempting to load an invalid profile.
+- Return errors instead of unmapped empty structs for 4xx and 5xx HTTP responses.
+
 ## [0.1.3] - 2020-05-23
 ### Added
 - Scoop builds for Windows users.
