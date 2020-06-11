@@ -228,7 +228,7 @@ Manifests generated during deployment are written to **./manifests**.`
 		}
 	}
 
-	vitalCommand.RunTask(Task{
+	err = vitalCommand.RunTask(Task{
 		Description: "creating a new minikube profile...",
 		Success:     fmt.Sprintf(`minikube profile %s created.`, bold("opsani-ignite")),
 		Failure:     "failed creation of minikube profile",

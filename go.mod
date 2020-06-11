@@ -16,6 +16,7 @@ require (
 	github.com/fatih/color v1.9.0
 	github.com/fsnotify/fsnotify v1.4.9 // indirect
 	github.com/go-resty/resty/v2 v2.3.0
+	github.com/gobuffalo/here v0.6.2 // indirect
 	github.com/goccy/go-yaml v1.4.3
 	github.com/google/go-cmp v0.4.0 // indirect
 	github.com/hinshun/vt10x v0.0.0-20180616224451-1954e6464174
