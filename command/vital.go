@@ -142,7 +142,7 @@ Manifests generated during deployment are written to **./manifests**.`
 	fmt.Printf("\n💥 Let's do this thing.\n")
 
 	bold := color.New(color.Bold).SprintFunc()
-	vitalCommand.RunTaskWithSpinner(Task{
+	err = vitalCommand.RunTaskWithSpinner(Task{
 		Description: "checking for Docker runtime...",
 		Success:     fmt.Sprintf("Docker %s found.", bold("{{.Version}}")),
 		Failure:     "unable to find Docker",
@@ -155,7 +155,11 @@ Manifests generated during deployment are written to **./manifests**.`
 			return struct{ Version string }{Version: strings.TrimSpace(string(output))}, nil
 		},
 	})
-	vitalCommand.RunTaskWithSpinner(Task{
+	if err != nil {
+		return err
+	}
+
+	err = vitalCommand.RunTaskWithSpinner(Task{
 		Description: "checking for Kubernetes...",
 		Success:     fmt.Sprintf("Kubernetes %s found.", bold("{{ .clientVersion.gitVersion }}")),
 		Failure:     "unable to find Kubernetes",
@@ -173,7 +177,11 @@ Manifests generated during deployment are written to **./manifests**.`
 			return versionInfo, nil
 		},
 	})
-	vitalCommand.RunTaskWithSpinner(Task{
+	if err != nil {
+		return err
+	}
+
+	err = vitalCommand.RunTaskWithSpinner(Task{
 		Description: "checking for minikube...",
 		Success:     fmt.Sprintf("minikube %s found.", bold("{{ .minikubeVersion }}")),
 		Failure:     "unable to find minikube",
@@ -191,6 +199,9 @@ Manifests generated during deployment are written to **./manifests**.`
 			return versionInfo, nil
 		},
 	})
+	if err != nil {
+		return err
+	}
 
 	// Check to see if there is already an ignite cluster
 	cmd := exec.Command("minikube", strings.Split("status -p opsani-ignite", " ")...)
@@ -229,7 +240,11 @@ Manifests generated during deployment are written to **./manifests**.`
 			return cmd.Run()
 		},
 	})
-	vitalCommand.RunTaskWithSpinner(Task{
+	if err != nil {
+		return err
+	}
+
+	err = vitalCommand.RunTaskWithSpinner(Task{
 		Description: "asking Opsani for an optimization engine...",
 		Success:     "optimization engine acquired.",
 		Failure:     "failed trying to acquire an optimization engine",
@@ -238,6 +253,9 @@ Manifests generated during deployment are written to **./manifests**.`
 			return nil
 		},
 	})
+	if err != nil {
+		return err
+	}
 
 	return vitalCommand.InstallKubernetesManifests(cobraCmd, args)
 }
@@ -570,6 +588,9 @@ func (vitalCommand *vitalCommand) InstallKubernetesManifests(cobraCmd *cobra.Com
 			return nil
 		},
 	})
+	if err != nil {
+		return err
+	}
 
 	// Restart the servo so it can talk to Prometheus
 	vitalCommand.run("kubectl", "rollout", "restart", "deployment", "servo")
