@@ -59,8 +59,11 @@ func (initCmd *initCommand) RunInitWithTokenCommand(_ *cobra.Command, args []str
 	}
 
 	// Confirm that the user wants to write this config
-	registry := NewProfileRegistry(initCmd.viperCfg)
-	registry.AddProfile(profile)
+	if registry, err := NewProfileRegistry(initCmd.viperCfg); err != nil {
+		return err
+	} else {
+		registry.AddProfile(profile)
+	}
 
 	initCmd.Printf("\nOpsani config initialized:\n")
 	initCmd.PrettyPrintYAMLObject(initCmd.GetAllSettings())
@@ -147,8 +150,11 @@ func (initCmd *initCommand) RunInitCommand(_ *cobra.Command, args []string) erro
 	}
 
 	// Confirm that the user wants to write this config
-	registry := NewProfileRegistry(initCmd.viperCfg)
-	registry.AddProfile(profile)
+	if registry, err := NewProfileRegistry(initCmd.viperCfg); err != nil {
+		return err
+	} else {
+		registry.AddProfile(profile)
+	}
 
 	initCmd.Printf("\nOpsani config initialized:\n")
 	initCmd.PrettyPrintYAMLObject(initCmd.GetAllSettings())

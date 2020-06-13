@@ -84,69 +84,69 @@ func NewServoCommand(baseCmd *BaseCommand) *cobra.Command {
 	}
 	listCmd.Flags().BoolVarP(&servoCommand.verbose, "verbose", "v", false, "Display verbose output")
 	servoCmd.AddCommand(listCmd)
-	addCmd := &cobra.Command{
-		Use:                   "add [OPTIONS] [NAME]",
-		Long:                  "Add a servo to the local registry",
+	attachCmd := &cobra.Command{
+		Use:                   "attach [OPTIONS]",
+		Long:                  "Attach servo to the active profile",
 		Annotations:           map[string]string{"registry": "true"},
-		Short:                 "Add a servo",
-		Args:                  cobra.MaximumNArgs(1),
-		RunE:                  servoCommand.RunAddServo,
+		Short:                 "Attach servo to active profile",
+		Args:                  cobra.NoArgs,
+		RunE:                  servoCommand.RunAttachServo,
 		DisableFlagsInUseLine: true,
 	}
-	addCmd.Flags().BoolP("bastion", "b", false, "Use a bastion host for access")
-	addCmd.Flags().String("bastion-host", "", "Specify the bastion host (format is user@host[:port])")
-	servoCmd.AddCommand(addCmd)
+	attachCmd.Flags().BoolP("bastion", "b", false, "Use a bastion host for access")
+	attachCmd.Flags().String("bastion-host", "", "Specify the bastion host (format is user@host[:port])")
+	servoCmd.AddCommand(attachCmd)
 
-	removeCmd := &cobra.Command{
-		Use:                   "remove [OPTIONS] [NAME]",
-		Long:                  "Remove a servo from the local registry",
+	detachCmd := &cobra.Command{
+		Use:                   "detach [OPTIONS]",
+		Long:                  "Detach servo from the active profile",
 		Annotations:           map[string]string{"registry": "true"},
 		Aliases:               []string{"rm"},
-		Short:                 "Remove a servo",
-		Args:                  cobra.ExactArgs(1),
-		RunE:                  servoCommand.RunRemoveServo,
+		Short:                 "Detach servo from active profile",
+		Args:                  cobra.NoArgs,
+		RunE:                  servoCommand.RunDetachServo,
 		DisableFlagsInUseLine: true,
 	}
-	removeCmd.Flags().BoolVarP(&servoCommand.force, "force", "f", false, "Don't prompt for confirmation")
-	servoCmd.AddCommand(removeCmd)
+	detachCmd.Flags().BoolVarP(&servoCommand.force, "force", "f", false, "Don't prompt for confirmation")
+	servoCmd.AddCommand(detachCmd)
 
 	// Servo Lifecycle
 	servoCmd.AddCommand(&cobra.Command{
-		Use:   "status [NAME]",
+		Use:   "status",
 		Short: "Check servo status",
-		Args:  cobra.ExactArgs(1),
+		Args:  cobra.NoArgs,
 		RunE:  servoCommand.RunServoStatus,
 	})
 	servoCmd.AddCommand(&cobra.Command{
-		Use:   "start [NAME]",
+		Use:   "start",
 		Short: "Start the servo",
-		Args:  cobra.ExactArgs(1),
+		Args:  cobra.NoArgs,
 		RunE:  servoCommand.RunServoStart,
 	})
 	servoCmd.AddCommand(&cobra.Command{
-		Use:   "stop [NAME]",
+		Use:   "stop",
 		Short: "Stop the servo",
-		Args:  cobra.ExactArgs(1),
+		Args:  cobra.NoArgs,
 		RunE:  servoCommand.RunServoStop,
 	})
 	servoCmd.AddCommand(&cobra.Command{
-		Use:   "restart [NAME]",
+		Use:   "restart",
 		Short: "Restart the servo",
-		Args:  cobra.ExactArgs(1),
+		Args:  cobra.NoArgs,
 		RunE:  servoCommand.RunServoRestart,
 	})
 
 	// Servo Access
 	servoCmd.AddCommand(&cobra.Command{
-		Use:   "config [NAME]",
+		Use:   "config",
 		Short: "View servo config file",
-		Args:  cobra.ExactArgs(1),
+		Args:  cobra.NoArgs,
 		RunE:  servoCommand.RunServoConfig,
 	})
 	logsCmd := &cobra.Command{
-		Use:   "logs [NAME]",
+		Use:   "logs",
 		Short: "View servo logs",
-		Args:  cobra.ExactArgs(1),
+		Args:  cobra.NoArgs,
 		RunE:  servoCommand.RunServoLogs,
 	}
 
@@ -156,33 +156,36 @@ func NewServoCommand(baseCmd *BaseCommand) *cobra.Command {
 
 	servoCmd.AddCommand(logsCmd)
 	servoCmd.AddCommand(&cobra.Command{
-		Use:   "shell [NAME]",
+		Use:   "shell",
 		Short: "Open an interactive shell on the servo",
-		Args:  cobra.ExactArgs(1),
+		Args:  cobra.NoArgs,
 		RunE:  servoCommand.RunServoShell,
 	})
 
 	return servoCmd
 }
 
-func (servoCmd *servoCommand) RunAddServo(c *cobra.Command, args []string) error {
-	servo := Servo{}
-	if len(args) > 0 {
-		servo.Name = args[0]
+func (servoCmd *servoCommand) RunAttachServo(c *cobra.Command, args []string) error {
+	if servoCmd.profile == nil {
+		return fmt.Errorf("no profile active")
 	}
 
-	if servo.Name == "" {
-		err := servoCmd.AskOne(&survey.Input{
-			Message: "Servo name?",
-		}, &servo.Name, survey.WithValidator(survey.Required))
-		if err != nil {
-			return err
+	if servoCmd.profile.Servo != (Servo{}) {
+		prompt := &survey.Confirm{
+			Message: fmt.Sprintf("Existing servo attached to %q. Overwrite?", servoCmd.profile.Name),
+		}
+		var confirmed bool
+		servoCmd.AskOne(prompt, &confirmed)
+		if confirmed == false {
+			return nil
 		}
 	}
 
+	servo := Servo{}
+
 	if servo.Type == "" {
 		err := servoCmd.AskOne(&survey.Select{
-			Message: "Choose a color:",
+			Message: "Select deployment:",
 			Options: []string{"kubernetes", "docker-compose"},
 			Default: "kubernetes",
 		}, &servo.Type, survey.WithValidator(survey.Required))
@@ -194,7 +197,7 @@ func (servoCmd *servoCommand) RunAddServo(c *cobra.Command, args []string) error
 	if servo.Type == "kubernetes" {
 		if servo.User == "" {
 			err := servoCmd.AskOne(&survey.Input{
-				Message: "Namespace?",
+				Message: "Namespace:",
 				Default: "opsani",
 			}, &servo.Namespace, survey.WithValidator(survey.Required))
 			if err != nil {
@@ -204,7 +207,7 @@ func (servoCmd *servoCommand) RunAddServo(c *cobra.Command, args []string) error
 
 		if servo.Host == "" {
 			err := servoCmd.AskOne(&survey.Input{
-				Message: "Deployment?",
+				Message: "Deployment:",
 				Default: "servo",
 			}, &servo.Deployment, survey.WithValidator(survey.Required))
 			if err != nil {
@@ -255,28 +258,50 @@ func (servoCmd *servoCommand) RunAddServo(c *cobra.Command, args []string) error
 		}
 	}
 
-	registry := NewServoRegistry(servoCmd.viperCfg)
-	return registry.AddServo(servo)
+	registry, err := NewProfileRegistry(servoCmd.viperCfg)
+	if err != nil {
+		return err
+	}
+	profile := registry.ProfileNamed(servoCmd.profile.Name)
+	profile.Servo = servo
+	if err := registry.Save(); err != nil {
+		return err
+	}
+
+	return nil
 }
 
-func (servoCmd *servoCommand) RunRemoveServo(_ *cobra.Command, args []string) error {
-	registry := NewServoRegistry(servoCmd.viperCfg)
-	name := args[0]
-	servo := registry.ServoNamed(name)
-	if servo == nil {
-		return fmt.Errorf("Unable to find servo %q", name)
+func (servoCmd *servoCommand) RunDetachServo(_ *cobra.Command, args []string) error {
+	if servoCmd.profile == nil {
+		return fmt.Errorf("no profile active")
+	} else if servoCmd.profile.Servo == (Servo{}) {
+		return fmt.Errorf("no servo is attached")
 	}
 
 	confirmed := servoCmd.force
 	if !confirmed {
 		prompt := &survey.Confirm{
-			Message: fmt.Sprintf("Remove servo %q?", servo.Name),
+			Message: fmt.Sprintf("Detach servo from profile %q?", servoCmd.profile.Name),
 		}
 		servoCmd.AskOne(prompt, &confirmed)
 	}
 
 	if confirmed {
-		return registry.RemoveServo(*servo)
+		registry, err := NewProfileRegistry(servoCmd.viperCfg)
+		if err != nil {
+			return err
+		}
+		profiles := registry.Profiles()
+		fmt.Printf("Profiles are %+v\n\n", profiles)
+		profile := registry.ProfileNamed(servoCmd.profile.Name)
+		fmt.Printf("Profile is %+v\n\n", profile)
+		profile.Servo = Servo{}
+		fmt.Printf("!! Profile is now %+v\n\n", profile)
+		fmt.Printf("@@ Profiles are %+v\n\n", profiles)
+		if err := registry.Save(); err != nil {
+			return err
+		}
+		// return registry.RemoveServo(*servo)
 	}
 
 	return nil
@@ -297,23 +322,25 @@ func (servoCmd *servoCommand) RunServoList(_ *cobra.Command, args []string) erro
 	table.SetNoWhiteSpace(true)
 
 	data := [][]string{}
-	registry := NewServoRegistry(servoCmd.viperCfg)
-	servos, _ := registry.Servos()
+	registry, err := NewProfileRegistry(servoCmd.viperCfg)
+	if err != nil {
+		return nil
+	}
 
 	if servoCmd.verbose {
 		headers := []string{"NAME", "TYPE", "NAMESPACE", "DEPLOYMENT", "USER", "HOST", "PATH"}
-		for _, servo := range servos {
+		for _, profile := range registry.Profiles() {
 			row := []string{
-				servo.Name,
-				servo.Type,
-				servo.Namespace,
-				servo.Deployment,
-				servo.User,
-				servo.DisplayHost(),
-				servo.DisplayPath(),
+				profile.Name,
+				profile.Servo.Type,
+				profile.Servo.Namespace,
+				profile.Servo.Deployment,
+				profile.Servo.User,
+				profile.Servo.DisplayHost(),
+				profile.Servo.DisplayPath(),
 			}
-			if servo.Bastion != "" {
-				row = append(row, servo.Bastion)
+			if profile.Servo.Bastion != "" {
+				row = append(row, profile.Servo.Bastion)
 				if len(headers) == 4 {
 					headers = append(headers, "BASTION")
 				}
@@ -322,14 +349,14 @@ func (servoCmd *servoCommand) RunServoList(_ *cobra.Command, args []string) erro
 		}
 		table.SetHeader(headers)
 	} else {
-		for _, servo := range servos {
+		for _, profile := range registry.Profiles() {
 			row := []string{
-				servo.Name,
-				servo.Type,
-				servo.Description(),
+				profile.Name,
+				profile.Servo.Type,
+				profile.Servo.Description(),
 			}
-			if servo.Bastion != "" {
-				row = append(row, fmt.Sprintf("(via %s)", servo.Bastion))
+			if profile.Servo.Bastion != "" {
+				row = append(row, fmt.Sprintf("(via %s)", profile.Servo.Bastion))
 			}
 			data = append(data, row)
 		}
@@ -627,69 +654,59 @@ func (c *KubernetesServoDriver) Shell() error {
 	return err
 }
 
-// NewServoCommander creates and returns an appropriate commander for a given servo
-func NewServoCommander(servo Servo) (ServoDriver, error) {
+// NewServoDriver creates and returns an appropriate commander for a given servo
+func NewServoDriver(servo Servo) (ServoDriver, error) {
 	if servo.Type == "docker-compose" {
 		return &DockerComposeServoDriver{servo: servo}, nil
 	} else if servo.Type == "kubernetes" {
 		return &KubernetesServoDriver{servo: servo}, nil
 	}
-	return nil, fmt.Errorf("no driver for servo %q (type %q)", servo.Name, servo.Type)
-}
-
-func (servoCmd *servoCommand) driverForServoNamed(name string) (ServoDriver, error) {
-	registry := NewServoRegistry(servoCmd.viperCfg)
-	servo := registry.ServoNamed(name)
-	if servo == nil {
-		return nil, fmt.Errorf("no such servo %q", name)
-	}
-
-	return NewServoCommander(*servo)
+	return nil, fmt.Errorf("no driver for servo type: %q", servo.Type)
 }
 
 func (servoCmd *servoCommand) RunServoStatus(_ *cobra.Command, args []string) error {
-	commander, err := servoCmd.driverForServoNamed(args[0])
-	if commander == nil {
+	driver, err := NewServoDriver(servoCmd.profile.Servo)
+	if driver == nil {
 		return err
 	}
-	return commander.Status()
+	return driver.Status()
 }
 
 func (servoCmd *servoCommand) RunServoStart(_ *cobra.Command, args []string) error {
-	commander, err := servoCmd.driverForServoNamed(args[0])
-	if commander == nil {
+	driver, err := NewServoDriver(servoCmd.profile.Servo)
+	if driver == nil {
 		return err
 	}
-	return commander.Start()
+	return driver.Start()
 }
 
 func (servoCmd *servoCommand) RunServoStop(_ *cobra.Command, args []string) error {
-	commander, err := servoCmd.driverForServoNamed(args[0])
-	if commander == nil {
+	driver, err := NewServoDriver(servoCmd.profile.Servo)
+	if driver == nil {
 		return err
 	}
-	return commander.Stop()
+	return driver.Stop()
 }
 
 func (servoCmd *servoCommand) RunServoRestart(_ *cobra.Command, args []string) error {
-	commander, err := servoCmd.driverForServoNamed(args[0])
-	if commander == nil {
+	driver, err := NewServoDriver(servoCmd.profile.Servo)
+	if driver == nil {
 		return err
 	}
-	return commander.Restart()
+	return driver.Restart()
 }
 
 func (servoCmd *servoCommand) RunServoConfig(_ *cobra.Command, args []string) error {
-	commander, err := servoCmd.driverForServoNamed(args[0])
-	if commander == nil {
+	driver, err := NewServoDriver(servoCmd.profile.Servo)
+	if driver == nil {
 		return err
 	}
-	return commander.Config()
+	return driver.Config()
 }
 
 func (servoCmd *servoCommand) RunServoLogs(_ *cobra.Command, args []string) error {
-	commander, err := servoCmd.driverForServoNamed(args[0])
-	if commander == nil {
+	driver, err := NewServoDriver(servoCmd.profile.Servo)
+	if driver == nil {
 		return err
 	}
 	logsArgs := servoLogsArgs{
@@ -697,15 +714,15 @@ func (servoCmd *servoCommand) RunServoLogs(_ *cobra.Command, args []string) erro
 		Timestamps: servoCmd.timestamps,
 		Lines:      servoCmd.lines,
 	}
-	return commander.Logs(logsArgs)
+	return driver.Logs(logsArgs)
 }
 
 func (servoCmd *servoCommand) RunServoShell(_ *cobra.Command, args []string) error {
-	commander, err := servoCmd.driverForServoNamed(args[0])
-	if commander == nil {
+	driver, err := NewServoDriver(servoCmd.profile.Servo)
+	if driver == nil {
 		return err
 	}
-	return commander.Shell()
+	return driver.Shell()
 }
 
 ///

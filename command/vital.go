@@ -595,15 +595,20 @@ func (vitalCommand *vitalCommand) InstallKubernetesManifests(cobraCmd *cobra.Com
 	// Restart the servo so it can talk to Prometheus
 	vitalCommand.run("kubectl", "rollout", "restart", "deployment", "servo")
 
-	// Register a servo
-	registry := NewServoRegistry(vitalCommand.viperCfg)
-	if registry.ServoNamed("ignite") == nil {
-		registry.AddServo(Servo{
-			Name:       "ignite",
-			Type:       "kubernetes",
-			Namespace:  "default",
-			Deployment: "servo",
-		})
+	// Attach the servo
+	if vitalCommand.profile.Servo == (Servo{}) {
+		if registry, err := NewProfileRegistry(vitalCommand.viperCfg); err != nil {
+			return err
+		} else {
+			vitalCommand.profile.Servo = Servo{
+				Type:       "kubernetes",
+				Namespace:  "default",
+				Deployment: "servo",
+			}
+			if err = registry.Save(); err != nil {
+				return err
+			}
+		}
 	}
 
 	// Boom we are ready to roll

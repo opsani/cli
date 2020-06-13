@@ -119,13 +119,40 @@ func (profileCmd *profileCommand) RunAddProfile(c *cobra.Command, args []string)
 		}
 	}
 
-	registry := NewProfileRegistry(profileCmd.viperCfg)
-	registry.AddProfile(profile)
-	return registry.Save()
+	if registry, err := NewProfileRegistry(profileCmd.viperCfg); err != nil {
+		return err
+	} else {
+		registry.AddProfile(profile)
+		err = registry.Save()
+		if err != nil {
+			return err
+		}
+
+		// Prompt to attach a servo
+		var attachServo bool
+		prompt := &survey.Confirm{
+			Message: "Attach servo to new profile?",
+		}
+		profileCmd.AskOne(prompt, &attachServo)
+		if attachServo {
+			profileCmd.rootCobraCommand.SetArgs([]string{"servo", "attach"})
+			err := profileCmd.rootCobraCommand.Execute()
+			if err != nil {
+				return err
+			}
+		} else {
+			return nil
+		}
+	}
+
+	return nil
 }
 
 func (profileCmd *profileCommand) RunRemoveProfile(_ *cobra.Command, args []string) error {
-	registry := NewProfileRegistry(profileCmd.viperCfg)
+	registry, err := NewProfileRegistry(profileCmd.viperCfg)
+	if err != nil {
+		return nil
+	}
 	name := args[0]
 	profile := registry.ProfileNamed(name)
 	if profile == nil {
@@ -163,16 +190,20 @@ func (profileCmd *profileCommand) RunProfileList(_ *cobra.Command, args []string
 	table.SetNoWhiteSpace(true)
 
 	data := [][]string{}
-	registry := NewProfileRegistry(profileCmd.viperCfg)
-	profiles, _ := registry.Profiles()
+	registry, err := NewProfileRegistry(profileCmd.viperCfg)
+	if err != nil {
+		return err
+	}
+	profiles := registry.Profiles()
 
 	if profileCmd.verbose {
-		headers := []string{"NAME", "APP", "TOKEN"}
+		headers := []string{"NAME", "APP", "TOKEN", "SERVO"}
 		for _, profile := range profiles {
 			row := []string{
 				profile.Name,
 				profile.App,
 				profile.Token,
+				profile.Servo.Description(),
 			}
 			data = append(data, row)
 		}
@@ -183,6 +214,7 @@ func (profileCmd *profileCommand) RunProfileList(_ *cobra.Command, args []string
 				profile.Name,
 				profile.App,
 				profile.Token,
+				profile.Servo.Description(),
 			}
 			data = append(data, row)
 		}

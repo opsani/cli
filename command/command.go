@@ -275,7 +275,7 @@ func (cmd *BaseCommand) BaseURL() string {
 		return baseURL
 	}
 	if cmd.profile != nil {
-		// return cmd.profile.BaseURL
+		return cmd.profile.BaseURL
 	}
 	return DefaultBaseURL
 }
@@ -317,15 +317,14 @@ func (cmd *BaseCommand) tokenFromFlagsOrEnv() string {
 
 // LoadProfile loads the configuration for the specified profile
 func (cmd *BaseCommand) LoadProfile() (*Profile, error) {
-	registry := NewProfileRegistry(cmd.viperCfg)
-	profiles, err := registry.Profiles()
-	if err != nil || len(profiles) == 0 {
+	registry, err := NewProfileRegistry(cmd.viperCfg)
+	if err != nil || len(registry.Profiles()) == 0 {
 		return nil, nil
 	}
 
 	var profile *Profile
 	if cmd.profileName == "" {
-		profile = &profiles[0]
+		profile = registry.Profiles()[0]
 	} else {
 		profile = registry.ProfileNamed(cmd.profileName)
 		if profile == nil {
@@ -346,7 +345,6 @@ func (cmd *BaseCommand) LoadProfile() (*Profile, error) {
 		}
 
 		cmd.profile = profile
-		registry.Set(profiles)
 	}
 
 	return profile, nil
