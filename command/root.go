@@ -673,7 +673,7 @@ Commands:
 
 {{- if hasEducationalSubCommands . }}
 
-Educational Commands:
+Learning Commands:
 
 {{- range educationalSubCommands . }}
   {{rpad .Name .NamePadding }} {{.Short}}

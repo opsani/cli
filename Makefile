@@ -19,7 +19,7 @@ ifeq (, $(shell which pkger))
 $(warning "could not find pkger in $(PATH), run: go get github.com/markbates/pkger/cmd/pkger")
 endif
 
-.PHONY: build run fmt vet test deps clean license snapshot test_integration test_unit image
+.PHONY: build run fmt vet test deps clean license snapshot test_integration test_unit image install
 
 default: all
 

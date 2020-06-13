@@ -37,6 +37,7 @@ import (
 	"github.com/mgutz/ansi"
 	"github.com/mitchellh/go-homedir"
 	"github.com/spf13/cobra"
+	"github.com/tidwall/gjson"
 	"golang.org/x/crypto/ssh/terminal"
 )
 
@@ -79,6 +80,121 @@ func NewIgniteCommand(baseCmd *BaseCommand) *cobra.Command {
 		RunE:              vitalCommand.RunLearnLoadgen,
 	}
 	cobraCmd.AddCommand(loadGenCmd)
+	adjustCmd := &cobra.Command{
+		Use:               "adjust",
+		Short:             "Learn about adjustments in Opsani",
+		Annotations:       map[string]string{"educational": "true"},
+		Args:              cobra.NoArgs,
+		PersistentPreRunE: nil,
+		RunE:              vitalCommand.RunLearnAdjust,
+	}
+	cobraCmd.AddCommand(adjustCmd)
+	measureCmd := &cobra.Command{
+		Use:               "measure",
+		Short:             "Learn about measurements in Opsani",
+		Annotations:       map[string]string{"educational": "true"},
+		Args:              cobra.NoArgs,
+		PersistentPreRunE: nil,
+		RunE:              vitalCommand.RunLearnMeasure,
+	}
+	cobraCmd.AddCommand(measureCmd)
+
+	bold := color.New(color.Bold).SprintFunc()
+
+	startCmd := &cobra.Command{
+		Use:               "start",
+		Short:             "Start an Ignite cluster",
+		Args:              cobra.NoArgs,
+		PersistentPreRunE: nil,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			mkCmd := exec.Command("minikube", "profile", "list", "-o", "json")
+			output, err := mkCmd.Output()
+			if err != nil {
+				return err
+			}
+			result := gjson.GetBytes(output, `valid.#(Name=="opsani-ignite")`)
+			if result.Exists() == false {
+				return fmt.Errorf("minikube environment %q not found", "opsani-ignite")
+			}
+
+			return vitalCommand.RunTask(Task{
+				Description: "starting minikube...",
+				Success:     fmt.Sprintf(`minikube profile %s started.`, bold("opsani-ignite")),
+				Failure:     "failed starting minikube",
+				RunW: func(w io.Writer) error {
+					cmd := exec.Command("minikube", "start", "-p", "opsani-ignite")
+					cmd.Stdout = w
+					cmd.Stderr = w
+					cmd.Stdin = os.Stdin
+					return cmd.Run()
+				},
+			})
+		},
+	}
+	cobraCmd.AddCommand(startCmd)
+	stopCmd := &cobra.Command{
+		Use:               "stop",
+		Short:             "Stop a running Ignite cluster",
+		Args:              cobra.NoArgs,
+		PersistentPreRunE: nil,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return vitalCommand.RunTask(Task{
+				Description: "stopping minikube...",
+				Success:     fmt.Sprintf(`minikube profile %s stopped.`, bold("opsani-ignite")),
+				Failure:     "failed stopping minikube",
+				RunW: func(w io.Writer) error {
+					cmd := exec.Command("minikube", "stop", "-p", "opsani-ignite")
+					cmd.Stdout = w
+					cmd.Stderr = w
+					cmd.Stdin = os.Stdin
+					return cmd.Run()
+				},
+			})
+		},
+	}
+	cobraCmd.AddCommand(stopCmd)
+	statusCmd := &cobra.Command{
+		Use:               "status",
+		Short:             "Get the status of an Ignite cluster",
+		Args:              cobra.NoArgs,
+		PersistentPreRunE: nil,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return vitalCommand.RunTask(Task{
+				Description: "getting minikube status...",
+				Success:     fmt.Sprintf(`minikube profile %s status retrieved.`, bold("opsani-ignite")),
+				Failure:     "failed getting minikube status",
+				RunW: func(w io.Writer) error {
+					cmd := exec.Command("minikube", "status", "-p", "opsani-ignite")
+					cmd.Stdout = w
+					cmd.Stderr = w
+					cmd.Stdin = os.Stdin
+					return cmd.Run()
+				},
+			})
+		},
+	}
+	cobraCmd.AddCommand(statusCmd)
+	deleteCmd := &cobra.Command{
+		Use:               "delete",
+		Short:             "Delete an Ignite cluster",
+		Args:              cobra.NoArgs,
+		PersistentPreRunE: nil,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return vitalCommand.RunTask(Task{
+				Description: "deleting minikube profile...",
+				Success:     fmt.Sprintf(`minikube profile %s deleted.`, bold("opsani-ignite")),
+				Failure:     "failed deleting minikube profile",
+				RunW: func(w io.Writer) error {
+					cmd := exec.Command("minikube", "delete", "-p", "opsani-ignite")
+					cmd.Stdout = w
+					cmd.Stderr = w
+					cmd.Stdin = os.Stdin
+					return cmd.Run()
+				},
+			})
+		},
+	}
+	cobraCmd.AddCommand(deleteCmd)
 
 	return cobraCmd
 }
@@ -106,9 +222,54 @@ to deliver 50 requests every second for the **duration** of the test.
 
 Try increasing the rate to **500/1s** and applying the new manifest via:
 
-` + "```console\nkubectl apply -f ./manifests/servo-configmap.yaml\nopsani servo restart ignite\n```" + `
+` + "```console\nkubectl apply -f ./manifests/servo-configmap.yaml\nopsani servo restart\n```" + `
 
 Then return to the Opsani Console and observe the differences in the next data points reported (~2 minutes later).`
+	err := vitalCommand.DisplayMarkdown(markdown, true)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (vitalCommand *vitalCommand) RunLearnAdjust(cobraCmd *cobra.Command, args []string) error {
+	markdown := `# Opsani Ignite - Adjustments
+
+Ignite deploys a servo onto Kubernetes alongside a simple web application called [co-http](https://github.com/opsani/co-http).
+
+The servo is responsible for collecting measurements and making adjustments to the application under optimization.
+
+Adjustments are deterministic changes applied to the resources that are supporting the application. In traditional
+VM based cloud deployments, resources are mapped by instance types and families that define the amount of CPU,
+memory, I/O & network bandwidth, etc.
+
+Kubernetes deployments are interesting because the resourcing for a particular service or deployment is highly flexible
+through dynamic allocations and distribution of the workload across replica sets.
+
+When a Kubernetes based application, workload, or service is optimized by Opsani, parameters such as the CPU &
+memory request and limit values will be explored by the optimizer to identify the optimal configuration at that moment
+in time. Any optimizable resource in Opsani is mdeled as a **component** and is explored by the optimizer in accordance
+with **guard rails** defined during servo configuration. Components are described in terms of numeric **ranges** or 
+**enumerations** that establish the bounds that the optimizer is permitted work in.
+
+To better understand how adjustments are made and applied to a Kubernetes control plane, try making changes to
+the **min**, **max**, and **step** values that are part of the k8s/application/components stanza in the the **ConfigMap** 
+defined in the **./manifests/servo-configmap.yaml** file, applying the manifest, and restarting the servo deployment.
+
+` + "```console\nkubectl apply -f ./manifests/servo-configmap.yaml\nopsani servo restart\n```" + `
+
+Then return to the Opsani Console and observe the differences in the next data points reported (~2 minutes later).`
+	err := vitalCommand.DisplayMarkdown(markdown, true)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (vitalCommand *vitalCommand) RunLearnMeasure(cobraCmd *cobra.Command, args []string) error {
+	markdown := `# Opsani Ignite - Measurements
+TODO: Need copy
+`
 	err := vitalCommand.DisplayMarkdown(markdown, true)
 	if err != nil {
 		return err
@@ -206,9 +367,13 @@ Manifests generated during deployment are written to **./manifests**.`
 	}
 
 	// Check to see if there is already an ignite cluster
-	cmd := exec.Command("minikube", strings.Split("status -p opsani-ignite", " ")...)
-	err = cmd.Run()
-	if err == nil {
+	mkCmd := exec.Command("minikube", "profile", "list", "-o", "json")
+	output, err := mkCmd.Output()
+	if err != nil {
+		return err
+	}
+	result := gjson.GetBytes(output, `valid.#(Name=="opsani-ignite")`)
+	if result.Exists() {
 		recreate := false
 		prompt := &survey.Confirm{
 			Message: fmt.Sprintf(" There is an existing %q minikube profile. Do you want to recreate it?", "opsani-ignite"),
