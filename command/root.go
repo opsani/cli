@@ -15,18 +15,24 @@
 package command
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
 	"runtime/debug"
 	"strings"
+	"text/template"
+	"time"
 
 	"github.com/AlecAivazis/survey/v2/core"
 	"github.com/AlecAivazis/survey/v2/terminal"
+	"github.com/briandowns/spinner"
 	"github.com/docker/docker/pkg/term"
+	"github.com/fatih/color"
 	"github.com/mitchellh/go-homedir"
 	"github.com/opsani/cli/opsani"
 	"github.com/spf13/cobra"
@@ -38,7 +44,7 @@ import (
 // Configuration keys (Cobra and Viper)
 const (
 	KeyBaseURL        = "base-url"
-	KeyApp            = "app"
+	KeyOptimizer      = "optimizer"
 	KeyToken          = "token"
 	KeyProfile        = "profile"
 	KeyDebugMode      = "debug"
@@ -75,7 +81,7 @@ func NewRootCommand() *BaseCommand {
 	cobraCmd := &cobra.Command{
 		Use:   "opsani",
 		Short: "The official CLI for Opsani",
-		Long: `Work with Opsani from the command line.
+		Long: `Continuous optimization at your fingertips.
 	
 Opsani CLI is in early stages of development. 
 We'd love to hear your feedback at <https://github.com/opsani/cli>`,
@@ -109,8 +115,8 @@ We'd love to hear your feedback at <https://github.com/opsani/cli>`,
 	// Bind our global configuration parameters
 	cobraCmd.PersistentFlags().String(KeyBaseURL, "", "Base URL for accessing the Opsani API")
 	cobraCmd.PersistentFlags().MarkHidden(KeyBaseURL)
-	cobraCmd.PersistentFlags().String(KeyApp, "", "App to control (overrides config file and OPSANI_APP)")
-	cobraCmd.PersistentFlags().String(KeyToken, "", "API token to authenticate with (overrides config file and OPSANI_TOKEN)")
+	cobraCmd.PersistentFlags().String(KeyOptimizer, "", "Optimizer to manage (overrides config file and OPSANI_OPTIMIZER)")
+	cobraCmd.PersistentFlags().String(KeyToken, "", "Token for API authentication (overrides config file and OPSANI_TOKEN)")
 
 	// Not stored in Viper
 	cobraCmd.PersistentFlags().BoolVarP(&rootCmd.debugModeEnabled, KeyDebugMode, "D", false, "Enable debug mode")
@@ -136,12 +142,15 @@ We'd love to hear your feedback at <https://github.com/opsani/cli>`,
 
 	// Add all sub-commands
 	cobraCmd.AddCommand(NewInitCommand(rootCmd))
-	cobraCmd.AddCommand(NewAppCommand(rootCmd))
+	cobraCmd.AddCommand(NewOptimizerCommand(rootCmd))
 	cobraCmd.AddCommand(NewServoCommand(rootCmd))
 	cobraCmd.AddCommand(NewProfileCommand(rootCmd))
 
+	cobraCmd.AddCommand(NewConsoleCommand(rootCmd))
 	cobraCmd.AddCommand(NewConfigCommand(rootCmd))
 	cobraCmd.AddCommand(NewCompletionCommand(rootCmd))
+
+	cobraCmd.AddCommand(NewIgniteCommand(rootCmd))
 
 	// Usage and help layout
 	cobra.AddTemplateFunc("hasSubCommands", hasSubCommands)
@@ -152,6 +161,9 @@ We'd love to hear your feedback at <https://github.com/opsani/cli>`,
 
 	cobra.AddTemplateFunc("hasOtherSubCommands", hasOtherSubCommands)
 	cobra.AddTemplateFunc("otherSubCommands", otherSubCommands)
+
+	cobra.AddTemplateFunc("hasEducationalSubCommands", hasEducationalSubCommands)
+	cobra.AddTemplateFunc("educationalSubCommands", educationalSubCommands)
 
 	cobra.AddTemplateFunc("hasRegistrySubCommands", hasRegistrySubCommands)
 	cobra.AddTemplateFunc("registrySubCommands", registrySubCommands)
@@ -320,11 +332,90 @@ func (baseCmd *BaseCommand) initConfig() error {
 	return nil
 }
 
+func (vitalCommand *vitalCommand) newSpinner() *spinner.Spinner {
+	s := spinner.New(spinner.CharSets[14], 150*time.Millisecond)
+	s.Writer = vitalCommand.OutOrStdout()
+	s.Color("bold", "blue")
+	s.HideCursor = true
+	return s
+}
+
+func (vitalCommand *vitalCommand) infoMessage(message string) string {
+	c := color.New(color.FgHiBlue, color.Bold).SprintFunc()
+	return fmt.Sprintf("%s  %s\n", c("ℹ"), message)
+}
+
+func (vitalCommand *vitalCommand) successMessage(message string) string {
+	c := color.New(color.FgGreen, color.Bold).SprintFunc()
+	return fmt.Sprintf("%s  %s\n", c("\u2713"), message)
+}
+
+func (vitalCommand *vitalCommand) failureMessage(message string) string {
+	c := color.New(color.Bold, color.FgHiRed).SprintFunc()
+	return fmt.Sprintf("%s  %s\n", c("\u2717"), message)
+}
+
+// Task describes a long-running task that may succeed or fail
+type Task struct {
+	Description string
+	Success     string
+	Failure     string
+	Run         func() error
+	RunW        func(w io.Writer) error
+	RunV        func() (interface{}, error)
+}
+
+// RunTaskWithSpinnerStatus displays an animated spinner around the execution of the given func
+func (vitalCommand *vitalCommand) RunTaskWithSpinner(task Task) (err error) {
+	s := vitalCommand.newSpinner()
+	s.Suffix = "  " + task.Description
+	s.Start()
+	var templateVars interface{}
+	if task.RunV != nil {
+		templateVars, err = task.RunV()
+	} else if task.RunW != nil {
+		err = task.RunW(s.Writer)
+	} else {
+		err = task.Run()
+	}
+	s.Stop()
+
+	if err == nil {
+		tmpl, err := template.New("").Parse(task.Success)
+		successMessage := new(bytes.Buffer)
+		err = tmpl.Execute(successMessage, templateVars)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(s.Writer, vitalCommand.successMessage(string(successMessage.Bytes())))
+	} else {
+		fmt.Fprintf(s.Writer, vitalCommand.failureMessage(fmt.Sprintf("%s: %s", task.Failure, err)))
+	}
+	return err
+}
+
+// RunTask displays runs a task
+func (vitalCommand *vitalCommand) RunTask(task Task) (err error) {
+	w := os.Stdout
+	fmt.Fprintf(w, vitalCommand.infoMessage(task.Description))
+	if task.RunW != nil {
+		err = task.RunW(w)
+	} else {
+		err = task.Run()
+	}
+	if err == nil {
+		fmt.Fprintf(w, vitalCommand.successMessage(task.Success))
+	} else {
+		fmt.Fprintf(w, vitalCommand.failureMessage(task.Failure))
+	}
+	return err
+}
+
 // NewAPIClient returns an Opsani API client configured using the active configuration
 func (baseCmd *BaseCommand) NewAPIClient() *opsani.Client {
 	c := opsani.NewClient().
 		SetBaseURL(baseCmd.BaseURL()).
-		SetApp(baseCmd.App()).
+		SetApp(baseCmd.Optimizer()).
 		SetAuthToken(baseCmd.AccessToken()).
 		SetDebug(baseCmd.DebugModeEnabled())
 	if baseCmd.RequestTracingEnabled() {
@@ -377,8 +468,8 @@ func (baseCmd *BaseCommand) GetBaseURL() string {
 }
 
 // GetAppComponents returns the organization name and app ID as separate path components
-func (baseCmd *BaseCommand) GetAppComponents() (orgSlug string, appSlug string) {
-	app := baseCmd.App()
+func (baseCmd *BaseCommand) GetOptimizerComponents() (orgSlug string, appSlug string) {
+	app := baseCmd.Optimizer()
 	org := filepath.Dir(app)
 	appID := filepath.Base(app)
 	return org, appID
@@ -391,7 +482,7 @@ func (baseCmd *BaseCommand) GetAllSettings() map[string]interface{} {
 
 // IsInitialized returns a boolean value that indicates if the client has been initialized
 func (baseCmd *BaseCommand) IsInitialized() bool {
-	return baseCmd.App() != "" && baseCmd.AccessToken() != ""
+	return baseCmd.Optimizer() != "" && baseCmd.AccessToken() != ""
 }
 
 var helpCommand = &cobra.Command{
@@ -466,7 +557,7 @@ func managementSubCommands(cmd *cobra.Command) []*cobra.Command {
 		if isOtherCommand(sub) {
 			continue
 		}
-		if sub.IsAvailableCommand() && sub.HasSubCommands() {
+		if sub.IsAvailableCommand() && sub.HasSubCommands() && len(sub.Annotations) == 0 {
 			cmds = append(cmds, sub)
 		}
 	}
@@ -485,6 +576,24 @@ func otherSubCommands(cmd *cobra.Command) []*cobra.Command {
 		}
 	}
 	return cmds
+}
+
+func hasEducationalSubCommands(cmd *cobra.Command) bool {
+	return len(educationalSubCommands(cmd)) > 0
+}
+
+func educationalSubCommands(cmd *cobra.Command) []*cobra.Command {
+	cmds := []*cobra.Command{}
+	for _, sub := range cmd.Commands() {
+		if sub.IsAvailableCommand() && isEducationalCommand(sub) {
+			cmds = append(cmds, sub)
+		}
+	}
+	return cmds
+}
+
+func isEducationalCommand(cmd *cobra.Command) bool {
+	return cmd.Annotations["educational"] == "true"
 }
 
 func isOtherCommand(cmd *cobra.Command) bool {
@@ -539,7 +648,7 @@ Global Options:
 {{- end}}
 {{- if hasManagementSubCommands . }}
 
-Management Commands:
+Core Commands:
 
 {{- range managementSubCommands . }}
   {{rpad .Name .NamePadding }} {{.Short}}
@@ -562,6 +671,14 @@ Commands:
 {{- end}}
 {{- end}}
 
+{{- if hasEducationalSubCommands . }}
+
+Learning Commands:
+
+{{- range educationalSubCommands . }}
+  {{rpad .Name .NamePadding }} {{.Short}}
+{{- end}}
+{{- end}}
 {{- if hasOtherSubCommands .}}
 
 Other Commands:

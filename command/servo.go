@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"os/exec"
 	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
@@ -31,6 +32,16 @@ import (
 	"golang.org/x/crypto/ssh/knownhosts"
 	"golang.org/x/crypto/ssh/terminal"
 )
+
+// Args is a convenience function that converts a variadic list of strings into an array
+func Args(args ...string) []string {
+	return args
+}
+
+// ArgsS is a convenience function that converts a space delimited string into an array of args
+func ArgsS(args string) []string {
+	return strings.Split(args, " ")
+}
 
 // NOTE: Binding vars instead of using flags because the call stack is messy atm
 type servoCommand struct {
@@ -68,69 +79,69 @@ func NewServoCommand(baseCmd *BaseCommand) *cobra.Command {
 	}
 	listCmd.Flags().BoolVarP(&servoCommand.verbose, "verbose", "v", false, "Display verbose output")
 	servoCmd.AddCommand(listCmd)
-	addCmd := &cobra.Command{
-		Use:                   "add [OPTIONS] [NAME]",
-		Long:                  "Add a servo to the local registry",
+	attachCmd := &cobra.Command{
+		Use:                   "attach [OPTIONS]",
+		Long:                  "Attach servo to the active profile",
 		Annotations:           map[string]string{"registry": "true"},
-		Short:                 "Add a servo",
-		Args:                  cobra.MaximumNArgs(1),
-		RunE:                  servoCommand.RunAddServo,
+		Short:                 "Attach servo to active profile",
+		Args:                  cobra.NoArgs,
+		RunE:                  servoCommand.RunAttachServo,
 		DisableFlagsInUseLine: true,
 	}
-	addCmd.Flags().BoolP("bastion", "b", false, "Use a bastion host for access")
-	addCmd.Flags().String("bastion-host", "", "Specify the bastion host (format is user@host[:port])")
-	servoCmd.AddCommand(addCmd)
+	attachCmd.Flags().BoolP("bastion", "b", false, "Use a bastion host for access")
+	attachCmd.Flags().String("bastion-host", "", "Specify the bastion host (format is user@host[:port])")
+	servoCmd.AddCommand(attachCmd)
 
-	removeCmd := &cobra.Command{
-		Use:                   "remove [OPTIONS] [NAME]",
-		Long:                  "Remove a servo from the local registry",
+	detachCmd := &cobra.Command{
+		Use:                   "detach [OPTIONS]",
+		Long:                  "Detach servo from the active profile",
 		Annotations:           map[string]string{"registry": "true"},
 		Aliases:               []string{"rm"},
-		Short:                 "Remove a servo",
-		Args:                  cobra.ExactArgs(1),
-		RunE:                  servoCommand.RunRemoveServo,
+		Short:                 "Detach servo from active profile",
+		Args:                  cobra.NoArgs,
+		RunE:                  servoCommand.RunDetachServo,
 		DisableFlagsInUseLine: true,
 	}
-	removeCmd.Flags().BoolVarP(&servoCommand.force, "force", "f", false, "Don't prompt for confirmation")
-	servoCmd.AddCommand(removeCmd)
+	detachCmd.Flags().BoolVarP(&servoCommand.force, "force", "f", false, "Don't prompt for confirmation")
+	servoCmd.AddCommand(detachCmd)
 
 	// Servo Lifecycle
 	servoCmd.AddCommand(&cobra.Command{
 		Use:   "status",
 		Short: "Check servo status",
-		Args:  cobra.ExactArgs(1),
+		Args:  cobra.NoArgs,
 		RunE:  servoCommand.RunServoStatus,
 	})
 	servoCmd.AddCommand(&cobra.Command{
 		Use:   "start",
 		Short: "Start the servo",
-		Args:  cobra.ExactArgs(1),
+		Args:  cobra.NoArgs,
 		RunE:  servoCommand.RunServoStart,
 	})
 	servoCmd.AddCommand(&cobra.Command{
 		Use:   "stop",
 		Short: "Stop the servo",
-		Args:  cobra.ExactArgs(1),
+		Args:  cobra.NoArgs,
 		RunE:  servoCommand.RunServoStop,
 	})
 	servoCmd.AddCommand(&cobra.Command{
 		Use:   "restart",
-		Short: "Restart servo",
-		Args:  cobra.ExactArgs(1),
+		Short: "Restart the servo",
+		Args:  cobra.NoArgs,
 		RunE:  servoCommand.RunServoRestart,
 	})
 
 	// Servo Access
 	servoCmd.AddCommand(&cobra.Command{
 		Use:   "config",
-		Short: "Display the servo config file",
-		Args:  cobra.ExactArgs(1),
+		Short: "View servo config file",
+		Args:  cobra.NoArgs,
 		RunE:  servoCommand.RunServoConfig,
 	})
 	logsCmd := &cobra.Command{
 		Use:   "logs",
-		Short: "View logs on a servo",
-		Args:  cobra.ExactArgs(1),
+		Short: "View servo logs",
+		Args:  cobra.NoArgs,
 		RunE:  servoCommand.RunServoLogs,
 	}
 
@@ -140,92 +151,147 @@ func NewServoCommand(baseCmd *BaseCommand) *cobra.Command {
 
 	servoCmd.AddCommand(logsCmd)
 	servoCmd.AddCommand(&cobra.Command{
-		Use:   "ssh",
-		Short: "SSH into a servo",
-		Args:  cobra.ExactArgs(1),
-		RunE:  servoCommand.RunServoSSH,
+		Use:   "shell",
+		Short: "Open an interactive shell on the servo",
+		Args:  cobra.NoArgs,
+		RunE:  servoCommand.RunServoShell,
 	})
 
 	return servoCmd
 }
 
-func (servoCmd *servoCommand) RunAddServo(c *cobra.Command, args []string) error {
+func (servoCmd *servoCommand) RunAttachServo(c *cobra.Command, args []string) error {
+	if servoCmd.profile == nil {
+		return fmt.Errorf("no profile active")
+	}
+
+	if servoCmd.profile.Servo != (Servo{}) {
+		prompt := &survey.Confirm{
+			Message: fmt.Sprintf("Existing servo attached to %q. Overwrite?", servoCmd.profile.Name),
+		}
+		var confirmed bool
+		servoCmd.AskOne(prompt, &confirmed)
+		if confirmed == false {
+			return nil
+		}
+	}
+
 	servo := Servo{}
-	if len(args) > 0 {
-		servo.Name = args[0]
-	}
 
-	if servo.Name == "" {
-		err := servoCmd.AskOne(&survey.Input{
-			Message: "Servo name?",
-		}, &servo.Name, survey.WithValidator(survey.Required))
+	if servo.Type == "" {
+		err := servoCmd.AskOne(&survey.Select{
+			Message: "Select deployment:",
+			Options: []string{"kubernetes", "docker-compose"},
+			Default: "kubernetes",
+		}, &servo.Type, survey.WithValidator(survey.Required))
 		if err != nil {
 			return err
 		}
 	}
 
-	if servo.User == "" {
-		err := servoCmd.AskOne(&survey.Input{
-			Message: "User?",
-		}, &servo.User, survey.WithValidator(survey.Required))
-		if err != nil {
-			return err
-		}
-	}
-
-	if servo.Host == "" {
-		err := servoCmd.AskOne(&survey.Input{
-			Message: "Host?",
-		}, &servo.Host, survey.WithValidator(survey.Required))
-		if err != nil {
-			return err
-		}
-	}
-
-	if servo.Path == "" {
-		err := servoCmd.AskOne(&survey.Input{
-			Message: "Path? (optional)",
-		}, &servo.Path)
-		if err != nil {
-			return err
-		}
-	}
-
-	// Handle bastion hosts
-	if flagSet, _ := c.Flags().GetBool("bastion"); flagSet {
-		servo.Bastion, _ = c.Flags().GetString("bastion-host")
-		if servo.Bastion == "" {
+	if servo.Type == "kubernetes" {
+		if servo.User == "" {
 			err := servoCmd.AskOne(&survey.Input{
-				Message: "Bastion host? (format is user@host[:port])",
-			}, &servo.Bastion)
+				Message: "Namespace:",
+				Default: "opsani",
+			}, &servo.Namespace, survey.WithValidator(survey.Required))
+			if err != nil {
+				return err
+			}
+		}
+
+		if servo.Host == "" {
+			err := servoCmd.AskOne(&survey.Input{
+				Message: "Deployment:",
+				Default: "servo",
+			}, &servo.Deployment, survey.WithValidator(survey.Required))
 			if err != nil {
 				return err
 			}
 		}
 	}
 
-	registry := NewServoRegistry(servoCmd.viperCfg)
-	return registry.AddServo(servo)
+	if servo.Type == "docker-compose" {
+		if servo.User == "" {
+			err := servoCmd.AskOne(&survey.Input{
+				Message: "User?",
+			}, &servo.User, survey.WithValidator(survey.Required))
+			if err != nil {
+				return err
+			}
+		}
+
+		if servo.Host == "" {
+			err := servoCmd.AskOne(&survey.Input{
+				Message: "Host?",
+			}, &servo.Host, survey.WithValidator(survey.Required))
+			if err != nil {
+				return err
+			}
+		}
+
+		if servo.Path == "" {
+			err := servoCmd.AskOne(&survey.Input{
+				Message: "Path? (optional)",
+			}, &servo.Path)
+			if err != nil {
+				return err
+			}
+		}
+
+		// Handle bastion hosts
+		if flagSet, _ := c.Flags().GetBool("bastion"); flagSet {
+			servo.Bastion, _ = c.Flags().GetString("bastion-host")
+			if servo.Bastion == "" {
+				err := servoCmd.AskOne(&survey.Input{
+					Message: "Bastion host? (format is user@host[:port])",
+				}, &servo.Bastion)
+				if err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	registry, err := NewProfileRegistry(servoCmd.viperCfg)
+	if err != nil {
+		return err
+	}
+	profile := registry.ProfileNamed(servoCmd.profile.Name)
+	profile.Servo = servo
+	if err := registry.Save(); err != nil {
+		return err
+	}
+
+	return nil
 }
 
-func (servoCmd *servoCommand) RunRemoveServo(_ *cobra.Command, args []string) error {
-	registry := NewServoRegistry(servoCmd.viperCfg)
-	name := args[0]
-	servo := registry.ServoNamed(name)
-	if servo == nil {
-		return fmt.Errorf("Unable to find servo %q", name)
+func (servoCmd *servoCommand) RunDetachServo(_ *cobra.Command, args []string) error {
+	if servoCmd.profile == nil {
+		return fmt.Errorf("no profile active")
+	} else if servoCmd.profile.Servo == (Servo{}) {
+		return fmt.Errorf("no servo is attached")
 	}
 
 	confirmed := servoCmd.force
 	if !confirmed {
 		prompt := &survey.Confirm{
-			Message: fmt.Sprintf("Remove servo %q?", servo.Name),
+			Message: fmt.Sprintf("Detach servo from profile %q?", servoCmd.profile.Name),
 		}
 		servoCmd.AskOne(prompt, &confirmed)
 	}
 
 	if confirmed {
-		return registry.RemoveServo(*servo)
+		registry, err := NewProfileRegistry(servoCmd.viperCfg)
+		if err != nil {
+			return err
+		}
+		profile := registry.ProfileNamed(servoCmd.profile.Name)
+		profile.Servo = Servo{}
+		if err := registry.Save(); err != nil {
+			return err
+		}
+		// return registry.RemoveServo(*servo)
 	}
 
 	return nil
@@ -246,20 +312,25 @@ func (servoCmd *servoCommand) RunServoList(_ *cobra.Command, args []string) erro
 	table.SetNoWhiteSpace(true)
 
 	data := [][]string{}
-	registry := NewServoRegistry(servoCmd.viperCfg)
-	servos, _ := registry.Servos()
+	registry, err := NewProfileRegistry(servoCmd.viperCfg)
+	if err != nil {
+		return nil
+	}
 
 	if servoCmd.verbose {
-		headers := []string{"NAME", "USER", "HOST", "PATH"}
-		for _, servo := range servos {
+		headers := []string{"NAME", "TYPE", "NAMESPACE", "DEPLOYMENT", "USER", "HOST", "PATH"}
+		for _, profile := range registry.Profiles() {
 			row := []string{
-				servo.Name,
-				servo.User,
-				servo.DisplayHost(),
-				servo.DisplayPath(),
+				profile.Name,
+				profile.Servo.Type,
+				profile.Servo.Namespace,
+				profile.Servo.Deployment,
+				profile.Servo.User,
+				profile.Servo.DisplayHost(),
+				profile.Servo.DisplayPath(),
 			}
-			if servo.Bastion != "" {
-				row = append(row, servo.Bastion)
+			if profile.Servo.Bastion != "" {
+				row = append(row, profile.Servo.Bastion)
 				if len(headers) == 4 {
 					headers = append(headers, "BASTION")
 				}
@@ -268,13 +339,14 @@ func (servoCmd *servoCommand) RunServoList(_ *cobra.Command, args []string) erro
 		}
 		table.SetHeader(headers)
 	} else {
-		for _, servo := range servos {
+		for _, profile := range registry.Profiles() {
 			row := []string{
-				servo.Name,
-				servo.URL(),
+				profile.Name,
+				profile.Servo.Type,
+				profile.Servo.Description(),
 			}
-			if servo.Bastion != "" {
-				row = append(row, fmt.Sprintf("(via %s)", servo.Bastion))
+			if profile.Servo.Bastion != "" {
+				row = append(row, fmt.Sprintf("(via %s)", profile.Servo.Bastion))
 			}
 			data = append(data, row)
 		}
@@ -285,43 +357,94 @@ func (servoCmd *servoCommand) RunServoList(_ *cobra.Command, args []string) erro
 	return nil
 }
 
-func (servoCmd *servoCommand) RunServoStatus(_ *cobra.Command, args []string) error {
+type servoLogsArgs struct {
+	Follow     bool
+	Timestamps bool
+	Lines      string
+}
+
+// ServoDriver defines a standard interface for interacting with servo deployments
+type ServoDriver interface {
+	Status() error // TODO: pass io.Writer for output, ssh interface for bastion
+	Start() error
+	Stop() error
+	Restart() error
+	Logs(args servoLogsArgs) error
+	Config() error
+	Shell() error
+}
+
+// DockerComposeServoDriver supports interaction with servos deployed via Docker Compose
+type DockerComposeServoDriver struct {
+	servo Servo
+}
+
+// Status outputs the servo status
+func (c *DockerComposeServoDriver) Status() error {
 	ctx := context.Background()
-	return servoCmd.runInSSHSession(ctx, args[0], func(ctx context.Context, servo Servo, session *ssh.Session) error {
-		return servoCmd.runDockerComposeOverSSH("ps", nil, servo, session)
+	return c.runInSSHSession(ctx, func(ctx context.Context, session *ssh.Session) error {
+		return c.runDockerComposeOverSSH("ps", nil, session)
 	})
 }
 
-func (servoCmd *servoCommand) RunServoStart(_ *cobra.Command, args []string) error {
+// Start starts the servo
+func (c *DockerComposeServoDriver) Start() error {
 	ctx := context.Background()
-	return servoCmd.runInSSHSession(ctx, args[0], func(ctx context.Context, servo Servo, session *ssh.Session) error {
-		return servoCmd.runDockerComposeOverSSH("up -d", nil, servo, session)
+	return c.runInSSHSession(ctx, func(ctx context.Context, session *ssh.Session) error {
+		return c.runDockerComposeOverSSH("up -d", nil, session)
 	})
 }
 
-func (servoCmd *servoCommand) RunServoStop(_ *cobra.Command, args []string) error {
+// Stop stops the servo
+func (c *DockerComposeServoDriver) Stop() error {
 	ctx := context.Background()
-	return servoCmd.runInSSHSession(ctx, args[0], func(ctx context.Context, servo Servo, session *ssh.Session) error {
-		return servoCmd.runDockerComposeOverSSH("down", nil, servo, session)
+	return c.runInSSHSession(ctx, func(ctx context.Context, session *ssh.Session) error {
+		return c.runDockerComposeOverSSH("down", nil, session)
 	})
 }
 
-func (servoCmd *servoCommand) RunServoRestart(_ *cobra.Command, args []string) error {
+// Restart restrarts the servo
+func (c *DockerComposeServoDriver) Restart() error {
 	ctx := context.Background()
-	return servoCmd.runInSSHSession(ctx, args[0], func(ctx context.Context, servo Servo, session *ssh.Session) error {
-		return servoCmd.runDockerComposeOverSSH("down && docker-compse up -d", nil, servo, session)
+	return c.runInSSHSession(ctx, func(ctx context.Context, session *ssh.Session) error {
+		return c.runDockerComposeOverSSH("down && docker-compse up -d", nil, session)
 	})
 }
 
-func (servoCmd *servoCommand) RunServoConfig(_ *cobra.Command, args []string) error {
+// Logs outputs the servo logs
+func (c *DockerComposeServoDriver) Logs(logsArgs servoLogsArgs) error {
+	ctx := context.Background()
+	return c.runInSSHSession(ctx, func(ctx context.Context, session *ssh.Session) error {
+		// TODO: Needs to be passed in
+		session.Stdout = os.Stdout
+		session.Stderr = os.Stderr
+
+		args := []string{}
+		if path := c.servo.Path; path != "" {
+			args = append(args, "cd", path+"&&")
+		}
+		args = append(args, "docker-compose logs")
+		args = append(args, "--tail "+logsArgs.Lines)
+		if logsArgs.Follow {
+			args = append(args, "--follow")
+		}
+		if logsArgs.Timestamps {
+			args = append(args, "--timestamps")
+		}
+		return session.Run(strings.Join(args, " "))
+	})
+}
+
+// Config returns the servo config file
+func (c *DockerComposeServoDriver) Config() error {
 	ctx := context.Background()
 	outputBuffer := new(bytes.Buffer)
-	err := servoCmd.runInSSHSession(ctx, args[0], func(ctx context.Context, servo Servo, session *ssh.Session) error {
+	err := c.runInSSHSession(ctx, func(ctx context.Context, session *ssh.Session) error {
 		session.Stdout = outputBuffer
 		session.Stderr = os.Stderr
 
 		sshCmd := make([]string, 3)
-		if path := servo.Path; path != "" {
+		if path := c.servo.Path; path != "" {
 			sshCmd = append(sshCmd, "cd", path+"&&")
 		}
 		sshCmd = append(sshCmd, "cat", "config.yaml")
@@ -330,53 +453,30 @@ func (servoCmd *servoCommand) RunServoConfig(_ *cobra.Command, args []string) er
 
 	// We got the config, let's pretty print it
 	if err == nil {
-		servoCmd.PrettyPrintYAML(outputBuffer.Bytes(), true)
+		prettyYAML, _ := PrettyPrintYAMLToString(outputBuffer.Bytes(), true, true)
+		_, err = os.Stdout.Write([]byte(prettyYAML + "\n"))
 	}
 	return err
 }
 
-func (servoCmd *servoCommand) RunServoLogs(_ *cobra.Command, args []string) error {
+// Shell establishes an interactive shell with the servo
+func (c *DockerComposeServoDriver) Shell() error {
 	ctx := context.Background()
-	return servoCmd.runInSSHSession(ctx, args[0], servoCmd.runLogsSSHSession)
+	return c.runInSSHSession(ctx, c.runShellOnSSHSession)
 }
 
-// RunConfig displays Opsani CLI config info
-func (servoCmd *servoCommand) RunServoSSH(_ *cobra.Command, args []string) error {
-	ctx := context.Background()
-	return servoCmd.runInSSHSession(ctx, args[0], servoCmd.runShellOnSSHSession)
-}
-
-func (servoCmd *servoCommand) runDockerComposeOverSSH(cmd string, args []string, servo Servo, session *ssh.Session) error {
+func (c *DockerComposeServoDriver) runDockerComposeOverSSH(cmd string, args []string, session *ssh.Session) error {
 	session.Stdout = os.Stdout
 	session.Stderr = os.Stderr
 
-	if path := servo.Path; path != "" {
+	if path := c.servo.Path; path != "" {
 		args = append(args, "cd", path+"&&")
 	}
 	args = append(args, "docker-compose", cmd)
 	return session.Run(strings.Join(args, " "))
 }
 
-func (servoCmd *servoCommand) runLogsSSHSession(ctx context.Context, servo Servo, session *ssh.Session) error {
-	session.Stdout = os.Stdout
-	session.Stderr = os.Stderr
-
-	args := []string{}
-	if path := servo.Path; path != "" {
-		args = append(args, "cd", path+"&&")
-	}
-	args = append(args, "docker-compose logs")
-	args = append(args, "--tail "+servoCmd.lines)
-	if servoCmd.follow {
-		args = append(args, "--follow")
-	}
-	if servoCmd.timestamps {
-		args = append(args, "--timestamps")
-	}
-	return session.Run(strings.Join(args, " "))
-}
-
-func (servoCmd *servoCommand) runShellOnSSHSession(ctx context.Context, servo Servo, session *ssh.Session) error {
+func (c *DockerComposeServoDriver) runShellOnSSHSession(ctx context.Context, session *ssh.Session) error {
 	fd := int(os.Stdin.Fd())
 	state, err := terminal.MakeRaw(fd)
 	if err != nil {
@@ -424,26 +524,172 @@ func (servoCmd *servoCommand) runShellOnSSHSession(ctx context.Context, servo Se
 	return err
 }
 
+//////////////////
+
+// KubernetesServoDriver supports interaction with servos deployed via Kubernetes
+type KubernetesServoDriver struct {
+	servo Servo
+}
+
+// Status outputs the servo status
+func (c *KubernetesServoDriver) Status() error {
+	argsS := fmt.Sprintf("-n %v describe deployments/%v", c.servo.Namespace, c.servo.Deployment)
+	cmd := exec.Command("kubectl", ArgsS(argsS)...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+// Start starts the servo
+func (c *KubernetesServoDriver) Start() error {
+	argsS := fmt.Sprintf("-n %v scale --replicas=1 deployments/%v", c.servo.Namespace, c.servo.Deployment)
+	cmd := exec.Command("kubectl", ArgsS(argsS)...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+// Stop stops the servo
+func (c *KubernetesServoDriver) Stop() error {
+	argsS := fmt.Sprintf("-n %v scale --replicas=0 deployments/%v", c.servo.Namespace, c.servo.Deployment)
+	cmd := exec.Command("kubectl", ArgsS(argsS)...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+// Restart restarts the servo
+func (c *KubernetesServoDriver) Restart() error {
+	argsS := fmt.Sprintf("-n %v rollout restart deployment/%v", c.servo.Namespace, c.servo.Deployment)
+	cmd := exec.Command("kubectl", ArgsS(argsS)...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+// Logs outputs the servo logs
+func (c *KubernetesServoDriver) Logs(logsArgs servoLogsArgs) error {
+	deploymentArg := fmt.Sprintf("deployments/%v", c.servo.Deployment)
+	args := Args("-n", c.servo.Namespace, "logs", deploymentArg)
+
+	if logsArgs.Lines != "" {
+		args = append(args, "--tail="+logsArgs.Lines)
+	}
+	if logsArgs.Follow {
+		args = append(args, "--follow")
+	}
+	if logsArgs.Timestamps {
+		args = append(args, "--timestamps")
+	}
+
+	cmd := exec.Command("kubectl", args...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+// Config outputs the servo config
+func (c *KubernetesServoDriver) Config() error {
+	outputBuffer := new(bytes.Buffer)
+	argsS := fmt.Sprintf("-n %v exec deployment/%v -- cat /servo/config.yaml", c.servo.Namespace, c.servo.Deployment)
+	cmd := exec.Command("kubectl", ArgsS(argsS)...)
+	cmd.Stdout = outputBuffer
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return nil
+	}
+
+	prettyYAML, _ := PrettyPrintYAMLToString(outputBuffer.Bytes(), true, true)
+	_, err := os.Stdout.Write([]byte(prettyYAML + "\n"))
+	return err
+}
+
+// NewServoDriver creates and returns an appropriate commander for a given servo
+func NewServoDriver(servo Servo) (ServoDriver, error) {
+	if servo.Type == "docker-compose" {
+		return &DockerComposeServoDriver{servo: servo}, nil
+	} else if servo.Type == "kubernetes" {
+		return &KubernetesServoDriver{servo: servo}, nil
+	}
+	return nil, fmt.Errorf("no driver for servo type: %q", servo.Type)
+}
+
+func (servoCmd *servoCommand) RunServoStatus(_ *cobra.Command, args []string) error {
+	driver, err := NewServoDriver(servoCmd.profile.Servo)
+	if driver == nil {
+		return err
+	}
+	return driver.Status()
+}
+
+func (servoCmd *servoCommand) RunServoStart(_ *cobra.Command, args []string) error {
+	driver, err := NewServoDriver(servoCmd.profile.Servo)
+	if driver == nil {
+		return err
+	}
+	return driver.Start()
+}
+
+func (servoCmd *servoCommand) RunServoStop(_ *cobra.Command, args []string) error {
+	driver, err := NewServoDriver(servoCmd.profile.Servo)
+	if driver == nil {
+		return err
+	}
+	return driver.Stop()
+}
+
+func (servoCmd *servoCommand) RunServoRestart(_ *cobra.Command, args []string) error {
+	driver, err := NewServoDriver(servoCmd.profile.Servo)
+	if driver == nil {
+		return err
+	}
+	return driver.Restart()
+}
+
+func (servoCmd *servoCommand) RunServoConfig(_ *cobra.Command, args []string) error {
+	driver, err := NewServoDriver(servoCmd.profile.Servo)
+	if driver == nil {
+		return err
+	}
+	return driver.Config()
+}
+
+func (servoCmd *servoCommand) RunServoLogs(_ *cobra.Command, args []string) error {
+	driver, err := NewServoDriver(servoCmd.profile.Servo)
+	if driver == nil {
+		return err
+	}
+	logsArgs := servoLogsArgs{
+		Follow:     servoCmd.follow,
+		Timestamps: servoCmd.timestamps,
+		Lines:      servoCmd.lines,
+	}
+	return driver.Logs(logsArgs)
+}
+
+func (servoCmd *servoCommand) RunServoShell(_ *cobra.Command, args []string) error {
+	driver, err := NewServoDriver(servoCmd.profile.Servo)
+	if driver == nil {
+		return err
+	}
+	return driver.Shell()
+}
+
 ///
 /// SSH Primitives
 ///
 
-func (servoCmd *servoCommand) sshAgent() ssh.AuthMethod {
+func sshAgent() ssh.AuthMethod {
 	if sshAgent, err := net.Dial("unix", os.Getenv("SSH_AUTH_SOCK")); err == nil {
 		return ssh.PublicKeysCallback(agent.NewClient(sshAgent).Signers)
 	}
 	return nil
 }
 
-func (servoCmd *servoCommand) runInSSHSession(ctx context.Context, name string, runIt func(context.Context, Servo, *ssh.Session) error) error {
-	registry := NewServoRegistry(servoCmd.viperCfg)
-	servo := registry.ServoNamed(name)
-	if servo == nil {
-		return fmt.Errorf("no such servo %q", name)
-	}
-
+// TODO: convert to standalone func
+func (c *DockerComposeServoDriver) runInSSHSession(ctx context.Context, runIt func(context.Context, *ssh.Session) error) error {
 	// SSH client config
-	knownHosts, err := homedir.Expand("~/.ssh/known_hosts")
+	knownHosts, err := homedir.Expand("~/.ssh/known_hosts") // TODO: Windows support
 	if err != nil {
 		return err
 	}
@@ -452,21 +698,21 @@ func (servoCmd *servoCommand) runInSSHSession(ctx context.Context, name string, 
 		return err
 	}
 	config := &ssh.ClientConfig{
-		User: servo.User,
+		User: c.servo.User,
 		Auth: []ssh.AuthMethod{
-			servoCmd.sshAgent(),
+			sshAgent(),
 		},
 		HostKeyCallback: hostKeyCallback,
 	}
 
 	// Support bastion hosts via redialing
 	var sshClient *ssh.Client
-	if servo.Bastion != "" {
-		user, host := servo.BastionComponents()
+	if c.servo.Bastion != "" {
+		user, host := c.servo.BastionComponents()
 		bastionConfig := &ssh.ClientConfig{
 			User: user,
 			Auth: []ssh.AuthMethod{
-				servoCmd.sshAgent(),
+				sshAgent(),
 			},
 			HostKeyCallback: hostKeyCallback,
 		}
@@ -478,13 +724,13 @@ func (servoCmd *servoCommand) runInSSHSession(ctx context.Context, name string, 
 		}
 
 		// Establish a new connection thrrough the bastion
-		conn, err := bastionClient.Dial("tcp", servo.HostAndPort())
+		conn, err := bastionClient.Dial("tcp", c.servo.HostAndPort())
 		if err != nil {
 			return err
 		}
 
 		// Build a new SSH connection on top of the bastion connection
-		ncc, chans, reqs, err := ssh.NewClientConn(conn, servo.HostAndPort(), config)
+		ncc, chans, reqs, err := ssh.NewClientConn(conn, c.servo.HostAndPort(), config)
 		if err != nil {
 			return err
 		}
@@ -492,7 +738,7 @@ func (servoCmd *servoCommand) runInSSHSession(ctx context.Context, name string, 
 		// Now connection a client on top of it
 		sshClient = ssh.NewClient(ncc, chans, reqs)
 	} else {
-		sshClient, err = ssh.Dial("tcp", servo.HostAndPort(), config)
+		sshClient, err = ssh.Dial("tcp", c.servo.HostAndPort(), config)
 		if err != nil {
 			return err
 		}
@@ -511,5 +757,5 @@ func (servoCmd *servoCommand) runInSSHSession(ctx context.Context, name string, 
 		sshClient.Close()
 	}()
 
-	return runIt(ctx, *servo, session)
+	return runIt(ctx, session)
 }

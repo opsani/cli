@@ -1,0 +1,37 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: servo-config
+  namespace: default
+data:
+  config.yaml: |
+    k8s:
+      application:
+        components:
+          web:
+            settings:
+              cpu:
+                min: 0.1
+                max: 0.8
+                step: 0.125
+              mem:
+                min: 0.1
+                max: 0.8
+                step: 0.125
+              replicas:
+                min: 1
+                max: 2
+                step: 1
+    prom:
+      prometheus_endpoint: http://prometheus-operated.default.svc.cluster.local:9090
+      metrics:
+        requests_total:
+          query: demo_requests_total OR on() vector(0)
+          unit: count
+    vegeta:
+      rate: 50/1s
+      duration: 1m45s
+      target: GET http://web.default.svc.cluster.local:8080/
+      workers: 10
+      max-workers: 10

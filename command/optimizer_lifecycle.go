@@ -16,8 +16,8 @@ package command
 
 import "github.com/spf13/cobra"
 
-// NewAppStartCommand returns an Opsani CLI command for starting the app
-func NewAppStartCommand(baseCmd *BaseCommand) *cobra.Command {
+// NewOptimizerStartCommand returns an Opsani CLI command for starting the app
+func NewOptimizerStartCommand(baseCmd *BaseCommand) *cobra.Command {
 	return &cobra.Command{
 		Use:   "start",
 		Short: "Start the app",
@@ -33,8 +33,8 @@ func NewAppStartCommand(baseCmd *BaseCommand) *cobra.Command {
 	}
 }
 
-// NewAppStopCommand returns an Opsani CLI command for stopping the app
-func NewAppStopCommand(baseCmd *BaseCommand) *cobra.Command {
+// NewOptimizerStopCommand returns an Opsani CLI command for stopping the app
+func NewOptimizerStopCommand(baseCmd *BaseCommand) *cobra.Command {
 	return &cobra.Command{
 		Use:   "stop",
 		Short: "Stop the app",
@@ -50,8 +50,8 @@ func NewAppStopCommand(baseCmd *BaseCommand) *cobra.Command {
 	}
 }
 
-// NewAppRestartCommand returns an Opsani CLI command for restarting the app
-func NewAppRestartCommand(baseCmd *BaseCommand) *cobra.Command {
+// NewOptimizerRestartCommand returns an Opsani CLI command for restarting the app
+func NewOptimizerRestartCommand(baseCmd *BaseCommand) *cobra.Command {
 	return &cobra.Command{
 		Use:   "restart",
 		Short: "Restart the app",
@@ -67,8 +67,8 @@ func NewAppRestartCommand(baseCmd *BaseCommand) *cobra.Command {
 	}
 }
 
-// NewAppStatusCommand returns an Opsani CLI command for retrieving status on the app
-func NewAppStatusCommand(baseCmd *BaseCommand) *cobra.Command {
+// NewOptimizerStatusCommand returns an Opsani CLI command for retrieving status on the app
+func NewOptimizerStatusCommand(baseCmd *BaseCommand) *cobra.Command {
 	return &cobra.Command{
 		Use:   "status",
 		Short: "Check app status",

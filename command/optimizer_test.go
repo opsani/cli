@@ -37,18 +37,18 @@ func (s *AppTestSuite) SetupTest() {
 func (s *AppTestSuite) TestRunningApp() {
 	output, err := s.Execute("app")
 	s.Require().NoError(err)
-	s.Require().Contains(output, "Manage apps")
+	s.Require().Contains(output, "Manage optimizer services")
 	s.Require().Contains(output, "Usage:")
 }
 
 func (s *AppTestSuite) TestRunningAppHelp() {
 	output, err := s.Execute("app", "--help")
 	s.Require().NoError(err)
-	s.Require().Contains(output, "Manage apps")
+	s.Require().Contains(output, "Manage optimizer services")
 }
 
 func (s *AppTestSuite) TestRunningAppConsoleHelp() {
-	output, err := s.Execute("app", "--help")
+	output, err := s.Execute("--help")
 	s.Require().NoError(err)
 	s.Require().Contains(output, "Open the Opsani console")
 }

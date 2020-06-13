@@ -91,6 +91,11 @@ func (cmd *BaseCommand) OutOrStdout() io.Writer {
 	return cmd.rootCobraCommand.OutOrStdout()
 }
 
+// ErrOrStderr returns output to stdout.
+func (cmd *BaseCommand) ErrOrStderr() io.Writer {
+	return cmd.rootCobraCommand.ErrOrStderr()
+}
+
 // Print is a convenience method to Print to the defined output, fallback to Stderr if not set.
 func (cmd *BaseCommand) Print(i ...interface{}) {
 	cmd.rootCobraCommand.Print(i...)
@@ -195,12 +200,12 @@ func (cmd *BaseCommand) PrettyPrintYAMLObject(obj interface{}) error {
 	return cmd.PrettyPrintYAML(yaml, false)
 }
 
-// PrettyPrintYAML pretty prints the given YAML byte array, optionally including line numbers
-func (cmd *BaseCommand) PrettyPrintYAML(bytes []byte, lineNumbers bool) error {
+// PrettyPrintYAMLToString pretty formats the given YAML byte array, optionally including line numbers
+func PrettyPrintYAMLToString(bytes []byte, colorize bool, lineNumbers bool) (string, error) {
 	tokens := lexer.Tokenize(string(bytes))
 	var p printer.Printer
 	p.LineNumber = lineNumbers
-	if cmd.ColorOutput() {
+	if colorize {
 		p.LineNumberFormat = func(num int) string {
 			fn := color.New(color.Bold, color.FgHiWhite).SprintFunc()
 			return fn(fmt.Sprintf("%2d | ", num))
@@ -242,10 +247,14 @@ func (cmd *BaseCommand) PrettyPrintYAML(bytes []byte, lineNumbers bool) error {
 			}
 		}
 	}
+	return p.PrintTokens(tokens), nil
+}
 
-	// writer := colorable.NewColorableStdout()
-	cmd.OutOrStdout().Write([]byte(p.PrintTokens(tokens) + "\n"))
-	return nil
+// PrettyPrintYAML pretty prints the given YAML byte array, optionally including line numbers
+func (cmd *BaseCommand) PrettyPrintYAML(bytes []byte, lineNumbers bool) error {
+	prettyYAML, _ := PrettyPrintYAMLToString(bytes, cmd.ColorOutput(), lineNumbers)
+	_, err := cmd.OutOrStdout().Write([]byte(prettyYAML + "\n"))
+	return err
 }
 
 // PersistentFlags returns the persistent FlagSet specifically set in the current command.
@@ -266,7 +275,7 @@ func (cmd *BaseCommand) BaseURL() string {
 		return baseURL
 	}
 	if cmd.profile != nil {
-		// return cmd.profile.BaseURL
+		return cmd.profile.BaseURL
 	}
 	return DefaultBaseURL
 }
@@ -299,7 +308,7 @@ func (cmd *BaseCommand) baseURLFromFlagsOrEnv() string {
 }
 
 func (cmd *BaseCommand) appFromFlagsOrEnv() string {
-	return cmd.valueFromFlagOrEnv(KeyApp, "OPSANI_APP")
+	return cmd.valueFromFlagOrEnv(KeyOptimizer, "OPSANI_OPTIMIZER")
 }
 
 func (cmd *BaseCommand) tokenFromFlagsOrEnv() string {
@@ -308,15 +317,14 @@ func (cmd *BaseCommand) tokenFromFlagsOrEnv() string {
 
 // LoadProfile loads the configuration for the specified profile
 func (cmd *BaseCommand) LoadProfile() (*Profile, error) {
-	registry := NewProfileRegistry(cmd.viperCfg)
-	profiles, err := registry.Profiles()
-	if err != nil || len(profiles) == 0 {
+	registry, err := NewProfileRegistry(cmd.viperCfg)
+	if err != nil || len(registry.Profiles()) == 0 {
 		return nil, nil
 	}
 
 	var profile *Profile
 	if cmd.profileName == "" {
-		profile = &profiles[0]
+		profile = registry.Profiles()[0]
 	} else {
 		profile = registry.ProfileNamed(cmd.profileName)
 		if profile == nil {
@@ -330,14 +338,13 @@ func (cmd *BaseCommand) LoadProfile() (*Profile, error) {
 			profile.BaseURL = baseURL
 		}
 		if app := cmd.appFromFlagsOrEnv(); app != "" {
-			profile.App = app
+			profile.Optimizer = app
 		}
 		if token := cmd.tokenFromFlagsOrEnv(); token != "" {
 			profile.Token = token
 		}
 
 		cmd.profile = profile
-		registry.Set(profiles)
 	}
 
 	return profile, nil
@@ -354,20 +361,20 @@ func (cmd *BaseCommand) AccessToken() string {
 	return ""
 }
 
-// App returns the target Opsani app
-func (cmd *BaseCommand) App() string {
-	if app := cmd.valueFromFlagOrEnv(KeyApp, "OPSANI_APP"); app != "" {
+// Optimizer returns the target Opsani app
+func (cmd *BaseCommand) Optimizer() string {
+	if app := cmd.valueFromFlagOrEnv(KeyOptimizer, "OPSANI_OPTIMIZER"); app != "" {
 		return app
 	}
 	if cmd.profile != nil {
-		return cmd.profile.App
+		return cmd.profile.Optimizer
 	}
 	return ""
 }
 
-// AppComponents returns the organization name and app ID as separate path components
-func (cmd *BaseCommand) AppComponents() (orgSlug string, appSlug string) {
-	app := cmd.App()
+// OptimizerComponents returns the organization name and app ID as separate path components
+func (cmd *BaseCommand) OptimizerComponents() (orgSlug string, appSlug string) {
+	app := cmd.Optimizer()
 	org := filepath.Dir(app)
 	appID := filepath.Base(app)
 	return org, appID

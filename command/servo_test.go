@@ -56,43 +56,43 @@ func (s *ServoTestSuite) TestRunningServoInvalidPositionalArg() {
 }
 
 func (s *ServoTestSuite) TestRunningServoSSHHelp() {
-	output, err := s.Execute("servo", "ssh", "--help")
+	output, err := s.Execute("servo", "shell", "--help")
 	s.Require().NoError(err)
-	s.Require().Contains(output, "SSH into a servo")
+	s.Require().Contains(output, "Open an interactive shell on the servo")
 }
 
 func (s *ServoTestSuite) TestRunningServoSSHInvalidServo() {
 	configFile := test.TempConfigFileWithObj(map[string][]map[string]string{
 		"profiles": []map[string]string{
 			{
-				"name":  "default",
-				"app":   "example.com/app",
-				"token": "123456",
+				"name":      "default",
+				"optimizer": "example.com/app",
+				"token":     "123456",
 			},
 		},
 	})
-	_, err := s.Execute(test.Args("--config", configFile.Name(), "servo", "ssh", "fake-name")...)
-	s.Require().EqualError(err, `no such servo "fake-name"`)
+	_, err := s.Execute(test.Args("--config", configFile.Name(), "servo", "shell")...)
+	s.Require().EqualError(err, "no driver for servo type: \"\"")
 }
 
 func (s *ServoTestSuite) TestRunningServoLogsHelp() {
 	output, err := s.Execute("servo", "logs", "--help")
 	s.Require().NoError(err)
-	s.Require().Contains(output, "View logs on a servo")
+	s.Require().Contains(output, "View servo logs")
 }
 
 func (s *ServoTestSuite) TestRunningServoLogsInvalidServo() {
 	configFile := test.TempConfigFileWithObj(map[string][]map[string]string{
 		"profiles": []map[string]string{
 			{
-				"name":  "default",
-				"app":   "example.com/app",
-				"token": "123456",
+				"name":      "default",
+				"optimizer": "example.com/app",
+				"token":     "123456",
 			},
 		},
 	})
-	_, _, err := s.ExecuteC(test.Args("--config", configFile.Name(), "servo", "logs", "fake-name")...)
-	s.Require().EqualError(err, `no such servo "fake-name"`)
+	_, _, err := s.ExecuteC(test.Args("--config", configFile.Name(), "servo", "logs")...)
+	s.Require().EqualError(err, "no driver for servo type: \"\"")
 }
 
 func (s *ServoTestSuite) TestRunningServoFollowHelp() {
@@ -108,25 +108,25 @@ func (s *ServoTestSuite) TestRunningLogsTimestampsHelp() {
 }
 
 func (s *ServoTestSuite) TestRunningAddHelp() {
-	output, err := s.Execute("servo", "add", "--help")
+	output, err := s.Execute("servo", "attach", "--help")
 	s.Require().NoError(err)
-	s.Require().Contains(output, "Add a servo to the local registry")
+	s.Require().Contains(output, "Attach servo to the active profile")
 }
 
 func (s *ServoTestSuite) TestRunningAddNoInput() {
 	configFile := test.TempConfigFileWithObj(map[string][]map[string]string{
 		"profiles": []map[string]string{
 			{
-				"name":  "default",
-				"app":   "example.com/app",
-				"token": "123456",
+				"name":      "default",
+				"optimizer": "example.com/app",
+				"token":     "123456",
 			},
 		},
 	})
-	args := test.Args("--config", configFile.Name(), "servo", "add")
-	context, err := s.ExecuteTestInteractively(args, func(t *test.InteractiveTestContext) error {
-		t.RequireString("Servo name?")
-		t.SendLine("opsani-dev")
+	args := test.Args("--config", configFile.Name(), "servo", "attach")
+	_, err := s.ExecuteTestInteractively(args, func(t *test.InteractiveTestContext) error {
+		t.RequireString("Select deployment:")
+		t.SendLine("d")
 		t.RequireString("User?")
 		t.SendLine("blakewatters")
 		t.RequireString("Host?")
@@ -136,42 +136,36 @@ func (s *ServoTestSuite) TestRunningAddNoInput() {
 		t.ExpectEOF()
 		return nil
 	})
-	s.T().Logf("The output buffer is: %v", context.OutputBuffer().String())
 	s.Require().NoError(err)
 
 	// Check the config file
-	var config = map[string]interface{}{}
 	body, _ := ioutil.ReadFile(configFile.Name())
-	yaml.Unmarshal(body, &config)
-	expected := []interface{}(
-		[]interface{}{
-			map[interface{}]interface{}{
-				"host":    "dev.opsani.com",
-				"name":    "opsani-dev",
-				"path":    "/servo",
-				"port":    "",
-				"user":    "blakewatters",
-				"bastion": "",
-			},
-		},
-	)
-	s.Require().EqualValues(expected, config["servos"])
+	expected := `profiles:
+  - name: default
+    optimizer: example.com/app
+    token: '123456'
+    servo:
+      type: docker-compose
+      user: blakewatters
+      host: dev.opsani.com
+      path: /servo`
+	s.Require().YAMLEq(expected, string(body))
 }
 
 func (s *ServoTestSuite) TestRunningAddNoInputWithBastion() {
 	configFile := test.TempConfigFileWithObj(map[string][]map[string]string{
-		"profiles": []map[string]string{
+		"profiles": {
 			{
-				"name":  "default",
-				"app":   "example.com/app",
-				"token": "123456",
+				"name":      "default",
+				"optimizer": "example.com/app",
+				"token":     "123456",
 			},
 		},
 	})
-	args := test.Args("--config", configFile.Name(), "servo", "add", "--bastion")
-	context, err := s.ExecuteTestInteractively(args, func(t *test.InteractiveTestContext) error {
-		t.RequireString("Servo name?")
-		t.SendLine("opsani-dev")
+	args := test.Args("--config", configFile.Name(), "servo", "attach", "--bastion")
+	_, err := s.ExecuteTestInteractively(args, func(t *test.InteractiveTestContext) error {
+		t.RequireString("Select deployment:")
+		t.SendLine("d")
 		t.RequireString("User?")
 		t.SendLine("blakewatters")
 		t.RequireString("Host?")
@@ -183,215 +177,186 @@ func (s *ServoTestSuite) TestRunningAddNoInputWithBastion() {
 		t.ExpectEOF()
 		return nil
 	})
-	s.T().Logf("The output buffer is: %v", context.OutputBuffer().String())
 	s.Require().NoError(err)
 
 	// Check the config file
-	var config = map[string]interface{}{}
 	body, _ := ioutil.ReadFile(configFile.Name())
-	yaml.Unmarshal(body, &config)
-	expected := []interface{}(
-		[]interface{}{
-			map[interface{}]interface{}{
-				"host":    "dev.opsani.com",
-				"name":    "opsani-dev",
-				"path":    "/servo",
-				"port":    "",
-				"user":    "blakewatters",
-				"bastion": "blake@ssh.opsani.com:5555",
-			},
-		},
-	)
-	s.Require().EqualValues(expected, config["servos"])
+	expected := `profiles:
+- name: default
+  optimizer: example.com/app
+  token: "123456"
+  servo:
+    type: docker-compose
+    user: blakewatters
+    host: dev.opsani.com
+    path: /servo
+    bastion: blake@ssh.opsani.com:5555`
+	s.Require().YAMLEq(expected, string(body))
 }
 
 // TODO: Override port and specifying some values on CLI
 
 func (s *ServoTestSuite) TestRunningRemoveHelp() {
-	output, err := s.Execute("servo", "remove", "--help")
+	output, err := s.Execute("servo", "detach", "--help")
 	s.Require().NoError(err)
-	s.Require().Contains(output, "Remove a servo")
+	s.Require().Contains(output, "Detach servo from the active profile")
 }
 
 func (s *ServoTestSuite) TestRunningConfigHelp() {
 	output, err := s.Execute("servo", "config", "--help")
 	s.Require().NoError(err)
-	s.Require().Contains(output, "Display the servo config file")
+	s.Require().Contains(output, "View servo config file")
 }
 
 func (s *ServoTestSuite) TestRunningRemoveServoConfirmed() {
 	configFile := test.TempConfigFileWithObj(map[string]interface{}{
-		"profiles": []map[string]string{
+		"profiles": []map[string]interface{}{
 			{
-				"name":  "default",
-				"app":   "example.com/app",
-				"token": "123456",
-			},
-		},
-		"servos": []map[string]string{
-			{
-				"host": "dev.opsani.com",
-				"name": "opsani-dev",
-				"path": "/servo",
-				"port": "",
-				"user": "blakewatters",
+				"name":      "default",
+				"optimizer": "example.com/app",
+				"token":     "123456",
+				"servo": map[string]string{
+					"host": "dev.opsani.com",
+					"name": "opsani-dev",
+					"path": "/servo",
+					"port": "",
+					"user": "blakewatters",
+				},
 			},
 		},
 	})
-	args := test.Args("--config", configFile.Name(), "servo", "remove", "opsani-dev")
+	args := test.Args("--config", configFile.Name(), "servo", "detach")
 	_, err := s.ExecuteTestInteractively(args, func(t *test.InteractiveTestContext) error {
-		t.RequireString(`Remove servo "opsani-dev"?`)
+		t.RequireString(`Detach servo from profile "default"?`)
 		t.SendLine("Y")
 		t.ExpectEOF()
 		return nil
 	})
 	s.Require().NoError(err)
 
-	// Check the config file
-	var config = map[string]interface{}{}
+	var config = map[string][]command.Profile{}
 	body, _ := ioutil.ReadFile(configFile.Name())
 	yaml.Unmarshal(body, &config)
-	s.Require().EqualValues([]interface{}{}, config["servos"])
+	s.Require().Empty(config["profiles"][0].Servo)
 }
 
 func (s *ServoTestSuite) TestRunningRemoveServoUnknown() {
 	config := map[string]interface{}{
 		"profiles": []map[string]string{
 			{
-				"name":  "default",
-				"app":   "example.com/app",
-				"token": "123456",
+				"name":      "default",
+				"optimizer": "example.com/app",
+				"token":     "123456",
 			},
 		},
 	}
 	configFile := test.TempConfigFileWithObj(config)
-	_, err := s.Execute("--config", configFile.Name(), "servo", "remove", "unknown")
-	s.Require().EqualError(err, `Unable to find servo "unknown"`)
+	_, err := s.Execute("--config", configFile.Name(), "servo", "detach", "unknown")
+	s.Require().EqualError(err, "unknown command \"unknown\" for \"opsani servo detach\"")
 }
 
 func (s *ServoTestSuite) TestRunningRemoveServoForce() {
 	config := map[string]interface{}{
-		"profiles": []map[string]string{
+		"profiles": []map[string]interface{}{
 			{
-				"name":  "default",
-				"app":   "example.com/app",
-				"token": "123456",
-			},
-		},
-		"servos": []map[string]string{
-			{
-				"host": "dev.opsani.com",
-				"name": "opsani-dev",
-				"path": "/servo",
-				"port": "",
-				"user": "blakewatters",
+				"name":      "default",
+				"optimizer": "example.com/app",
+				"token":     "123456",
+				"servo": map[string]string{
+					"host": "dev.opsani.com",
+					"path": "/servo",
+					"port": "",
+					"user": "blakewatters",
+				},
 			},
 		},
 	}
 	configFile := test.TempConfigFileWithObj(config)
-	_, err := s.Execute("--config", configFile.Name(), "servo", "remove", "-f", "opsani-dev")
+	_, err := s.Execute("--config", configFile.Name(), "servo", "detach", "-f")
 	s.Require().NoError(err)
 
 	// Check that the servo has been removed
-	var configState = map[string]interface{}{}
+	var configState = map[string][]command.Profile{}
 	body, _ := ioutil.ReadFile(configFile.Name())
 	yaml.Unmarshal(body, &configState)
-	s.Require().EqualValues([]interface{}{}, configState["servos"])
+	s.Require().Empty(configState["profiles"][0].Servo)
 }
 
 func (s *ServoTestSuite) TestRunningRemoveServoDeclined() {
-	configFile := test.TempConfigFileWithObj(map[string]interface{}{
-		"profiles": []map[string]string{
+	configData := map[string]interface{}{
+		"profiles": []map[string]interface{}{
 			{
-				"name":  "default",
-				"app":   "example.com/app",
-				"token": "123456",
+				"name":      "default",
+				"optimizer": "example.com/app",
+				"token":     "123456",
+				"servo": map[string]string{
+					"host": "dev.opsani.com",
+					"path": "/servo",
+					"port": "",
+					"user": "blakewatters",
+				},
 			},
 		},
-		"servos": []map[string]string{
-			{
-				"host": "dev.opsani.com",
-				"name": "opsani-dev",
-				"path": "/servo",
-				"port": "",
-				"user": "blakewatters",
-			},
-		},
-	})
-	args := test.Args("--config", configFile.Name(), "servo", "remove", "opsani-dev")
+	}
+	configFile := test.TempConfigFileWithObj(configData)
+	args := test.Args("--config", configFile.Name(), "servo", "detach")
 	_, err := s.ExecuteTestInteractively(args, func(t *test.InteractiveTestContext) error {
-		t.RequireString(`Remove servo "opsani-dev"?`)
+		t.RequireString(`Detach servo from profile "default"?`)
 		t.SendLine("N")
 		t.ExpectEOF()
 		return nil
 	})
 	s.Require().NoError(err)
 
-	// Check that the config file has not changed
-	expected := []interface{}(
-		[]interface{}{
-			map[interface{}]interface{}{
-				"host": "dev.opsani.com",
-				"name": "opsani-dev",
-				"path": "/servo",
-				"port": "",
-				"user": "blakewatters",
-			},
-		},
-	)
 	body, _ := ioutil.ReadFile(configFile.Name())
-	var configState = map[string]interface{}{}
+	var configState = map[string][]command.Profile{}
 	yaml.Unmarshal(body, &configState)
-	s.Require().EqualValues(expected, configState["servos"])
+	s.Require().NotNil(configState["profiles"][0].Servo)
 }
 
 func (s *ServoTestSuite) TestRunningServoList() {
 	config := map[string]interface{}{
-		"profiles": []map[string]string{
+		"profiles": []map[string]interface{}{
 			{
-				"name":  "default",
-				"app":   "example.com/app",
-				"token": "123456",
-			},
-		},
-		"servos": []map[string]string{
-			{
-				"host": "dev.opsani.com",
-				"name": "opsani-dev",
-				"path": "/servo",
-				"port": "",
-				"user": "blakewatters",
+				"name":      "default",
+				"optimizer": "example.com/app",
+				"token":     "123456",
+				"servo": map[string]string{
+					"host": "dev.opsani.com",
+					"type": "docker-compose",
+					"path": "/servo",
+					"port": "",
+					"user": "blakewatters",
+				},
 			},
 		},
 	}
 	configFile := test.TempConfigFileWithObj(config)
 	output, err := s.Execute("--config", configFile.Name(), "servo", "list")
 	s.Require().NoError(err)
-	s.Require().Contains(output, "opsani-dev	ssh://blakewatters@dev.opsani.com:/servo	")
+	s.Require().Contains(output, "default	docker-compose	ssh://blakewatters@dev.opsani.com:/servo")
 }
 
 func (s *ServoTestSuite) TestRunningServoListVerbose() {
 	config := map[string]interface{}{
-		"profiles": []map[string]string{
+		"profiles": []map[string]interface{}{
 			{
-				"name":  "default",
-				"app":   "example.com/app",
-				"token": "123456",
-			},
-		},
-		"servos": []map[string]string{
-			{
-				"host": "dev.opsani.com",
-				"name": "opsani-dev",
-				"path": "/servo",
-				"port": "",
-				"user": "blakewatters",
+				"name":      "default",
+				"optimizer": "example.com/app",
+				"token":     "123456",
+				"servo": map[string]string{
+					"host": "dev.opsani.com",
+					"type": "docker-compose",
+					"path": "/servo",
+					"port": "",
+					"user": "blakewatters",
+				},
 			},
 		},
 	}
 	configFile := test.TempConfigFileWithObj(config)
 	output, err := s.Execute("--config", configFile.Name(), "servo", "list", "-v")
 	s.Require().NoError(err)
-	s.Require().Contains(output, "NAME      	USER        	HOST          	PATH  ")
-	s.Require().Contains(output, "opsani-dev	blakewatters	dev.opsani.com	/servo	")
+	s.Require().Contains(output, "NAME   	TYPE          	NAMESPACE	DEPLOYMENT	USER        	HOST          	PATH   ")
+	s.Require().Contains(output, "default	docker-compose	         	          	blakewatters	dev.opsani.com	/servo	")
 }

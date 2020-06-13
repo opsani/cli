@@ -9,16 +9,21 @@ require (
 	github.com/alecthomas/assert v0.0.0-20170929043011-405dbfeb8e38
 	github.com/alecthomas/colour v0.1.0 // indirect
 	github.com/alecthomas/repr v0.0.0-20200325044227-4184120f674c // indirect
+	github.com/briandowns/spinner v1.11.1
+	github.com/charmbracelet/glamour v0.1.0
+	github.com/creack/pty v1.1.11
 	github.com/docker/docker v1.13.1
 	github.com/fatih/color v1.9.0
 	github.com/fsnotify/fsnotify v1.4.9 // indirect
 	github.com/go-resty/resty/v2 v2.3.0
+	github.com/gobuffalo/here v0.6.2 // indirect
 	github.com/goccy/go-yaml v1.4.3
 	github.com/google/go-cmp v0.4.0 // indirect
 	github.com/hinshun/vt10x v0.0.0-20180616224451-1954e6464174
 	github.com/hokaccha/go-prettyjson v0.0.0-20190818114111-108c894c2c0e
 	github.com/kr/pty v1.1.8 // indirect
 	github.com/kr/text v0.2.0 // indirect
+	github.com/markbates/pkger v0.17.0
 	github.com/mattn/go-colorable v0.1.6 // indirect
 	github.com/mattn/go-isatty v0.0.12
 	github.com/mattn/go-runewidth v0.0.9 // indirect

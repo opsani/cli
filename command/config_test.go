@@ -76,11 +76,13 @@ func Strip(str string) string {
 }
 
 func (s *ConfigTestSuite) TestRunningWithInitializedConfig() {
-	configFile := test.TempConfigFileWithObj(map[string]interface{}{"profiles": []map[string]string{{"app": "example.com/app1", "token": "123456"}}})
+	configFile := test.TempConfigFileWithObj(map[string]interface{}{"profiles": []map[string]string{{"optimizer": "example.com/app1", "token": "123456"}}})
 	output, err := s.ExecuteArgs(ConfigFileArgs(configFile, "config"))
 	s.Require().NoError(err)
 	yaml := Strip(output)
-	s.Require().Contains(yaml, `app: example.com/app1`)
+	s.Require().Contains(yaml, `optimizer: example.com/app1`)
 	s.Require().Contains(yaml, `token: "123456`)
 	s.Require().Contains(yaml, fmt.Sprintln("Using config from:", configFile.Name()))
 }
+
+// TODO: Edit command

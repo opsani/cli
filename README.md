@@ -20,9 +20,9 @@ configuration, and building servo artifacts for connecting new apps to Opsani
 for optimization.
 
 To perform any meaningful work, you must first initialize the client via `opsani
-init` and supply details about your app and API token.
+init` and supply details about your optimizer and API token.
 
-Once initialized, you can work with the app using the subcommands of `opsani app`.
+Once initialized, you can work with the optimizer using the subcommands of `opsani optimizer`.
 
 Help is available via `opsani --help`.
 
@@ -32,10 +32,10 @@ Opsani CLI respects a few key environment variables, when present:
 
 | Variable | Description |
 |----------|-------------|
-| `OPSANI_APP` | Sets the app to interact with |
+| `OPSANI_OPTIMIZER` | Sets the optimizer to interact with |
 | `OPSANI_TOKEN` | Sets the API authentication token |
 | `OPSANI_BASE_URL` | Sets the base URL for reaching Opsani API |
-| `OPSANI_PROFILE` | Sets the profile to use (implies an app, token, and base URL) |
+| `OPSANI_PROFILE` | Sets the profile to use (implies an optimizer, servo, token, and base URL) |
 
 ### Persistent & Ad-hoc Invocations
 
@@ -50,7 +50,7 @@ file not found condition.
 
 ### Profiles
 
-To support users who work across a number of Opsani applications, the CLI supports
+To support users who work across a number of Opsani implementations, the CLI supports
 named profiles. When the client is initialized, the first profile is named "default"
 and is auto-selected when no profile argument is supplied. Profiles can be managed via
 the `opsani profile` subcommands.
@@ -129,9 +129,9 @@ Once the image is pulled, configuration must be provided to enable the CLI to fu
 a couple of options for supplying the configuration:
 
 1. **CLI Arguments** - Arguments can be directly supplied to the CLI via the Docker invocation: 
-`docker run -it --rm --name opsani-cli opsani/cli:latest --app example.com/app --token 123456`
+`docker run -it --rm --name opsani-cli opsani/cli:latest --optimizer example.com/app --token 123456`
 2. **Environment Variables** - Export `OPSANI_APP` and `OPSANI_TOKEN` into your shell and pass them
-through to the container: `docker run -it --rm --name opsani-cli -e OPSANI_APP=$OPSANI_APP -e OPSANI_TOKEN=$OPSANI_TOKEN opsani/cli:latest`
+through to the container: `docker run -it --rm --name opsani-cli -e OPSANI_OPTIMIZER=$OPSANI_OPTIMIZER -e OPSANI_TOKEN=$OPSANI_TOKEN opsani/cli:latest`
 3. **Config Volume** - Existing configuration files in your home directory can be shared with the container through a
 volume mount: `docker run -it --rm --name opsani-cli -v ~/.opsani:/root/.opsani opsani/cli:latest`
 

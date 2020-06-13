@@ -115,7 +115,7 @@ func ExecuteInInteractiveConsole(
 	// Run the process for the user to interact with
 	err = processFunc(executionContext)
 	if err != nil {
-		fmt.Println("Process failed", err)
+		return nil, err
 	}
 
 	// Close the slave end of the pty, and read the remaining bytes from the master end.
@@ -199,6 +199,11 @@ func (ice *InteractiveExecutionContext) PassthroughTty() *PassthroughPipeFile {
 // Args is a convenience function that converts a variadic list of strings into an array
 func Args(args ...string) []string {
 	return args
+}
+
+// ArgsS is a convenience function that converts a space delimited string into an array of args
+func ArgsS(args string) []string {
+	return strings.Split(args, " ")
 }
 
 // InteractiveProcessFunc instances are functions that represent the process side of an interactive terminal
@@ -486,7 +491,5 @@ func ExecuteInInteractiveConsoleT(t *testing.T,
 	testFunc InteractiveUserFunc,
 	consoleOpts ...expect.ConsoleOpt) (*InteractiveExecutionContext, error) {
 	context, err := ExecuteInInteractiveConsole(codeUnderTestFunc, testFunc, consoleOpts...)
-	t.Logf("Raw output: %q", context.OutputBuffer().String())
-	t.Logf("\n\nterminal state: %s", expect.StripTrailingEmptyLines(context.TerminalState().String()))
 	return context, err
 }

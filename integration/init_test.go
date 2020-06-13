@@ -37,9 +37,9 @@ var defaultConfig = struct {
 }{
 	[]command.Profile{
 		{
-			Name:  "default",
-			App:   "example.com/app1",
-			Token: "123456",
+			Name:      "default",
+			Optimizer: "example.com/app1",
+			Token:     "123456",
 		},
 	},
 }

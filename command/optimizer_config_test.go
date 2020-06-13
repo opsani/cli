@@ -35,25 +35,25 @@ func (s *AppConfigTestSuite) SetupTest() {
 }
 
 func (s *AppConfigTestSuite) TestRunningAppConfigEditHelp() {
-	output, err := s.Execute("app", "config", "edit", "--help")
+	output, err := s.Execute("optimizer", "config", "edit", "--help")
 	s.Require().NoError(err)
-	s.Require().Contains(output, "Edit app config")
+	s.Require().Contains(output, "Edit optimizer config")
 }
 
 func (s *AppConfigTestSuite) TestRunningAppConfigGetHelp() {
-	output, err := s.Execute("app", "config", "get", "--help")
+	output, err := s.Execute("optimizer", "config", "get", "--help")
 	s.Require().NoError(err)
-	s.Require().Contains(output, "Get app config")
+	s.Require().Contains(output, "Get optimizer config")
 }
 
 func (s *AppConfigTestSuite) TestRunningAppConfigPatchHelp() {
-	output, err := s.Execute("app", "config", "patch", "--help")
+	output, err := s.Execute("optimizer", "config", "patch", "--help")
 	s.Require().NoError(err)
 	s.Require().Contains(output, "Patch merges the incoming")
 }
 
 func (s *AppConfigTestSuite) TestRunningAppConfigSetHelp() {
-	output, err := s.Execute("app", "config", "set", "--help")
+	output, err := s.Execute("optimizer", "config", "set", "--help")
 	s.Require().NoError(err)
-	s.Require().Contains(output, "Set app config")
+	s.Require().Contains(output, "Set optimizer config")
 }
