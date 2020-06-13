@@ -18,17 +18,12 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io"
-	"log"
 	"net"
 	"os"
 	"os/exec"
-	"os/signal"
 	"strings"
-	"syscall"
 
 	"github.com/AlecAivazis/survey/v2"
-	"github.com/creack/pty"
 	"github.com/mitchellh/go-homedir"
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
@@ -606,46 +601,6 @@ func (c *KubernetesServoDriver) Config() error {
 
 	prettyYAML, _ := PrettyPrintYAMLToString(outputBuffer.Bytes(), true, true)
 	_, err := os.Stdout.Write([]byte(prettyYAML + "\n"))
-	return err
-}
-
-// Shell establishes an interactive shell with the servo
-func (c *KubernetesServoDriver) Shell() error {
-	argsS := fmt.Sprintf("-n %v exec -it deployment/%v -- /bin/bash", c.servo.Namespace, c.servo.Deployment)
-	cmd := exec.Command("kubectl", ArgsS(argsS)...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	// Start the command with a pty.
-	ptmx, err := pty.Start(cmd)
-	if err != nil {
-		return err
-	}
-	// Make sure to close the pty at the end.
-	defer func() { _ = ptmx.Close() }() // Best effort.
-
-	// Handle pty size.
-	ch := make(chan os.Signal, 1)
-	signal.Notify(ch, syscall.SIGWINCH)
-	go func() {
-		for range ch {
-			if err := pty.InheritSize(os.Stdin, ptmx); err != nil {
-				log.Printf("error resizing pty: %s", err)
-			}
-		}
-	}()
-	ch <- syscall.SIGWINCH // Initial resize.
-
-	// Set stdin in raw mode.
-	oldState, err := terminal.MakeRaw(int(os.Stdin.Fd()))
-	if err != nil {
-		return err
-	}
-	defer func() { _ = terminal.Restore(int(os.Stdin.Fd()), oldState) }() // Best effort.
-
-	// Copy stdin to the pty and the pty to stdout.
-	go func() { _, _ = io.Copy(ptmx, os.Stdin) }()
-	_, err = io.Copy(os.Stdout, ptmx)
 	return err
 }
 
