@@ -15,6 +15,8 @@
 package command
 
 import (
+	"os"
+
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v2"
 )
@@ -26,7 +28,7 @@ type configCommand struct {
 // NewConfigCommand returns a new instance of the root command for Opsani CLI
 func NewConfigCommand(baseCmd *BaseCommand) *cobra.Command {
 	cfgCmd := configCommand{BaseCommand: baseCmd}
-	return &cobra.Command{
+	cobraCmd := &cobra.Command{
 		Use:               "config",
 		Short:             "Display configuration",
 		Annotations:       map[string]string{"other": "true"},
@@ -34,6 +36,18 @@ func NewConfigCommand(baseCmd *BaseCommand) *cobra.Command {
 		RunE:              cfgCmd.Run,
 		PersistentPreRunE: ReduceRunEFuncs(baseCmd.InitConfigRunE, baseCmd.RequireConfigFileFlagToExistRunE, baseCmd.RequireInitRunE),
 	}
+
+	cobraEditCmd := &cobra.Command{
+		Use:   "edit",
+		Short: "Edit config file",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return openFileInEditor(baseCmd.viperCfg.ConfigFileUsed(), os.Getenv("EDITOR"))
+		},
+	}
+	cobraCmd.AddCommand(cobraEditCmd)
+
+	return cobraCmd
 }
 
 // RunConfig displays Opsani CLI config info
