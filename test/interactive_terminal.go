@@ -115,7 +115,7 @@ func ExecuteInInteractiveConsole(
 	// Run the process for the user to interact with
 	err = processFunc(executionContext)
 	if err != nil {
-		fmt.Println("Process failed", err)
+		return nil, err
 	}
 
 	// Close the slave end of the pty, and read the remaining bytes from the master end.
@@ -491,7 +491,5 @@ func ExecuteInInteractiveConsoleT(t *testing.T,
 	testFunc InteractiveUserFunc,
 	consoleOpts ...expect.ConsoleOpt) (*InteractiveExecutionContext, error) {
 	context, err := ExecuteInInteractiveConsole(codeUnderTestFunc, testFunc, consoleOpts...)
-	t.Logf("Raw output: %q", context.OutputBuffer().String())
-	t.Logf("\n\nterminal state: %s", expect.StripTrailingEmptyLines(context.TerminalState().String()))
 	return context, err
 }

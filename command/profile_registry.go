@@ -168,8 +168,8 @@ func (pr *ProfileRegistry) ProfileNamed(name string) *Profile {
 
 // AddProfile adds a Profile to the config
 func (pr *ProfileRegistry) AddProfile(profile Profile) error {
-	profiles := append(pr.profiles, &profile)
-	pr.viper.Set("profiles", profiles)
+	pr.profiles = append(pr.profiles, &profile)
+	pr.viper.Set("profiles", pr.profiles)
 	return nil
 }
 
@@ -179,8 +179,8 @@ func (pr *ProfileRegistry) RemoveProfileNamed(name string) error {
 	if s == nil {
 		return fmt.Errorf("no such profile %q", name)
 	}
-	profiles := append(pr.profiles[:index], pr.profiles[index+1:]...)
-	pr.viper.Set("profiles", profiles)
+	pr.profiles = append(pr.profiles[:index], pr.profiles[index+1:]...)
+	pr.viper.Set("profiles", pr.profiles)
 	return nil
 }
 

@@ -73,17 +73,18 @@ func (s *ProfileTestSuite) TestRunningAddNoInput() {
 		},
 	})
 	args := test.Args("--config", configFile.Name(), "profile", "add")
-	context, err := s.ExecuteTestInteractively(args, func(t *test.InteractiveTestContext) error {
+	_, err := s.ExecuteTestInteractively(args, func(t *test.InteractiveTestContext) error {
 		t.RequireString("Profile name?")
 		t.SendLine("opsani-dev")
 		t.RequireString("Opsani app (i.e. domain.com/app)?")
 		t.SendLine("dev.opsani.com/blake")
 		t.RequireString("API Token?")
 		t.SendLine("123456")
+		t.RequireString("Attach servo to new profile?")
+		t.SendLine("N")
 		t.ExpectEOF()
 		return nil
 	})
-	s.T().Logf("The output buffer is: %v", context.OutputBuffer().String())
 	s.Require().NoError(err)
 
 	// Check the config file
@@ -248,6 +249,6 @@ func (s *ProfileTestSuite) TestRunningProfileListVerbose() {
 	configFile := test.TempConfigFileWithObj(config)
 	output, err := s.Execute("--config", configFile.Name(), "profile", "list", "-v")
 	s.Require().NoError(err)
-	s.Require().Contains(output, "NAME   	APP            	TOKEN  ")
+	s.Require().Contains(output, "NAME   	APP            	TOKEN 	SERVO ")
 	s.Require().Contains(output, "default	example.com/app	123456")
 }

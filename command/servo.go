@@ -291,13 +291,8 @@ func (servoCmd *servoCommand) RunDetachServo(_ *cobra.Command, args []string) er
 		if err != nil {
 			return err
 		}
-		profiles := registry.Profiles()
-		fmt.Printf("Profiles are %+v\n\n", profiles)
 		profile := registry.ProfileNamed(servoCmd.profile.Name)
-		fmt.Printf("Profile is %+v\n\n", profile)
 		profile.Servo = Servo{}
-		fmt.Printf("!! Profile is now %+v\n\n", profile)
-		fmt.Printf("@@ Profiles are %+v\n\n", profiles)
 		if err := registry.Save(); err != nil {
 			return err
 		}

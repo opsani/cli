@@ -86,7 +86,7 @@ func (s *InitTestSuite) TestTerminalConfirm() {
 func (s *InitTestSuite) TestInitWithExistingConfigDeclinedNoConfigFile() {
 	cfgName := "/tmp/this-will-never-exist.yaml"
 	os.Remove(cfgName)
-	context, err := s.ExecuteTestInteractively(test.Args("--config", cfgName, "init"), func(t *test.InteractiveTestContext) error {
+	_, err := s.ExecuteTestInteractively(test.Args("--config", cfgName, "init"), func(t *test.InteractiveTestContext) error {
 		t.ExpectMatch(expect.RegexpPattern("Opsani app"))
 		t.SendLine("dev.opsani.com/amazing-app")
 		t.RequireMatch(expect.RegexpPattern("API Token"))
@@ -96,7 +96,6 @@ func (s *InitTestSuite) TestInitWithExistingConfigDeclinedNoConfigFile() {
 		t.ExpectEOF()
 		return nil
 	})
-	s.T().Logf("The output buffer is: %v", context.OutputBuffer().String())
 	s.Require().NoError(err)
 }
 
@@ -110,14 +109,14 @@ func (s *InitTestSuite) TestInitWithExistingConfigDeclined() {
 		},
 	})
 
-	context, err := s.ExecuteTestInteractively(test.Args("--config", configFile.Name(), "init"), func(t *test.InteractiveTestContext) error {
+	_, err := s.ExecuteTestInteractively(test.Args("--config", configFile.Name(), "init"), func(t *test.InteractiveTestContext) error {
 		t.RequireStringf("Using config from: %s", configFile.Name())
 		t.RequireStringf("Existing config found. Overwrite %s?", configFile.Name())
 		t.SendLine("N")
 		t.ExpectEOF()
 		return nil
 	})
-	s.T().Logf("Output buffer = %v", context.OutputBuffer().String())
+
 	s.Require().Error(err)
 	s.Require().EqualError(err, terminal.InterruptErr.Error())
 }
@@ -150,7 +149,6 @@ func (s *InitTestSuite) TestInitWithExistingConfigAccepted() {
 		return nil
 	})
 	s.Require().NoError(err, context.OutputBuffer().String())
-	s.T().Logf("Output buffer = %v", context.OutputBuffer().String())
 
 	// Check the config file
 	var config struct {

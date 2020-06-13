@@ -15,7 +15,6 @@
 package integration
 
 import (
-	"fmt"
 	"io/ioutil"
 	"os/exec"
 	"testing"
@@ -38,7 +37,6 @@ func (s *ConfigTestSuite) TestRunningConfigFileDoesntExist() {
 	)
 
 	output, err := cmd.CombinedOutput()
-	fmt.Println(string(output))
 	s.Require().NoError(err)
 	s.Require().Contains(string(output), "no such file or directory")
 }
