@@ -35,7 +35,8 @@ func NewProfileCommand(baseCmd *BaseCommand) *cobra.Command {
 
 	profileCmd := &cobra.Command{
 		Use:   "profile",
-		Short: "Manage app profiles",
+		Short: "Manage profiles",
+		Long:  `Profiles provide an interface for interacting with an optimizer backend and a servo deployment as a unit`,
 		Args:  cobra.NoArgs,
 		PersistentPreRunE: ReduceRunEFuncs(
 			baseCmd.InitConfigRunE,
@@ -49,7 +50,8 @@ func NewProfileCommand(baseCmd *BaseCommand) *cobra.Command {
 		Use:         "list",
 		Annotations: map[string]string{"registry": "true"},
 		Aliases:     []string{"ls"},
-		Short:       "List app profiles",
+		Short:       "List profiles",
+		Long:        "List profiles registered in the configuration",
 		Args:        cobra.NoArgs,
 		RunE:        profileCommand.RunProfileList,
 	}
@@ -57,7 +59,7 @@ func NewProfileCommand(baseCmd *BaseCommand) *cobra.Command {
 	profileCmd.AddCommand(listCmd)
 	addCmd := &cobra.Command{
 		Use:                   "add [OPTIONS] [NAME]",
-		Long:                  "Add an app profile to the local registry",
+		Long:                  "Add a profile to the configuration",
 		Annotations:           map[string]string{"registry": "true"},
 		Short:                 "Add a profile",
 		Args:                  cobra.MaximumNArgs(1),
@@ -68,7 +70,7 @@ func NewProfileCommand(baseCmd *BaseCommand) *cobra.Command {
 
 	removeCmd := &cobra.Command{
 		Use:                   "remove [OPTIONS] [NAME]",
-		Long:                  "Remove an app profile from the local registry",
+		Long:                  "Remove a profile from the configuration",
 		Annotations:           map[string]string{"registry": "true"},
 		Aliases:               []string{"rm"},
 		Short:                 "Remove a Profile",
@@ -84,9 +86,9 @@ func NewProfileCommand(baseCmd *BaseCommand) *cobra.Command {
 
 func (profileCmd *profileCommand) RunAddProfile(c *cobra.Command, args []string) error {
 	profile := Profile{
-		App:     profileCmd.appFromFlagsOrEnv(),
-		Token:   profileCmd.tokenFromFlagsOrEnv(),
-		BaseURL: profileCmd.BaseURL(),
+		Optimizer: profileCmd.appFromFlagsOrEnv(),
+		Token:     profileCmd.tokenFromFlagsOrEnv(),
+		BaseURL:   profileCmd.BaseURL(),
 	}
 	if len(args) > 0 {
 		profile.Name = args[0]
@@ -101,10 +103,10 @@ func (profileCmd *profileCommand) RunAddProfile(c *cobra.Command, args []string)
 		}
 	}
 
-	if profile.App == "" {
+	if profile.Optimizer == "" {
 		err := profileCmd.AskOne(&survey.Input{
-			Message: "Opsani app (i.e. domain.com/app)?",
-		}, &profile.App, survey.WithValidator(survey.Required))
+			Message: "Opsani optimizer (e.g. domain.com/app)?",
+		}, &profile.Optimizer, survey.WithValidator(survey.Required))
 		if err != nil {
 			return err
 		}
@@ -201,7 +203,7 @@ func (profileCmd *profileCommand) RunProfileList(_ *cobra.Command, args []string
 		for _, profile := range profiles {
 			row := []string{
 				profile.Name,
-				profile.App,
+				profile.Optimizer,
 				profile.Token,
 				profile.Servo.Description(),
 			}
@@ -212,7 +214,7 @@ func (profileCmd *profileCommand) RunProfileList(_ *cobra.Command, args []string
 		for _, profile := range profiles {
 			row := []string{
 				profile.Name,
-				profile.App,
+				profile.Optimizer,
 				profile.Token,
 				profile.Servo.Description(),
 			}

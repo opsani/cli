@@ -63,7 +63,7 @@ func (s *ConfigTestSuite) TestRunningConfigInitialized() {
 
 	output, err := cmd.CombinedOutput()
 	s.Require().NoError(err)
-	s.Require().Contains(string(output), `app: example.com/app1`)
+	s.Require().Contains(string(output), `optimizer: example.com/app1`)
 	s.Require().Contains(string(output), `token: "123456`)
 }
 

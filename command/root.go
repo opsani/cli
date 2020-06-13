@@ -44,7 +44,7 @@ import (
 // Configuration keys (Cobra and Viper)
 const (
 	KeyBaseURL        = "base-url"
-	KeyApp            = "app"
+	KeyOptimizer      = "optimizer"
 	KeyToken          = "token"
 	KeyProfile        = "profile"
 	KeyDebugMode      = "debug"
@@ -81,7 +81,7 @@ func NewRootCommand() *BaseCommand {
 	cobraCmd := &cobra.Command{
 		Use:   "opsani",
 		Short: "The official CLI for Opsani",
-		Long: `Work with Opsani from the command line.
+		Long: `Continuous optimization at your fingertips.
 	
 Opsani CLI is in early stages of development. 
 We'd love to hear your feedback at <https://github.com/opsani/cli>`,
@@ -115,8 +115,8 @@ We'd love to hear your feedback at <https://github.com/opsani/cli>`,
 	// Bind our global configuration parameters
 	cobraCmd.PersistentFlags().String(KeyBaseURL, "", "Base URL for accessing the Opsani API")
 	cobraCmd.PersistentFlags().MarkHidden(KeyBaseURL)
-	cobraCmd.PersistentFlags().String(KeyApp, "", "App to control (overrides config file and OPSANI_APP)")
-	cobraCmd.PersistentFlags().String(KeyToken, "", "API token to authenticate with (overrides config file and OPSANI_TOKEN)")
+	cobraCmd.PersistentFlags().String(KeyOptimizer, "", "Optimizer to manage (overrides config file and OPSANI_OPTIMIZER)")
+	cobraCmd.PersistentFlags().String(KeyToken, "", "Token for API authentication (overrides config file and OPSANI_TOKEN)")
 
 	// Not stored in Viper
 	cobraCmd.PersistentFlags().BoolVarP(&rootCmd.debugModeEnabled, KeyDebugMode, "D", false, "Enable debug mode")
@@ -142,10 +142,11 @@ We'd love to hear your feedback at <https://github.com/opsani/cli>`,
 
 	// Add all sub-commands
 	cobraCmd.AddCommand(NewInitCommand(rootCmd))
-	cobraCmd.AddCommand(NewAppCommand(rootCmd))
+	cobraCmd.AddCommand(NewOptimizerCommand(rootCmd))
 	cobraCmd.AddCommand(NewServoCommand(rootCmd))
 	cobraCmd.AddCommand(NewProfileCommand(rootCmd))
 
+	cobraCmd.AddCommand(NewConsoleCommand(rootCmd))
 	cobraCmd.AddCommand(NewConfigCommand(rootCmd))
 	cobraCmd.AddCommand(NewCompletionCommand(rootCmd))
 
@@ -160,6 +161,9 @@ We'd love to hear your feedback at <https://github.com/opsani/cli>`,
 
 	cobra.AddTemplateFunc("hasOtherSubCommands", hasOtherSubCommands)
 	cobra.AddTemplateFunc("otherSubCommands", otherSubCommands)
+
+	cobra.AddTemplateFunc("hasEducationalSubCommands", hasEducationalSubCommands)
+	cobra.AddTemplateFunc("educationalSubCommands", educationalSubCommands)
 
 	cobra.AddTemplateFunc("hasRegistrySubCommands", hasRegistrySubCommands)
 	cobra.AddTemplateFunc("registrySubCommands", registrySubCommands)
@@ -411,7 +415,7 @@ func (vitalCommand *vitalCommand) RunTask(task Task) (err error) {
 func (baseCmd *BaseCommand) NewAPIClient() *opsani.Client {
 	c := opsani.NewClient().
 		SetBaseURL(baseCmd.BaseURL()).
-		SetApp(baseCmd.App()).
+		SetApp(baseCmd.Optimizer()).
 		SetAuthToken(baseCmd.AccessToken()).
 		SetDebug(baseCmd.DebugModeEnabled())
 	if baseCmd.RequestTracingEnabled() {
@@ -464,8 +468,8 @@ func (baseCmd *BaseCommand) GetBaseURL() string {
 }
 
 // GetAppComponents returns the organization name and app ID as separate path components
-func (baseCmd *BaseCommand) GetAppComponents() (orgSlug string, appSlug string) {
-	app := baseCmd.App()
+func (baseCmd *BaseCommand) GetOptimizerComponents() (orgSlug string, appSlug string) {
+	app := baseCmd.Optimizer()
 	org := filepath.Dir(app)
 	appID := filepath.Base(app)
 	return org, appID
@@ -478,7 +482,7 @@ func (baseCmd *BaseCommand) GetAllSettings() map[string]interface{} {
 
 // IsInitialized returns a boolean value that indicates if the client has been initialized
 func (baseCmd *BaseCommand) IsInitialized() bool {
-	return baseCmd.App() != "" && baseCmd.AccessToken() != ""
+	return baseCmd.Optimizer() != "" && baseCmd.AccessToken() != ""
 }
 
 var helpCommand = &cobra.Command{
@@ -553,7 +557,7 @@ func managementSubCommands(cmd *cobra.Command) []*cobra.Command {
 		if isOtherCommand(sub) {
 			continue
 		}
-		if sub.IsAvailableCommand() && sub.HasSubCommands() {
+		if sub.IsAvailableCommand() && sub.HasSubCommands() && len(sub.Annotations) == 0 {
 			cmds = append(cmds, sub)
 		}
 	}
@@ -572,6 +576,24 @@ func otherSubCommands(cmd *cobra.Command) []*cobra.Command {
 		}
 	}
 	return cmds
+}
+
+func hasEducationalSubCommands(cmd *cobra.Command) bool {
+	return len(educationalSubCommands(cmd)) > 0
+}
+
+func educationalSubCommands(cmd *cobra.Command) []*cobra.Command {
+	cmds := []*cobra.Command{}
+	for _, sub := range cmd.Commands() {
+		if sub.IsAvailableCommand() && isEducationalCommand(sub) {
+			cmds = append(cmds, sub)
+		}
+	}
+	return cmds
+}
+
+func isEducationalCommand(cmd *cobra.Command) bool {
+	return cmd.Annotations["educational"] == "true"
 }
 
 func isOtherCommand(cmd *cobra.Command) bool {
@@ -626,7 +648,7 @@ Global Options:
 {{- end}}
 {{- if hasManagementSubCommands . }}
 
-Management Commands:
+Core Commands:
 
 {{- range managementSubCommands . }}
   {{rpad .Name .NamePadding }} {{.Short}}
@@ -649,6 +671,14 @@ Commands:
 {{- end}}
 {{- end}}
 
+{{- if hasEducationalSubCommands . }}
+
+Educational Commands:
+
+{{- range educationalSubCommands . }}
+  {{rpad .Name .NamePadding }} {{.Short}}
+{{- end}}
+{{- end}}
 {{- if hasOtherSubCommands .}}
 
 Other Commands:

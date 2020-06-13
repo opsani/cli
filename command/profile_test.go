@@ -39,36 +39,36 @@ func (s *ProfileTestSuite) SetupTest() {
 func (s *ProfileTestSuite) TestRunningProfile() {
 	output, err := s.Execute("profile")
 	s.Require().NoError(err)
-	s.Require().Contains(output, "Manage app profiles")
+	s.Require().Contains(output, "Profiles provide an interface for ")
 	s.Require().Contains(output, "Usage:")
 }
 
 func (s *ProfileTestSuite) TestRunningProfileHelp() {
 	output, err := s.Execute("profile", "--help")
 	s.Require().NoError(err)
-	s.Require().Contains(output, "Manage app profiles")
+	s.Require().Contains(output, "Profiles provide an interface for interacting with an optimizer backend and a servo deployment as a unit")
 }
 
 func (s *ProfileTestSuite) TestRunningProfileInvalidPositionalArg() {
 	output, err := s.Execute("profile", "--help", "sadasdsdas")
 	s.Require().NoError(err)
-	s.Require().Contains(output, "Manage app profiles")
+	s.Require().Contains(output, "Profiles provide an interface for interacting with an optimizer backend and a servo deployment as a unit")
 }
 
 func (s *ProfileTestSuite) TestRunningAddHelp() {
 	output, err := s.Execute("profile", "add", "--help")
 	s.Require().NoError(err)
-	s.Require().Contains(output, "Add an app profile to the local registry")
+	s.Require().Contains(output, "Add a profile to the configuration")
 }
 
 func (s *ProfileTestSuite) TestRunningAddNoInput() {
 	configFile := test.TempConfigFileWithObj(map[string]interface{}{
 		"profiles": []map[string]string{
 			{
-				"name":     "default",
-				"app":      "example.com/app",
-				"token":    "123456",
-				"base_url": "https://api.opsani.com/",
+				"name":      "default",
+				"optimizer": "example.com/app",
+				"token":     "123456",
+				"base_url":  "https://api.opsani.com/",
 			},
 		},
 	})
@@ -76,7 +76,7 @@ func (s *ProfileTestSuite) TestRunningAddNoInput() {
 	_, err := s.ExecuteTestInteractively(args, func(t *test.InteractiveTestContext) error {
 		t.RequireString("Profile name?")
 		t.SendLine("opsani-dev")
-		t.RequireString("Opsani app (i.e. domain.com/app)?")
+		t.RequireString("Opsani optimizer (e.g. domain.com/app)?")
 		t.SendLine("dev.opsani.com/blake")
 		t.RequireString("API Token?")
 		t.SendLine("123456")
@@ -94,16 +94,16 @@ func (s *ProfileTestSuite) TestRunningAddNoInput() {
 	expected := []interface{}(
 		[]interface{}{
 			map[interface{}]interface{}{
-				"name":     "default",
-				"app":      "example.com/app",
-				"token":    "123456",
-				"base_url": "https://api.opsani.com/",
+				"name":      "default",
+				"optimizer": "example.com/app",
+				"token":     "123456",
+				"base_url":  "https://api.opsani.com/",
 			},
 			map[interface{}]interface{}{
-				"app":      "dev.opsani.com/blake",
-				"name":     "opsani-dev",
-				"token":    "123456",
-				"base_url": "https://api.opsani.com/",
+				"optimizer": "dev.opsani.com/blake",
+				"name":      "opsani-dev",
+				"token":     "123456",
+				"base_url":  "https://api.opsani.com/",
 			},
 		},
 	)
@@ -113,17 +113,17 @@ func (s *ProfileTestSuite) TestRunningAddNoInput() {
 func (s *ProfileTestSuite) TestRunningRemoveHelp() {
 	output, err := s.Execute("profile", "remove", "--help")
 	s.Require().NoError(err)
-	s.Require().Contains(output, "Remove an app profile from the local registry")
+	s.Require().Contains(output, "Remove a profile from the configuration")
 }
 
 func (s *ProfileTestSuite) TestRunningRemoveProfileConfirmed() {
 	configFile := test.TempConfigFileWithObj(map[string]interface{}{
 		"profiles": []map[string]string{
 			{
-				"name":     "default",
-				"app":      "example.com/app",
-				"token":    "123456",
-				"base_url": "https://api.opsani.com/",
+				"name":      "default",
+				"optimizer": "example.com/app",
+				"token":     "123456",
+				"base_url":  "https://api.opsani.com/",
 			},
 		},
 	})
@@ -147,10 +147,10 @@ func (s *ProfileTestSuite) TestRunningRemoveProfileUnknown() {
 	config := map[string]interface{}{
 		"profiles": []map[string]string{
 			{
-				"app":      "dev.opsani.com",
-				"name":     "opsani-dev",
-				"token":    "/profile",
-				"base_url": "https://api.opsani.com/",
+				"optimizer": "dev.opsani.com",
+				"name":      "opsani-dev",
+				"token":     "/profile",
+				"base_url":  "https://api.opsani.com/",
 			},
 		},
 	}
@@ -163,10 +163,10 @@ func (s *ProfileTestSuite) TestRunningRemoveProfileForce() {
 	config := map[string]interface{}{
 		"profiles": []map[string]string{
 			{
-				"app":      "dev.opsani.com",
-				"name":     "opsani-dev",
-				"token":    "/profile",
-				"base_url": "https://api.opsani.com/",
+				"optimizer": "dev.opsani.com",
+				"name":      "opsani-dev",
+				"token":     "/profile",
+				"base_url":  "https://api.opsani.com/",
 			},
 		},
 	}
@@ -185,10 +185,10 @@ func (s *ProfileTestSuite) TestRunningRemoveProfileDeclined() {
 	configFile := test.TempConfigFileWithObj(map[string]interface{}{
 		"profiles": []map[string]string{
 			{
-				"name":     "default",
-				"app":      "example.com/app",
-				"token":    "123456",
-				"base_url": "https://api.opsani.com/",
+				"name":      "default",
+				"optimizer": "example.com/app",
+				"token":     "123456",
+				"base_url":  "https://api.opsani.com/",
 			},
 		},
 	})
@@ -205,10 +205,10 @@ func (s *ProfileTestSuite) TestRunningRemoveProfileDeclined() {
 	expected := []interface{}(
 		[]interface{}{
 			map[interface{}]interface{}{
-				"name":     "default",
-				"app":      "example.com/app",
-				"token":    "123456",
-				"base_url": "https://api.opsani.com/",
+				"name":      "default",
+				"optimizer": "example.com/app",
+				"token":     "123456",
+				"base_url":  "https://api.opsani.com/",
 			},
 		},
 	)
@@ -222,10 +222,10 @@ func (s *ProfileTestSuite) TestRunningProfileList() {
 	config := map[string]interface{}{
 		"profiles": []map[string]string{
 			{
-				"name":     "default",
-				"app":      "example.com/app",
-				"token":    "123456",
-				"base_url": "https://api.opsani.com/",
+				"name":      "default",
+				"optimizer": "example.com/app",
+				"token":     "123456",
+				"base_url":  "https://api.opsani.com/",
 			},
 		},
 	}
@@ -239,10 +239,10 @@ func (s *ProfileTestSuite) TestRunningProfileListVerbose() {
 	config := map[string]interface{}{
 		"profiles": []map[string]string{
 			{
-				"name":     "default",
-				"app":      "example.com/app",
-				"token":    "123456",
-				"base_url": "https://api.opsani.com/",
+				"name":      "default",
+				"optimizer": "example.com/app",
+				"token":     "123456",
+				"base_url":  "https://api.opsani.com/",
 			},
 		},
 	}

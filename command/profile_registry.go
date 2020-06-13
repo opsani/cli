@@ -103,21 +103,21 @@ func (s Servo) BastionComponents() (string, string) {
 
 // Profile represents an Opsani app, token, and base URL
 type Profile struct {
-	Name    string `yaml:"name" mapstructure:"name" json:"name"`
-	App     string `yaml:"app" mapstructure:"app" json:"app"`
-	Token   string `yaml:"token" mapstructure:"token" json:"token"`
-	BaseURL string `yaml:"base_url,omitempty" mapstructure:"base_url,omitempty" json:"base_url,omitempty"`
-	Servo   Servo  `yaml:"servo,omitempty" mapstructure:"servo,omitempty" json:"servo,omitempty"`
+	Name      string `yaml:"name" mapstructure:"name" json:"name"`
+	Optimizer string `yaml:"optimizer" mapstructure:"optimizer" json:"optimizer"`
+	Token     string `yaml:"token" mapstructure:"token" json:"token"`
+	BaseURL   string `yaml:"base_url,omitempty" mapstructure:"base_url,omitempty" json:"base_url,omitempty"`
+	Servo     Servo  `yaml:"servo,omitempty" mapstructure:"servo,omitempty" json:"servo,omitempty"`
 }
 
 // Organization returns the domain of the organization that owns the app
 func (p Profile) Organization() string {
-	return filepath.Dir(p.App)
+	return filepath.Dir(p.Optimizer)
 }
 
 // AppName returns the name of the app
 func (p Profile) AppName() string {
-	return filepath.Base(p.App)
+	return filepath.Base(p.Optimizer)
 }
 
 // ProfileRegistry provides an interface for managing configuration of app profiles

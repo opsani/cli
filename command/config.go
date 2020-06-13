@@ -30,7 +30,7 @@ func NewConfigCommand(baseCmd *BaseCommand) *cobra.Command {
 	cfgCmd := configCommand{BaseCommand: baseCmd}
 	cobraCmd := &cobra.Command{
 		Use:               "config",
-		Short:             "Display configuration",
+		Short:             "Manage configuration",
 		Annotations:       map[string]string{"other": "true"},
 		Args:              cobra.NoArgs,
 		RunE:              cfgCmd.Run,

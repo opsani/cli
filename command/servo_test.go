@@ -65,9 +65,9 @@ func (s *ServoTestSuite) TestRunningServoSSHInvalidServo() {
 	configFile := test.TempConfigFileWithObj(map[string][]map[string]string{
 		"profiles": []map[string]string{
 			{
-				"name":  "default",
-				"app":   "example.com/app",
-				"token": "123456",
+				"name":      "default",
+				"optimizer": "example.com/app",
+				"token":     "123456",
 			},
 		},
 	})
@@ -85,9 +85,9 @@ func (s *ServoTestSuite) TestRunningServoLogsInvalidServo() {
 	configFile := test.TempConfigFileWithObj(map[string][]map[string]string{
 		"profiles": []map[string]string{
 			{
-				"name":  "default",
-				"app":   "example.com/app",
-				"token": "123456",
+				"name":      "default",
+				"optimizer": "example.com/app",
+				"token":     "123456",
 			},
 		},
 	})
@@ -117,9 +117,9 @@ func (s *ServoTestSuite) TestRunningAddNoInput() {
 	configFile := test.TempConfigFileWithObj(map[string][]map[string]string{
 		"profiles": []map[string]string{
 			{
-				"name":  "default",
-				"app":   "example.com/app",
-				"token": "123456",
+				"name":      "default",
+				"optimizer": "example.com/app",
+				"token":     "123456",
 			},
 		},
 	})
@@ -142,7 +142,7 @@ func (s *ServoTestSuite) TestRunningAddNoInput() {
 	body, _ := ioutil.ReadFile(configFile.Name())
 	expected := `profiles:
   - name: default
-    app: example.com/app
+    optimizer: example.com/app
     token: '123456'
     servo:
       type: docker-compose
@@ -156,9 +156,9 @@ func (s *ServoTestSuite) TestRunningAddNoInputWithBastion() {
 	configFile := test.TempConfigFileWithObj(map[string][]map[string]string{
 		"profiles": {
 			{
-				"name":  "default",
-				"app":   "example.com/app",
-				"token": "123456",
+				"name":      "default",
+				"optimizer": "example.com/app",
+				"token":     "123456",
 			},
 		},
 	})
@@ -183,7 +183,7 @@ func (s *ServoTestSuite) TestRunningAddNoInputWithBastion() {
 	body, _ := ioutil.ReadFile(configFile.Name())
 	expected := `profiles:
 - name: default
-  app: example.com/app
+  optimizer: example.com/app
   token: "123456"
   servo:
     type: docker-compose
@@ -212,9 +212,9 @@ func (s *ServoTestSuite) TestRunningRemoveServoConfirmed() {
 	configFile := test.TempConfigFileWithObj(map[string]interface{}{
 		"profiles": []map[string]interface{}{
 			{
-				"name":  "default",
-				"app":   "example.com/app",
-				"token": "123456",
+				"name":      "default",
+				"optimizer": "example.com/app",
+				"token":     "123456",
 				"servo": map[string]string{
 					"host": "dev.opsani.com",
 					"name": "opsani-dev",
@@ -244,9 +244,9 @@ func (s *ServoTestSuite) TestRunningRemoveServoUnknown() {
 	config := map[string]interface{}{
 		"profiles": []map[string]string{
 			{
-				"name":  "default",
-				"app":   "example.com/app",
-				"token": "123456",
+				"name":      "default",
+				"optimizer": "example.com/app",
+				"token":     "123456",
 			},
 		},
 	}
@@ -259,9 +259,9 @@ func (s *ServoTestSuite) TestRunningRemoveServoForce() {
 	config := map[string]interface{}{
 		"profiles": []map[string]interface{}{
 			{
-				"name":  "default",
-				"app":   "example.com/app",
-				"token": "123456",
+				"name":      "default",
+				"optimizer": "example.com/app",
+				"token":     "123456",
 				"servo": map[string]string{
 					"host": "dev.opsani.com",
 					"path": "/servo",
@@ -286,9 +286,9 @@ func (s *ServoTestSuite) TestRunningRemoveServoDeclined() {
 	configData := map[string]interface{}{
 		"profiles": []map[string]interface{}{
 			{
-				"name":  "default",
-				"app":   "example.com/app",
-				"token": "123456",
+				"name":      "default",
+				"optimizer": "example.com/app",
+				"token":     "123456",
 				"servo": map[string]string{
 					"host": "dev.opsani.com",
 					"path": "/servo",
@@ -318,9 +318,9 @@ func (s *ServoTestSuite) TestRunningServoList() {
 	config := map[string]interface{}{
 		"profiles": []map[string]interface{}{
 			{
-				"name":  "default",
-				"app":   "example.com/app",
-				"token": "123456",
+				"name":      "default",
+				"optimizer": "example.com/app",
+				"token":     "123456",
 				"servo": map[string]string{
 					"host": "dev.opsani.com",
 					"type": "docker-compose",
@@ -341,9 +341,9 @@ func (s *ServoTestSuite) TestRunningServoListVerbose() {
 	config := map[string]interface{}{
 		"profiles": []map[string]interface{}{
 			{
-				"name":  "default",
-				"app":   "example.com/app",
-				"token": "123456",
+				"name":      "default",
+				"optimizer": "example.com/app",
+				"token":     "123456",
 				"servo": map[string]string{
 					"host": "dev.opsani.com",
 					"type": "docker-compose",

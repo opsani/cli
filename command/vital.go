@@ -64,6 +64,7 @@ func NewIgniteCommand(baseCmd *BaseCommand) *cobra.Command {
 	cobraCmd := &cobra.Command{
 		Use:               "ignite",
 		Short:             "Light up an interactive demo",
+		Annotations:       map[string]string{"educational": "true"},
 		Args:              cobra.NoArgs,
 		PersistentPreRunE: nil,
 		RunE:              vitalCommand.RunDemo,
@@ -72,6 +73,7 @@ func NewIgniteCommand(baseCmd *BaseCommand) *cobra.Command {
 	loadGenCmd := &cobra.Command{
 		Use:               "loadgen",
 		Short:             "Learn about load generation in Opsani",
+		Annotations:       map[string]string{"educational": "true"},
 		Args:              cobra.NoArgs,
 		PersistentPreRunE: nil,
 		RunE:              vitalCommand.RunLearnLoadgen,
@@ -398,7 +400,7 @@ func (vitalCommand *vitalCommand) RunVitalDiscovery(cobraCmd *cobra.Command, arg
 	whiteBold := ansi.ColorCode("white+b")
 	// lightCyan := ansi.LightCyan
 
-	// Pul the IMB image
+	// Pull the IMB image
 	// imageRef := fmt.Sprintf("%s:%s", imbImageName, imbTargetVersion)
 	// fmt.Printf("\n%s==>%s %sPulling %s...%s\n", blue, reset, whiteBold, imageRef, reset)
 	// di, err := NewDockerInterface("")

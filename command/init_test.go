@@ -87,7 +87,7 @@ func (s *InitTestSuite) TestInitWithExistingConfigDeclinedNoConfigFile() {
 	cfgName := "/tmp/this-will-never-exist.yaml"
 	os.Remove(cfgName)
 	_, err := s.ExecuteTestInteractively(test.Args("--config", cfgName, "init"), func(t *test.InteractiveTestContext) error {
-		t.ExpectMatch(expect.RegexpPattern("Opsani app"))
+		t.ExpectMatch(expect.RegexpPattern("Opsani optimizer"))
 		t.SendLine("dev.opsani.com/amazing-app")
 		t.RequireMatch(expect.RegexpPattern("API Token"))
 		t.SendLine("123456")
@@ -103,8 +103,8 @@ func (s *InitTestSuite) TestInitWithExistingConfigDeclined() {
 	configFile := test.TempConfigFileWithObj(map[string]interface{}{
 		"profiles": []map[string]string{
 			{
-				"app":   "example.com/app",
-				"token": "123456",
+				"optimizer": "example.com/app",
+				"token":     "123456",
 			},
 		},
 	})
@@ -127,9 +127,9 @@ func (s *InitTestSuite) TestInitWithExistingConfigAccepted() {
 	configFile := test.TempConfigFileWithObj(map[string]interface{}{
 		"profiles": []map[string]string{
 			{
-				"name":  "default",
-				"app":   "example.com/app",
-				"token": "123456",
+				"name":      "default",
+				"optimizer": "example.com/app",
+				"token":     "123456",
 			},
 		},
 	})
@@ -138,7 +138,7 @@ func (s *InitTestSuite) TestInitWithExistingConfigAccepted() {
 		t.RequireStringf("Using config from: %s", configFile.Name())
 		t.RequireStringf("Existing config found. Overwrite %s?", configFile.Name())
 		t.SendLine("Y")
-		t.ExpectMatch(expect.RegexpPattern("Opsani app"))
+		t.ExpectMatch(expect.RegexpPattern("Opsani optimizer"))
 		t.SendLine("dev.opsani.com/amazing-app")
 		t.RequireMatch(expect.RegexpPattern("API Token"))
 		t.SendLine("123456")
@@ -156,7 +156,7 @@ func (s *InitTestSuite) TestInitWithExistingConfigAccepted() {
 	}
 	body, err := ioutil.ReadFile(configFile.Name())
 	yaml.Unmarshal(body, &config)
-	s.Require().Equal("dev.opsani.com/amazing-app", config.Profiles[1].App)
+	s.Require().Equal("dev.opsani.com/amazing-app", config.Profiles[1].Optimizer)
 	s.Require().Equal("123456", config.Profiles[1].Token)
 }
 

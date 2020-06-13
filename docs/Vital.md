@@ -12,7 +12,7 @@ Opsani Vital product offering.
     3. Input your app name (Optional, auto-generated if blank)
 5. Upon completion, send an email that includes:
     1. The name, e-mail, and app name
-    1. A one-time use token (i.e. `2ada27a6cf09`)
+    1. A one-time use token (e.g. `2ada27a6cf09`)
     2. Instructions for installing the CLI automatically: 
         `curl http://localhost:8888/install.sh/2ada27a6cf09 | sh`
     3. A link to a help page for installing manually:

@@ -193,9 +193,9 @@ To start optimizing, install the Opsani CLI:
 
 		if profile != nil {
 			c.JSON(fiber.Map{
-				"base_url": profile.BaseURL,
-				"app":      profile.AppID,
-				"token":    profile.APIToken,
+				"base_url":  profile.BaseURL,
+				"optimizer": profile.AppID,
+				"token":     profile.APIToken,
 			})
 		} else {
 			c.Send("Unknown token")

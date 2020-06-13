@@ -118,23 +118,23 @@ func (initCmd *initCommand) RunInitCommand(_ *cobra.Command, args []string) erro
 	}
 
 	profile := Profile{
-		Name:    "default",
-		App:     initCmd.App(),
-		Token:   initCmd.AccessToken(),
-		BaseURL: initCmd.BaseURL(),
+		Name:      "default",
+		Optimizer: initCmd.Optimizer(),
+		Token:     initCmd.AccessToken(),
+		BaseURL:   initCmd.BaseURL(),
 	}
 	whiteBold := ansi.ColorCode("white+b")
 
-	if overwrite || profile.App == "" {
+	if overwrite || profile.Optimizer == "" {
 		err := initCmd.AskOne(&survey.Input{
-			Message: "Opsani app (i.e. domain.com/app):",
-			Default: profile.App,
-		}, &profile.App, survey.WithValidator(survey.Required))
+			Message: "Opsani optimizer (e.g. domain.com/app):",
+			Default: profile.Optimizer,
+		}, &profile.Optimizer, survey.WithValidator(survey.Required))
 		if err != nil {
 			return err
 		}
 	} else {
-		initCmd.Printf("%si %sApp: %s%s%s%s\n", ansi.Blue, whiteBold, ansi.Reset, ansi.LightCyan, profile.App, ansi.Reset)
+		initCmd.Printf("%si %sApp: %s%s%s%s\n", ansi.Blue, whiteBold, ansi.Reset, ansi.LightCyan, profile.Optimizer, ansi.Reset)
 	}
 
 	if overwrite || profile.Token == "" {
@@ -184,11 +184,12 @@ func (initCmd *initCommand) RunInitCommand(_ *cobra.Command, args []string) erro
 func NewInitCommand(baseCommand *BaseCommand) *cobra.Command {
 	initCmd := &initCommand{BaseCommand: baseCommand}
 	cmd := &cobra.Command{
-		Use:   "init [INIT_TOKEN]",
-		Short: "Initialize Opsani config",
+		Use:         "init [INIT_TOKEN]",
+		Annotations: map[string]string{"other": "true"},
+		Short:       "Initialize Opsani CLI configuration",
 		Long: `Initializes an Opsani config file and acquires the required settings:
 	
-    * 'app':   Opsani app to control (OPSANI_APP).
+    * 'optimizer':   Opsani app to control (OPSANI_OPTIMIZER).
     * 'token': API token to authenticate with (OPSANI_TOKEN).
 	`,
 		Args:              cobra.MaximumNArgs(1),

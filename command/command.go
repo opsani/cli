@@ -308,7 +308,7 @@ func (cmd *BaseCommand) baseURLFromFlagsOrEnv() string {
 }
 
 func (cmd *BaseCommand) appFromFlagsOrEnv() string {
-	return cmd.valueFromFlagOrEnv(KeyApp, "OPSANI_APP")
+	return cmd.valueFromFlagOrEnv(KeyOptimizer, "OPSANI_OPTIMIZER")
 }
 
 func (cmd *BaseCommand) tokenFromFlagsOrEnv() string {
@@ -338,7 +338,7 @@ func (cmd *BaseCommand) LoadProfile() (*Profile, error) {
 			profile.BaseURL = baseURL
 		}
 		if app := cmd.appFromFlagsOrEnv(); app != "" {
-			profile.App = app
+			profile.Optimizer = app
 		}
 		if token := cmd.tokenFromFlagsOrEnv(); token != "" {
 			profile.Token = token
@@ -361,20 +361,20 @@ func (cmd *BaseCommand) AccessToken() string {
 	return ""
 }
 
-// App returns the target Opsani app
-func (cmd *BaseCommand) App() string {
-	if app := cmd.valueFromFlagOrEnv(KeyApp, "OPSANI_APP"); app != "" {
+// Optimizer returns the target Opsani app
+func (cmd *BaseCommand) Optimizer() string {
+	if app := cmd.valueFromFlagOrEnv(KeyOptimizer, "OPSANI_OPTIMIZER"); app != "" {
 		return app
 	}
 	if cmd.profile != nil {
-		return cmd.profile.App
+		return cmd.profile.Optimizer
 	}
 	return ""
 }
 
-// AppComponents returns the organization name and app ID as separate path components
-func (cmd *BaseCommand) AppComponents() (orgSlug string, appSlug string) {
-	app := cmd.App()
+// OptimizerComponents returns the organization name and app ID as separate path components
+func (cmd *BaseCommand) OptimizerComponents() (orgSlug string, appSlug string) {
+	app := cmd.Optimizer()
 	org := filepath.Dir(app)
 	appID := filepath.Base(app)
 	return org, appID
