@@ -25,6 +25,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"text/template"
 	"time"
@@ -315,7 +316,7 @@ Deployment will be done in a new minikube profile called **opsani-ignite** that 
 isolated from your existing work.
 
 Manifests generated during deployment are written to **./manifests**.`
-	err := vitalCommand.DisplayMarkdown(markdown, true)
+	err := vitalCommand.DisplayMarkdown(markdown, false)
 	if err != nil {
 		return err
 	}
@@ -404,13 +405,21 @@ Manifests generated during deployment are written to **./manifests**.`
 	}
 
 	// Check to see if there is already an ignite cluster
+	existingProfile := false
 	mkCmd := exec.Command("minikube", "profile", "list", "-o", "json")
 	output, err := mkCmd.Output()
-	if err != nil {
-		return err
+	if err == nil {
+		result := gjson.GetBytes(output, `valid.#(Name=="opsani-ignite")`)
+		existingProfile = result.Exists()
+	} else {
+		results := gjson.GetManyBytes(output, "error.Op", "error.Err")
+		if results[0].String() == "open" && results[1].Int() == 2 {
+			// Ignore -- this means there aren't any profiles
+		} else {
+			return fmt.Errorf("failed listing minikube profiles: %w: %s", err, output)
+		}
 	}
-	result := gjson.GetBytes(output, `valid.#(Name=="opsani-ignite")`)
-	if result.Exists() {
+	if existingProfile {
 		recreate := false
 		prompt := &survey.Confirm{
 			Message: fmt.Sprintf(" There is an existing %q minikube profile. Do you want to recreate it?", "opsani-ignite"),
@@ -438,8 +447,13 @@ Manifests generated during deployment are written to **./manifests**.`
 		Failure:     "failed creation of minikube profile",
 		RunW: func(w io.Writer) error {
 			cmd := exec.Command("minikube", "start", "--memory=4096", "--cpus=4", "--wait=all", "-p", "opsani-ignite")
-			cmd.Stdout = w
-			cmd.Stderr = w
+			if runtime.GOOS == "windows" {
+				cmd.Stdout = os.Stdout
+				cmd.Stderr = os.Stderr
+			} else {
+				cmd.Stdout = w
+				cmd.Stderr = w
+			}
 			cmd.Stdin = os.Stdin
 			return cmd.Run()
 		},
