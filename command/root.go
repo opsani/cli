@@ -396,7 +396,7 @@ func (vitalCommand *vitalCommand) RunTaskWithSpinner(task Task) (err error) {
 
 // RunTask displays runs a task
 func (vitalCommand *vitalCommand) RunTask(task Task) (err error) {
-	w := os.Stdout
+	w := vitalCommand.OutOrStdout()
 	fmt.Fprintf(w, vitalCommand.infoMessage(task.Description))
 	if task.RunW != nil {
 		err = task.RunW(w)

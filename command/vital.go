@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -34,6 +33,7 @@ import (
 	"github.com/charmbracelet/glamour"
 	"github.com/fatih/color"
 	"github.com/markbates/pkger"
+	"github.com/mattn/go-colorable"
 	"github.com/mgutz/ansi"
 	"github.com/mitchellh/go-homedir"
 	"github.com/spf13/cobra"
@@ -315,7 +315,7 @@ Deployment will be done in a new minikube profile called **opsani-ignite** that 
 isolated from your existing work.
 
 Manifests generated during deployment are written to **./manifests**.`
-	err := vitalCommand.DisplayMarkdown(markdown, false)
+	err := vitalCommand.DisplayMarkdown(markdown, true)
 	if err != nil {
 		return err
 	}
@@ -327,7 +327,7 @@ Manifests generated during deployment are written to **./manifests**.`
 	if !confirmed {
 		return nil
 	}
-	fmt.Printf("\n💥 Let's do this thing.\n")
+	fmt.Fprintf(vitalCommand.OutOrStdout(), "\n💥 Let's do this thing.\n")
 
 	bold := color.New(color.Bold).SprintFunc()
 	err = vitalCommand.RunTaskWithSpinner(Task{
@@ -335,10 +335,14 @@ Manifests generated during deployment are written to **./manifests**.`
 		Success:     fmt.Sprintf("Docker %s found.", bold("{{.Version}}")),
 		Failure:     "unable to find Docker",
 		RunV: func() (interface{}, error) {
-			cmd := exec.Command("docker", strings.Split("version --format v{{.Client.Version}}", " ")...)
+			path, err := exec.LookPath("docker")
+			if err != nil {
+				return nil, fmt.Errorf("docker not found on path")
+			}
+			cmd := exec.Command(path, strings.Split("version --format v{{.Client.Version}}", " ")...)
 			output, err := cmd.CombinedOutput()
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("failed retrieving Docker version: %w: %s", err, output)
 			}
 			return struct{ Version string }{Version: strings.TrimSpace(string(output))}, nil
 		},
@@ -352,7 +356,11 @@ Manifests generated during deployment are written to **./manifests**.`
 		Success:     fmt.Sprintf("Kubernetes %s found.", bold("{{ .clientVersion.gitVersion }}")),
 		Failure:     "unable to find Kubernetes",
 		RunV: func() (interface{}, error) {
-			cmd := exec.Command("kubectl", strings.Split("version --client -o json", " ")...)
+			path, err := exec.LookPath("kubectl")
+			if err != nil {
+				return nil, fmt.Errorf("kubectl not found on path")
+			}
+			cmd := exec.Command(path, strings.Split("version --client -o json", " ")...)
 			output, err := cmd.CombinedOutput()
 			if err != nil {
 				return nil, err
@@ -374,7 +382,11 @@ Manifests generated during deployment are written to **./manifests**.`
 		Success:     fmt.Sprintf("minikube %s found.", bold("{{ .minikubeVersion }}")),
 		Failure:     "unable to find minikube",
 		RunV: func() (interface{}, error) {
-			cmd := exec.Command("minikube", strings.Split("version -o json", " ")...)
+			path, err := exec.LookPath("minikube")
+			if err != nil {
+				return nil, fmt.Errorf("minikube not found on path")
+			}
+			cmd := exec.Command(path, strings.Split("version -o json", " ")...)
 			output, err := cmd.CombinedOutput()
 			if err != nil {
 				return nil, err
@@ -454,21 +466,10 @@ Manifests generated during deployment are written to **./manifests**.`
 
 // DisplayMarkdown displays rendered Markdown in a pager
 func (vitalCommand *vitalCommand) DisplayMarkdown(markdown string, paged bool) error {
-	// Size paged output to the terminal
 	fd := int(os.Stdin.Fd())
-	termWidth, _, err := terminal.GetSize(fd)
-	if err != nil {
-		return err
-	}
-	if termWidth > 80 {
-		termWidth = 80
-	}
-
 	r, err := glamour.NewTermRenderer(
 		// TODO: detect background color and pick either the default dark or light theme
 		glamour.WithStandardStyle("dark"),
-		// wrap output at specific width
-		glamour.WithWordWrap(termWidth),
 	)
 	if err != nil {
 		return err
@@ -488,7 +489,10 @@ func (vitalCommand *vitalCommand) DisplayMarkdown(markdown string, paged bool) e
 		defer terminal.Restore(fd, oldState)
 
 		var pager io.WriteCloser
-		cmd, pager := runPager()
+		cmd, pager, err := runPager()
+		if err != nil {
+			return err
+		}
 		fmt.Fprint(pager, renderedMarkdown)
 		pager.Close()
 		return cmd.Wait()
@@ -561,23 +565,39 @@ Once this is wrapped up, you can start optimizing immediately.`
 	return nil
 }
 
-func runPager() (*exec.Cmd, io.WriteCloser) {
-	// pager := os.Getenv("PAGER")
-	// if pager == "" {
-	// 	pager = "more"
+func runPager() (*exec.Cmd, io.WriteCloser, error) {
+	var cmd *exec.Cmd
+	// if runtime.GOOS == "windows" {
+	path, err := exec.LookPath("less")
+	if err == nil {
+		cmd = exec.Command(path, ArgsS("-F -g -i -M -R -S -w -X -z-4")...)
+	} else {
+		pager := os.Getenv("PAGER")
+		if pager == "" {
+			pager = "more"
+		}
+		path, err = exec.LookPath(pager)
+		if err != nil {
+			return nil, nil, err
+		}
+		cmd = exec.Command(path)
+	}
+
+	// } else {
+	// 	cmd
 	// }
-	// pager := "less"
-	cmd := exec.Command("less", ArgsS("-F -g -i -M -R -S -w -X -z-4")...)
+
+	// cmd := exec.Command("powershell.exe", "-Command", "& {Out-Host -Paging -}") //"powershell", "{Out-Host", "-Paging}")
 	out, err := cmd.StdinPipe()
 	if err != nil {
-		log.Fatal(err)
+		return nil, nil, err
 	}
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	cmd.Stdout = colorable.NewColorableStdout()
+	cmd.Stderr = colorable.NewColorableStderr()
 	if err := cmd.Start(); err != nil {
-		log.Fatal(err)
+		return nil, nil, err
 	}
-	return cmd, out
+	return cmd, out, err
 }
 
 func (vitalCommand *vitalCommand) RunVitalDiscovery(cobraCmd *cobra.Command, args []string) error {
