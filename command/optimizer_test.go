@@ -50,7 +50,7 @@ func (s *AppTestSuite) TestRunningAppHelp() {
 func (s *AppTestSuite) TestRunningAppConsoleHelp() {
 	output, err := s.Execute("--help")
 	s.Require().NoError(err)
-	s.Require().Contains(output, "Open the Opsani console")
+	s.Require().Contains(output, "Open Opsani console")
 }
 
 func TestRunningAppConsle(t *testing.T) {

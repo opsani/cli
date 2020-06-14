@@ -249,6 +249,6 @@ func (s *ProfileTestSuite) TestRunningProfileListVerbose() {
 	configFile := test.TempConfigFileWithObj(config)
 	output, err := s.Execute("--config", configFile.Name(), "profile", "list", "-v")
 	s.Require().NoError(err)
-	s.Require().Contains(output, "NAME   	APP            	TOKEN 	SERVO ")
+	s.Require().Contains(output, "NAME   	OPTIMIZER      	TOKEN 	SERVO")
 	s.Require().Contains(output, "default	example.com/app	123456")
 }
