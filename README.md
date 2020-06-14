@@ -130,7 +130,7 @@ a couple of options for supplying the configuration:
 
 1. **CLI Arguments** - Arguments can be directly supplied to the CLI via the Docker invocation: 
 `docker run -it --rm --name opsani-cli opsani/cli:latest --optimizer example.com/app --token 123456`
-2. **Environment Variables** - Export `OPSANI_APP` and `OPSANI_TOKEN` into your shell and pass them
+2. **Environment Variables** - Export `OPSANI_OPTIMIZER` and `OPSANI_TOKEN` into your shell and pass them
 through to the container: `docker run -it --rm --name opsani-cli -e OPSANI_OPTIMIZER=$OPSANI_OPTIMIZER -e OPSANI_TOKEN=$OPSANI_TOKEN opsani/cli:latest`
 3. **Config Volume** - Existing configuration files in your home directory can be shared with the container through a
 volume mount: `docker run -it --rm --name opsani-cli -v ~/.opsani:/root/.opsani opsani/cli:latest`
