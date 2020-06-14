@@ -120,6 +120,11 @@ func (p Profile) AppName() string {
 	return filepath.Base(p.Optimizer)
 }
 
+// IsActive indicates if the profile is active
+func (p Profile) IsActive() bool {
+	return p.Name == "default"
+}
+
 // ProfileRegistry provides an interface for managing configuration of app profiles
 type ProfileRegistry struct {
 	viper    *viper.Viper

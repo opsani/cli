@@ -54,7 +54,6 @@ type BaseCommand struct {
 	viperCfg         *viper.Viper
 
 	configFile            string
-	profileName           string
 	profile               *Profile
 	requestTracingEnabled bool
 	debugModeEnabled      bool
@@ -322,13 +321,15 @@ func (cmd *BaseCommand) LoadProfile() (*Profile, error) {
 		return nil, nil
 	}
 
+	profileName, _ := cmd.Flags().GetString(KeyProfile)
 	var profile *Profile
-	if cmd.profileName == "" {
+	if profileName == "" {
+		// TODO: Look for default or active attribute
 		profile = registry.Profiles()[0]
 	} else {
-		profile = registry.ProfileNamed(cmd.profileName)
+		profile = registry.ProfileNamed(profileName)
 		if profile == nil {
-			return nil, fmt.Errorf("no profile %q", cmd.profileName)
+			return nil, fmt.Errorf("no profile %q", profileName)
 		}
 	}
 
