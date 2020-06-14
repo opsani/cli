@@ -81,6 +81,10 @@ $ scoop bucket add opsani https://github.com/opsani/scoop-bucket.git
 $ scoop install opsani-cli
 ```
 
+**NOTE**: Opsani Ignite requires a hypervisor to run minikube virtualization. Microsoft provides the Hyper-V
+hypervisor for modern version of Windows that can be installed via PowerShell. Install Hyper-V using the instructions
+at the Microsoft [Hyper-V Quick Start](https://docs.microsoft.com/en-us/virtualization/hyper-v-on-windows/quick-start/enable-hyper-v#enable-hyper-v-using-powershell) page.
+
 ### Linux
 
 Binary packages for Linux are available in RPM and DEB package formats.
