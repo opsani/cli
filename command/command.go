@@ -29,6 +29,7 @@ import (
 	"github.com/goccy/go-yaml/lexer"
 	"github.com/goccy/go-yaml/printer"
 	"github.com/hokaccha/go-prettyjson"
+	"github.com/mattn/go-colorable"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
@@ -87,12 +88,22 @@ func (cmd *BaseCommand) Viper() *viper.Viper {
 
 // OutOrStdout returns output to stdout.
 func (cmd *BaseCommand) OutOrStdout() io.Writer {
-	return cmd.rootCobraCommand.OutOrStdout()
+	stdout := cmd.rootCobraCommand.OutOrStdout()
+	if stdout == os.Stdout {
+		return colorable.NewColorableStdout()
+	} else {
+		return cmd.rootCobraCommand.OutOrStdout()
+	}
 }
 
 // ErrOrStderr returns output to stdout.
 func (cmd *BaseCommand) ErrOrStderr() io.Writer {
-	return cmd.rootCobraCommand.ErrOrStderr()
+	stderr := cmd.rootCobraCommand.ErrOrStderr()
+	if stderr == os.Stderr {
+		return colorable.NewColorableStderr()
+	} else {
+		return cmd.rootCobraCommand.ErrOrStderr()
+	}
 }
 
 // Print is a convenience method to Print to the defined output, fallback to Stderr if not set.
