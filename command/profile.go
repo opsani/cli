@@ -199,7 +199,7 @@ func (profileCmd *profileCommand) RunProfileList(_ *cobra.Command, args []string
 	profiles := registry.Profiles()
 
 	if profileCmd.verbose {
-		headers := []string{"NAME", "APP", "TOKEN", "SERVO"}
+		headers := []string{"NAME", "OPTIMIZER", "TOKEN", "SERVO"}
 		for _, profile := range profiles {
 			row := []string{
 				profile.Name,
