@@ -248,12 +248,12 @@ through dynamic allocations and distribution of the workload across replica sets
 
 When a Kubernetes based application, workload, or service is optimized by Opsani, parameters such as the CPU &
 memory request and limit values will be explored by the optimizer to identify the optimal configuration at that moment
-in time. Any optimizable resource in Opsani is mdeled as a **component** and is explored by the optimizer in accordance
+in time. Any optimizable resource in Opsani is modeled as a **component** and is explored by the optimizer in accordance
 with **guard rails** defined during servo configuration. Components are described in terms of numeric **ranges** or 
 **enumerations** that establish the bounds that the optimizer is permitted work in.
 
 To better understand how adjustments are made and applied to a Kubernetes control plane, try making changes to
-the **min**, **max**, and **step** values that are part of the k8s/application/components stanza in the the **ConfigMap** 
+the **min**, **max**, and **step** values that are part of the **k8s/application/components** stanza in the the **ConfigMap** 
 defined in the **./manifests/servo-configmap.yaml** file, applying the manifest, and restarting the servo deployment.
 
 ` + "```console\nkubectl apply -f ./manifests/servo-configmap.yaml\nopsani servo restart\n```" + `
