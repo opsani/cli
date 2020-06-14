@@ -5,6 +5,15 @@ license. This changelog catalogs all notable changes made to the project. The fo
 is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Releases are 
 versioned in accordance with [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] - 2020-06-14
+### Enhanced
+- Paging logic for displaying Markdown assets now applies cascading fallbacks to find a pager.
+
+### Fixed
+- Terminal output under Windows handles color codes appropriately.
+- Minikube profile detection logic now handles recoverable errors instead of exiting.
+- Markdown output no longer blindly applies operations that assume a Unixy terminal is available.
+
 ## [0.2.0] - 2020-06-14
 ### Added
 - Ignite module for quick deployment and learning about optimization.
