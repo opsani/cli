@@ -53,12 +53,12 @@ func NewOptimizerCommand(baseCmd *BaseCommand) *cobra.Command {
 	return appCmd
 }
 
-// NewOptimizerConsoleCommand returns a command that opens the Opsani Console
+// NewConsoleCommand returns a command that opens the Opsani Console
 // in the default browser
 func NewConsoleCommand(baseCmd *BaseCommand) *cobra.Command {
 	return &cobra.Command{
 		Use:         "console",
-		Short:       "Open the Opsani console in the default web browser",
+		Short:       "Open Opsani console in the default web browser",
 		Annotations: map[string]string{"other": "true"},
 		Args:        cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
