@@ -268,7 +268,32 @@ Then return to the Opsani Console and observe the differences in the next data p
 
 func (vitalCommand *vitalCommand) RunLearnMeasure(cobraCmd *cobra.Command, args []string) error {
 	markdown := `# Opsani Ignite - Measurements
-TODO: Need copy
+
+Ignite deploys a servo onto Kubernetes alongside a simple web application called [co-http](https://github.com/opsani/co-http).
+
+The servo is responsible for collecting measurements and making adjustments to the application under optimization.
+
+Measurements are an aggregate report of metrics gathered from a source such as [Prometheus](https://prometheus.io/), 
+[Datadog](https://www.datadoghq.com/), or [New Relic](https://newrelic.com/) during the reporting interval. Measurements are reported to the optimizer 
+by the servo as a collection of time series values.
+
+Measurements are critical to the optimization process because they provide the optimizer with data about how adjustments
+impact the performance of the application under optimization. The optimizer evaluates the metrics reported against formulas 
+that model the desired characteristics of the optimization solution. 
+
+Nobody wishes to waste resources operating unnecessary infrastructure but applications are governed by service level objectives that define key performance indicators such
+as acceptable error rates and latencies. This results in the defensive over-provisioning of infrastructure resources to provide
+buffer against the unexpected. 
+
+The optimizer is able to balance these concerns by applying data gathered from the application
+under optimization "in the wild" to the configured optimization goals and make informed decisions about how to best adjust the
+resources to achieve the desired results most efficiently.
+
+Ignite gathers measurements from metrics gathered by Prometheus and reported by Vegeta during load generation.
+
+To better understand how measurements impact the behavior of the optimizer, make changes to the servo configure as discussed
+in the **opsani ignite loadgen** and **opsani ignite adjust** commands. The load profile and resources allocated to the application 
+have a direct impact on application performance that is immediately seen in the data points reported to the Opsani console.
 `
 	err := vitalCommand.DisplayMarkdown(markdown, true)
 	if err != nil {
