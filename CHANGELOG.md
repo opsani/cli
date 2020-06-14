@@ -5,11 +5,14 @@ license. This changelog catalogs all notable changes made to the project. The fo
 is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Releases are 
 versioned in accordance with [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.2.0] - 2020-06-14
+### Added
+- Ignite module for quick deployment and learning about optimization.
+- Support for managing servos deployed on Kubernetes.
 
-- Kubernetes discovery and manifest generation.
-- Servo assembly and connector management.
-- Interactive demo and tutorial experiences.
+### Changed
+- Servo and app registries are combined into profiles.
+- Apps are renamed to optimizers.
 
 ## [0.1.4] - 2020-06-06
 ### Fixed
