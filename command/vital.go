@@ -605,7 +605,6 @@ func (vitalCommand *vitalCommand) InstallKubernetesManifests(cobraCmd *cobra.Com
 			return e
 		}
 	}
-
 	bold := color.New(color.Bold).SprintFunc()
 	err := pkger.Walk("/demo/manifests", func(path string, info os.FileInfo, err error) error {
 		if info.IsDir() || strings.HasPrefix(info.Name(), ".") {
@@ -763,36 +762,51 @@ func (vitalCommand *vitalCommand) InstallKubernetesManifests(cobraCmd *cobra.Com
 	vitalCommand.run("kubectl", "rollout", "restart", "deployment", "servo")
 
 	// Attach the servo
-	if vitalCommand.profile.Servo == (Servo{}) {
-		if registry, err := NewProfileRegistry(vitalCommand.viperCfg); err != nil {
-			return err
-		} else {
-			vitalCommand.profile.Servo = Servo{
-				Type:       "kubernetes",
-				Namespace:  "default",
-				Deployment: "servo",
-			}
-			if err = registry.Save(); err != nil {
-				return err
-			}
+	attachServo := (vitalCommand.profile.Servo == (Servo{}))
+	if !attachServo {
+		prompt := &survey.Confirm{
+			Message: fmt.Sprintf("Existing servo attached to %q. Overwrite?", vitalCommand.profile.Name),
 		}
+		vitalCommand.AskOne(prompt, &attachServo)
+	}
+	if attachServo {
+		registry, err := NewProfileRegistry(vitalCommand.viperCfg)
+		if err != nil {
+			return err
+		}
+		profile := registry.ProfileNamed(vitalCommand.profile.Name)
+		profile.Servo = Servo{
+			Type:       "kubernetes",
+			Namespace:  "default",
+			Deployment: "servo",
+		}
+		if err = registry.Save(); err != nil {
+			return err
+		}
+	}
+
+	profileOption := ""
+	if !vitalCommand.profile.IsActive() {
+		profileOption = fmt.Sprintf("-p %s ", vitalCommand.profile.Name)
 	}
 
 	// Boom we are ready to roll
 	boldBlue := color.New(color.FgHiBlue, color.Bold).SprintFunc()
 	fmt.Fprintf(vitalCommand.OutOrStdout(), "\n🔥 %s\n", boldBlue("We have ignition"))
-	fmt.Fprintf(vitalCommand.OutOrStdout(), "\n%s  Servo running in %s Kubernetes deployment\n", color.HiBlueString("ℹ"), bold("servo"))
-	fmt.Fprintf(vitalCommand.OutOrStdout(), "%s  Servo registered as %s in the CLI\n", color.HiBlueString("ℹ"), bold("ignite"))
+	fmt.Fprintf(vitalCommand.OutOrStdout(), "\n%s  Servo running in Kubernetes %s\n", color.HiBlueString("ℹ"), bold("deployments/servo"))
+	fmt.Fprintf(vitalCommand.OutOrStdout(), "%s  Servo attached to opsani profile %s\n", color.HiBlueString("ℹ"), bold(vitalCommand.profile.Name))
 	fmt.Fprintf(vitalCommand.OutOrStdout(), "%s  Manifests written to %s\n", color.HiBlueString("ℹ"), bold("./manifests"))
 	fmt.Fprintf(vitalCommand.OutOrStdout(),
-		"\n%s  View servo commands: `%s`\n"+
+		"\n%s  View ignite subcommands: `%s`\n"+
+			"%s  View servo subcommands: `%s`\n"+
 			"%s  Follow servo logs: `%s`\n"+
 			"%s  Watch pod status: `%s`\n"+
 			"%s  Open Opsani console: `%s`\n\n",
-		color.HiGreenString("❯"), color.YellowString("opsani servo --help"),
-		color.HiGreenString("❯"), color.YellowString("opsani servo logs -f ignite"),
+		color.HiGreenString("❯"), color.YellowString(fmt.Sprintf("opsani %signite --help", profileOption)),
+		color.HiGreenString("❯"), color.YellowString(fmt.Sprintf("opsani %sservo --help", profileOption)),
+		color.HiGreenString("❯"), color.YellowString(fmt.Sprintf("opsani %sservo logs -f", profileOption)),
 		color.HiGreenString("❯"), color.YellowString("kubectl get pods --watch"),
-		color.HiGreenString("❯"), color.YellowString("opsani app console"))
+		color.HiGreenString("❯"), color.YellowString(fmt.Sprintf("opsani %sconsole", profileOption)))
 	vitalCommand.Println(bold("Optimization results will begin reporting in the console shortly."))
 
 	return err
