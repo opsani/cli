@@ -68,7 +68,7 @@ func NewIgniteCommand(baseCmd *BaseCommand) *cobra.Command {
 		Short:             "Light up an interactive demo",
 		Annotations:       map[string]string{"educational": "true"},
 		Args:              cobra.NoArgs,
-		PersistentPreRunE: nil,
+		PersistentPreRunE: ReduceRunEFuncs(baseCmd.InitConfigRunE, baseCmd.RequireConfigFileFlagToExistRunE, baseCmd.RequireInitRunE),
 		RunE:              vitalCommand.RunDemo,
 	}
 
@@ -658,6 +658,9 @@ func init() {
 }
 
 func (vitalCommand *vitalCommand) InstallKubernetesManifests(cobraCmd *cobra.Command, args []string) error {
+	if vitalCommand.profile == nil {
+		return fmt.Errorf("no profile selected")
+	}
 	if _, err := os.Stat("manifests"); os.IsNotExist(err) {
 		e := os.Mkdir("manifests", 0755)
 		if e != nil {
@@ -727,6 +730,7 @@ func (vitalCommand *vitalCommand) InstallKubernetesManifests(cobraCmd *cobra.Com
 				if err := cmd.Start(); err != nil {
 					return fmt.Errorf("failed applying manifest %q: %w\n%s", manifestName, err, outputBuffer)
 				}
+
 				renderedManifest := new(bytes.Buffer)
 				err = tmpl.Execute(renderedManifest, *vitalCommand.profile)
 				if err != nil {

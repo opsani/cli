@@ -16,6 +16,7 @@ package command_test
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"regexp"
 	"testing"
@@ -42,6 +43,14 @@ func (s *ConfigTestSuite) SetupTest() {
 }
 
 func TestMain(m *testing.M) {
+	// Set the home directory a temporary path to avoid leakage
+	// between the developer env and tests
+	fakeHome, err := ioutil.TempDir("", "opsani-cli-unit-tests")
+	if err != nil {
+		panic(err)
+	}
+	defer os.RemoveAll(fakeHome)
+	os.Setenv("HOME", fakeHome)
 	os.Exit(m.Run())
 }
 
