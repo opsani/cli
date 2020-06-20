@@ -1,4 +1,5 @@
 # Opsani CLI
+![Tests](https://github.com/opsani/cli/workflows/Tests/badge.svg)
 
 Opsani CLI is cloud optimization in your terminal. It brings a suite of tools
 for configuring & deploying servos, managing optimization runs, and interacting
