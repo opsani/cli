@@ -60,7 +60,7 @@ func (s *ConfigTestSuite) TestRunningConfigFileDoesntExist() {
 
 	_, err := s.ExecuteArgs(ConfigFileArgs(configFile, "config"))
 	s.Require().Error(err)
-	s.Require().Contains(err.Error(), "no such file or directory")
+	s.Require().Contains(err.Error(), "config file does not exist")
 }
 
 func (s *ConfigTestSuite) TestRunningConfigFileEmpty() {
