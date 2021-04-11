@@ -16,9 +16,12 @@ package command
 
 import (
 	"bytes"
+	"context"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
+	"log"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -38,6 +41,18 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/clientcmd"
+
+	k8s_errors "k8s.io/apimachinery/pkg/api/errors"
+	// metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	// "k8s.io/client-go/kubernetes"
+	// "k8s.io/client-go/tools/clientcmd"
+	"github.com/xeonx/timeago"
+	k8s_homedir "k8s.io/client-go/util/homedir"
+
+	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/viper"
 )
 
@@ -82,8 +97,8 @@ func NewRootCommand() *BaseCommand {
 		Use:   "opsani",
 		Short: "The official CLI for Opsani",
 		Long: `Continuous optimization at your fingertips.
-	
-Opsani CLI is in early stages of development. 
+
+Opsani CLI is in early stages of development.
 We'd love to hear your feedback at <https://github.com/opsani/cli>`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return cmd.Help()
@@ -218,6 +233,8 @@ func subCommandPath(rootCmd *cobra.Command, cmd *cobra.Command) string {
 // Execute is the entry point for executing all commands from main
 // All commands with RunE will bubble errors back here
 func Execute() (cmd *cobra.Command, err error) {
+	connectoToKubernetes()
+
 	rootCmd := NewRootCommand()
 	cobraCmd := rootCmd.rootCobraCommand
 
@@ -696,3 +713,94 @@ Run '{{.CommandPath}} COMMAND --help' for more information on a command.
 
 var helpTemplate = `
 {{if or .Runnable .HasSubCommands}}{{.UsageString}}{{end}}`
+
+func connectoToKubernetes() {
+	var kubeconfig *string
+	if home := k8s_homedir.HomeDir(); home != "" {
+		kubeconfig = flag.String("kubeconfig", filepath.Join(home, ".kube", "config"), "(optional) absolute path to the kubeconfig file")
+		fmt.Printf("Connecting to Kubernetes with kubeconfig: %s\n", filepath.Join(home, ".kube", "config"))
+	} else {
+		fmt.Printf("Loading from path\n")
+		kubeconfig = flag.String("kubeconfig", "", "absolute path to the kubeconfig file")
+	}
+	flag.Parse()
+
+	// use the current context in kubeconfig
+	config, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
+	if err != nil {
+		panic(err.Error())
+	}
+
+	// create the clientset
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		panic(err.Error())
+	}
+
+	api := clientset.CoreV1()
+	namespaces, err := api.Namespaces().List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Printf("Discovered %d namespaces in the cluster:\n\n", len(namespaces.Items))
+
+	table := tablewriter.NewWriter(os.Stdout)
+	table.SetAutoWrapText(false)
+	table.SetAutoFormatHeaders(true)
+	table.SetHeaderAlignment(tablewriter.ALIGN_LEFT)
+	table.SetAlignment(tablewriter.ALIGN_LEFT)
+	table.SetCenterSeparator("")
+	table.SetColumnSeparator("")
+	table.SetRowSeparator("")
+	table.SetHeaderLine(false)
+	table.SetBorder(false)
+	table.SetTablePadding("\t") // pad with tabs
+	table.SetNoWhiteSpace(true)
+
+	data := [][]string{}
+	headers := []string{"NAME", "STATUS", "AGE"}
+	for _, namespace := range namespaces.Items {
+		row := []string{
+			namespace.Name,
+			string(namespace.Status.Phase),
+			timeago.NoMax(timeago.English).Format(namespace.ObjectMeta.CreationTimestamp.Time),
+		}
+		data = append(data, row)
+	}
+	table.SetHeader(headers)
+
+	table.AppendBulk(data)
+	table.Render()
+
+	fmt.Println("")
+	log.Fatal("done.")
+
+	return
+
+	for {
+		pods, err := clientset.CoreV1().Pods("").List(context.TODO(), metav1.ListOptions{})
+		if err != nil {
+			panic(err.Error())
+		}
+		fmt.Printf("There are %d pods in the cluster: %v\n", len(pods.Items), pods)
+
+		// Examples for error handling:
+		// - Use helper functions like e.g. errors.IsNotFound()
+		// - And/or cast to StatusError and use its properties like e.g. ErrStatus.Message
+		namespace := "default"
+		pod := "example-xxxxx"
+		_, err = clientset.CoreV1().Pods(namespace).Get(context.TODO(), pod, metav1.GetOptions{})
+		if k8s_errors.IsNotFound(err) {
+			fmt.Printf("Pod %s in namespace %s not found\n", pod, namespace)
+		} else if statusError, isStatus := err.(*k8s_errors.StatusError); isStatus {
+			fmt.Printf("Error getting pod %s in namespace %s: %v\n",
+				pod, namespace, statusError.ErrStatus.Message)
+		} else if err != nil {
+			panic(err.Error())
+		} else {
+			fmt.Printf("Found pod %s in namespace %s\n", pod, namespace)
+		}
+
+		time.Sleep(10 * time.Second)
+	}
+}
