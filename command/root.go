@@ -35,6 +35,7 @@ import (
 	"github.com/AlecAivazis/survey/v2/core"
 	"github.com/AlecAivazis/survey/v2/terminal"
 	"github.com/briandowns/spinner"
+	"github.com/charmbracelet/glamour"
 	"github.com/docker/docker/pkg/term"
 	"github.com/fatih/color"
 	"github.com/mitchellh/go-homedir"
@@ -44,10 +45,15 @@ import (
 
 	v1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/kubectl/pkg/scheme"
 
 	k8s_errors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
+
 	// metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	// "k8s.io/client-go/kubernetes"
 	// "k8s.io/client-go/tools/clientcmd"
@@ -56,7 +62,426 @@ import (
 
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/viper"
+	ssh_terminal "golang.org/x/crypto/ssh/terminal"
+
+	"k8s.io/cli-runtime/pkg/resource"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/restmapper"
 )
+
+const manifestTemplate = `---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: servo-leviathan-wakes
+  labels:
+      app.kubernetes.io/name: servo
+      app.kubernetes.io/component: core
+      servo.opsani.com/optimizer: dev.opsani.com_leviathan-wakes
+  annotations:
+    servo.opsani.com/optimizer: dev.opsani.com/leviathan-wakes
+data:
+  optimizer: dev.opsani.com/leviathan-wakes
+  log_level: INFO
+  servo.yaml: |
+    opsani_dev:
+      namespace: {{ .Namespace }}
+      deployment: {{ .Deployment }}
+      container: {{ .Container }}
+      service: {{ .Service }}
+      cpu:
+        min: 250m
+        max: '3.0'
+      memory:
+        min: 128.0MiB
+        max: 3.0GiB
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: servo-leviathan-wakes
+  labels:
+    app.kubernetes.io/name: servo
+    app.kubernetes.io/component: core
+    servo.opsani.com/optimizer: dev.opsani.com_leviathan-wakes
+  annotations:
+    servo.opsani.com/optimizer: dev.opsani.com/leviathan-wakes
+spec:
+  replicas: 1
+  revisionHistoryLimit: 2
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: servo
+      servo.opsani.com/optimizer: dev.opsani.com_leviathan-wakes
+  template:
+    metadata:
+      name: servo-leviathan-wakes
+      labels:
+        app.kubernetes.io/name: servo
+        app.kubernetes.io/component: core
+        servo.opsani.com/optimizer: dev.opsani.com_leviathan-wakes
+      annotations:
+        servo.opsani.com/optimizer: dev.opsani.com/leviathan-wakes
+    spec:
+      serviceAccountName: servo-leviathan-wakes
+      containers:
+      - name: servo
+        image: opsani/servox:latest
+        terminationMessagePolicy: FallbackToLogsOnError
+        args:
+          - 'check'
+          - '--wait=30m'
+          - '--delay=10s'
+          - '--progressive'
+          - '--run'
+        env:
+        - name: OPSANI_OPTIMIZER
+          valueFrom:
+            configMapKeyRef:
+              name: servo-leviathan-wakes
+              key: optimizer
+        - name: OPSANI_TOKEN_FILE
+          value: /servo/opsani.token
+        - name: SERVO_LOG_LEVEL
+          valueFrom:
+            configMapKeyRef:
+              name: servo-leviathan-wakes
+              key: log_level
+        - name: POD_NAME
+          valueFrom:
+              fieldRef:
+                fieldPath: metadata.name
+        - name: POD_NAMESPACE
+          valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+        volumeMounts:
+        - name: servo-token-volume
+          mountPath: /servo/opsani.token
+          subPath: opsani.token
+          readOnly: true
+        - name: servo-config-volume
+          mountPath: /servo/servo.yaml
+          subPath: servo.yaml
+          readOnly: true
+        resources:
+          limits:
+            cpu: 250m
+            memory: 512Mi
+      - name: prometheus
+        image: quay.io/prometheus/prometheus:v2.20.1
+        args:
+          - '--storage.tsdb.retention.time=12h'
+          - '--config.file=/etc/prometheus/prometheus.yaml'
+        ports:
+        - name: webui
+          containerPort: 9090
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128M
+          limits:
+            cpu: 500m
+            memory: 1G
+        volumeMounts:
+        - name: prometheus-config-volume
+          mountPath: /etc/prometheus
+      volumes:
+      - name: servo-token-volume
+        secret:
+          secretName: servo-leviathan-wakes
+          items:
+          - key: token
+            path: opsani.token
+      - name: servo-config-volume
+        configMap:
+          name: servo-leviathan-wakes
+          items:
+          - key: servo.yaml
+            path: servo.yaml
+      - name: prometheus-config-volume
+        configMap:
+          name: servo.prometheus-leviathan-wakes
+
+      # Prefer deployment onto a Node labeled role=servo
+      # This ensures physical isolation and network transport if possible
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 1
+            preference:
+              matchExpressions:
+              - key: node.opsani.com/role
+                operator: In
+                values:
+                - servo
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: servo-leviathan-wakes
+  labels:
+    app.kubernetes.io/name: servo
+    app.kubernetes.io/component: core
+    servo.opsani.com/optimizer: dev.opsani.com_leviathan-wakes
+  annotations:
+    servo.opsani.com/optimizer: dev.opsani.com/leviathan-wakes
+type: Opaque
+stringData:
+  token: 452361d3-48e0-41df-acec-0fe2be826cb8
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: servo-leviathan-wakes
+  labels:
+    app.kubernetes.io/name: servo
+    app.kubernetes.io/component: core
+    servo.opsani.com/optimizer: dev.opsani.com_leviathan-wakes
+  annotations:
+    servo.opsani.com/optimizer: dev.opsani.com/leviathan-wakes
+
+---
+# Cluster Role for the servo itself
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: servo-leviathan-wakes
+  labels:
+    app.kubernetes.io/name: servo
+    app.kubernetes.io/component: core
+    servo.opsani.com/optimizer: dev.opsani.com_leviathan-wakes
+  annotations:
+    servo.opsani.com/optimizer: dev.opsani.com/leviathan-wakes
+rules:
+- apiGroups: ["apps", "extensions"]
+  resources: ["deployments", "deployments/status", "replicasets"]
+  verbs: ["get", "list", "watch", "update", "patch"]
+- apiGroups: [""]
+  resources: ["pods", "pods/logs", "pods/status", "pods/exec", "pods/portforward", "services"]
+  verbs: ["create", "delete", "get", "list", "watch", "update", "patch" ]
+- apiGroups: [""]
+  resources: ["namespaces"]
+  verbs: ["get", "list"]
+
+---
+# Cluster Role for the Prometheus sidecar
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: servo.prometheus-leviathan-wakes
+  labels:
+    app.kubernetes.io/name: prometheus
+    app.kubernetes.io/component: metrics
+    app.kubernetes.io/part-of: servo
+    servo.opsani.com/optimizer: dev.opsani.com_leviathan-wakes
+  annotations:
+    servo.opsani.com/optimizer: dev.opsani.com/leviathan-wakes
+rules:
+- apiGroups: [""]
+  resources:
+  - namespaces
+  - nodes
+  - nodes/proxy
+  - services
+  - endpoints
+  - pods
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources:
+  - configmaps
+  - nodes/metrics
+  verbs: ["get"]
+- nonResourceURLs: ["/metrics"]
+  verbs: ["get"]
+
+---
+# Bind the Servo Cluster Role to the servo Service Account
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: servo-leviathan-wakes
+  labels:
+    app.kubernetes.io/name: servo
+    app.kubernetes.io/component: core
+    servo.opsani.com/optimizer: dev.opsani.com_leviathan-wakes
+  annotations:
+    servo.opsani.com/optimizer: dev.opsani.com/leviathan-wakes
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: servo-leviathan-wakes
+subjects:
+- kind: ServiceAccount
+  name: servo-leviathan-wakes
+  namespace: {{ .Namespace }}
+
+---
+# Bind the Prometheus Cluster Role to the servo Service Account
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: servo.prometheus-leviathan-wakes
+  labels:
+    app.kubernetes.io/name: prometheus
+    app.kubernetes.io/component: metrics
+    app.kubernetes.io/part-of: servo
+    servo.opsani.com/optimizer: dev.opsani.com_leviathan-wakes
+  annotations:
+    servo.opsani.com/optimizer: dev.opsani.com/leviathan-wakes
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: servo.prometheus-leviathan-wakes
+subjects:
+- kind: ServiceAccount
+  name: servo-leviathan-wakes
+  namespace: {{ .Namespace }}
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: servo.prometheus-leviathan-wakes
+  labels:
+    app.kubernetes.io/name: prometheus
+    app.kubernetes.io/component: metrics
+    app.kubernetes.io/part-of: servo
+    servo.opsani.com/optimizer: dev.opsani.com_leviathan-wakes
+  annotations:
+    servo.opsani.com/optimizer: dev.opsani.com/leviathan-wakes
+data:
+  prometheus.yaml: |
+    # Opsani Servo Prometheus Sidecar v0.8.0
+    # This configuration allows the Opsani Servo to discover and scrape Pods that
+    # have been injected with an Envoy proxy sidecar container that emits the metrics
+    # necessary for optimization. Scraping by the Prometheus sidecar is enabled by
+    # adding the following annotations to the Pod spec of the Deployment under
+    # optimization:
+    #
+    # annotations:
+    #   prometheus.opsani.com/scrape: "true" # Opt-in for scraping by the servo
+    #   prometheus.opsani.com/scheme: http # Scrape via HTTP by default
+    #   prometheus.opsani.com/path: /stats/prometheus # Default Envoy metrics path
+    #   prometheus.opsani.com/port: "9901" # Default Envoy metrics port
+    #
+    # Path and port collisions with the optimization target can be resolved be changing
+    # the relevant annotation.
+
+    # Scrape the targets every 5 seconds.
+    # Since we are only looking at specifically annotated Envoy sidecar containers
+    # with a known metrics surface area and retain the values for <= 24 hours, we
+    # can scrape aggressively. The higher scrape resolution is helpful for testing
+    # and running checks that verify configuration health.
+    global:
+      scrape_interval: 5s
+      scrape_timeout: 5s
+      evaluation_interval: 5s
+
+    # Scrape the Envoy sidecar metrics based on matching annotations (see above)
+    scrape_configs:
+    - job_name: 'opsani-envoy-sidecars'
+
+      # Configure access to Kubernetes API server
+      tls_config:
+        ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+      bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+
+      kubernetes_sd_configs:
+        - role: pod
+          namespaces:
+            names:
+            - {{ .Namespace }}
+
+      relabel_configs:
+        - action: labelmap
+          regex: __meta_kubernetes_pod_label_(.+)
+        - source_labels: [__meta_kubernetes_namespace]
+          action: replace
+          target_label: kubernetes_namespace
+        - source_labels: [__meta_kubernetes_pod_name]
+          action: replace
+          target_label: kubernetes_pod_name
+
+        # Do not attempt to scrape init containers
+        - source_labels: [__meta_kubernetes_pod_container_init]
+          action: drop
+          regex: true
+
+        # Only scrape Pods labeled with our optimizer
+        - source_labels: [__meta_kubernetes_pod_label_servo_opsani_com_optimizer]
+          action: keep
+          regex: dev\.opsani\.com_leviathan-wakes
+
+        # Relabel to scrape only pods that have
+        # "prometheus.opsani.com/scrape = true" annotation.
+        - source_labels: [__meta_kubernetes_pod_annotation_prometheus_opsani_com_scrape]
+          action: keep
+          regex: true
+
+        # Relabel to configure scrape scheme for pod scrape targets
+        # based on pod "prometheus.opsani.com/scheme = <scheme>" annotation.
+        - source_labels: [__meta_kubernetes_pod_annotation_prometheus_opsani_com_scrape_scheme]
+          action: replace
+          target_label: __scheme__
+          regex: (https?)
+
+        # Relabel to customize metric path based on pod
+        # "prometheus.opsani.com/path = <metric path>" annotation.
+        - source_labels: [__meta_kubernetes_pod_annotation_prometheus_opsani_com_path]
+          action: replace
+          target_label: __metrics_path__
+          regex: (.+)
+
+        # Relabel to scrape only single, desired port for the pod
+        # based on pod "prometheus.opsani.com/port = <port>" annotation.
+        - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_opsani_com_port]
+          action: replace
+          regex: ([^:]+)(?::\d+)?;(\d+)
+          replacement: $1:$2
+          target_label: __address__
+
+    - job_name: 'kubernetes-cadvisor'
+
+      # Default to scraping over https. If required, just disable this or change to
+      # http.
+      scheme: https
+
+      # Starting Kubernetes 1.7.3 the cAdvisor metrics are under /metrics/cadvisor.
+      # Kubernetes CIS Benchmark recommends against enabling the insecure HTTP
+      # servers of Kubernetes, therefore the cAdvisor metrics on the secure handler
+      # are used.
+      metrics_path: /metrics/cadvisor
+
+      # This TLS & authorization config is used to connect to the actual scrape
+      # endpoints for cluster components. This is separate to discovery auth
+      # configuration because discovery & scraping are two separate concerns in
+      # Prometheus. The discovery auth config is automatic if Prometheus runs inside
+      # the cluster. Otherwise, more config options have to be provided within the
+      # <kubernetes_sd_config>.
+      tls_config:
+        ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        # If your node certificates are self-signed or use a different CA to the
+        # master CA, then disable certificate verification below. Note that
+        # certificate verification is an integral part of a secure infrastructure
+        # so this should only be disabled in a controlled environment. You can
+        # disable certificate verification by uncommenting the line below.
+        #
+        # insecure_skip_verify: true
+      bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+
+      kubernetes_sd_configs:
+      - role: node
+
+      relabel_configs:
+      - action: labelmap
+        regex: __meta_kubernetes_node_label_(.+)
+`
 
 // Configuration keys (Cobra and Viper)
 const (
@@ -744,7 +1169,7 @@ func connectoToKubernetes() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Printf("Discovered %d namespaces in the cluster:\n\n", len(namespaces.Items))
+	// fmt.Printf("Discovered %d namespaces in the cluster:\n\n", len(namespaces.Items))
 
 	table := tablewriter.NewWriter(os.Stdout)
 	table.SetAutoWrapText(false)
@@ -772,9 +1197,99 @@ func connectoToKubernetes() {
 	table.SetHeader(headers)
 
 	table.AppendBulk(data)
-	table.Render()
+	// table.Render()
 
-	fmt.Printf("\n\n")
+	// fmt.Printf("\n\n")
+
+	// Show intro text
+	markdown :=
+		`# Opsani Team
+
+## Let's talk about your cloud costs
+
+It's the worst kept secret in tech. We're all spending way more on infrastructure than is necessary.
+
+But it's not our fault. Our applications have become too big and complicated to optimize.
+
+Until now.
+
+## Better living through machine learning...
+
+Opsani utilizes state of the art machine learning technology to continuously optimize your applications for *cost* and *performance*.
+
+## Getting started
+
+To start optimizing, a servo must be deployed into your cluster.
+
+A servo is a lightweight container that lets Opsani know what is going on in your application and applies recommended configurations
+provided by the optimizer.
+
+This app is designed to assist you in assembling and deploying a servo through the miracle of automation and sensible defaults.
+
+The process looks like...
+
+- [x] Register for Opsani
+- [x] Read this doc
+- [ ] Configure optimization
+- [ ] Start optimizing
+
+## Things to keep in mind
+
+All software run and deployed is Open Source. Opsani supports manual and assisted integrations if you like to do things the hard way.
+
+Over the next 15 minutes, we will gather details about your application, the deployment environment, and your optimization goals.
+
+Once optimization is configured to your liking, a servo will be deployed alongside your application to manage the optimization.
+
+As tasks are completed, artifacts will be generated and saved onto this workstation.
+
+Everything is logged, you can be pause and resume at any time, and no changes are applied without your confirmation.
+
+Once this is wrapped up, optimization will begin immediately and you can sit back and enjoy the show.`
+	r, err := glamour.NewTermRenderer(
+		// TODO: detect background color and pick either the default dark or light theme
+		glamour.WithStandardStyle("dark"),
+	)
+	if err != nil {
+		log.Fatal(err)
+	}
+	renderedMarkdown, err := r.Render(markdown)
+	if err != nil {
+		log.Fatal(err)
+	}
+	// fmt.Fprint(os.Stdout, renderedMarkdown)
+
+	// Page this shit
+	// Put terminal in interactive mode
+	fd := int(os.Stdin.Fd())
+	oldState, err := ssh_terminal.MakeRaw(fd)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	var pager io.WriteCloser
+	cmd, pager, err := runPager()
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Fprint(pager, renderedMarkdown)
+	pager.Close()
+	err = cmd.Wait()
+	if err != nil {
+		log.Fatal(err)
+	}
+	ssh_terminal.Restore(fd, oldState)
+
+	confirmed := false
+	prompt := &survey.Confirm{
+		Message: "Ready to get started?",
+	}
+	survey.AskOne(prompt, &confirmed)
+	if confirmed {
+		fmt.Printf("\n💥 Let's do this thing.\n\n")
+	} else {
+		log.Fatal("Bailing.")
+	}
 
 	// Select Namespace
 	namespaceNames := []string{}
@@ -783,20 +1298,17 @@ func connectoToKubernetes() {
 	}
 
 	namespace := ""
-	prompt := &survey.Select{
-		Message: "Select Namespace:",
+	survey.AskOne(&survey.Select{
+		Message: "What namespace does your application run in?",
 		Options: namespaceNames,
-	}
-	survey.AskOne(prompt, &namespace)
+	}, &namespace)
 
 	// List Deployments in Namespace
-	fmt.Printf("Looking for Deployments in Namespace %s\n", namespace)
 	extensionsApi := clientset.AppsV1()
 	deployments, err := extensionsApi.Deployments(namespace).List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Printf("Discovered %d Deployment in the %s Namespace:\n\n", len(deployments.Items), namespace)
 
 	deploymentNames := []string{}
 	for _, deployment := range deployments.Items {
@@ -805,7 +1317,7 @@ func connectoToKubernetes() {
 
 	deploymentName := ""
 	survey.AskOne(&survey.Select{
-		Message: "Select Deployment:",
+		Message: "Which deployment is running your application?",
 		Options: deploymentNames,
 	}, &deploymentName)
 
@@ -825,7 +1337,7 @@ func connectoToKubernetes() {
 
 	containerName := ""
 	survey.AskOne(&survey.Select{
-		Message: "Select Container:",
+		Message: "Which container do you want to optimize?",
 		Options: containerNames,
 	}, &containerName)
 
@@ -842,9 +1354,69 @@ func connectoToKubernetes() {
 
 	serviceName := ""
 	survey.AskOne(&survey.Select{
-		Message: "Select Service:",
+		Message: "What service is providing traffic to your application?",
 		Options: serviceNames,
 	}, &serviceName)
+
+	// Render manifest
+	templateVars := map[string]string{"Namespace": namespace, "Deployment": deploymentName, "Container": containerName, "Service": serviceName}
+
+	tmpl, err := template.New("").Parse(manifestTemplate)
+	renderedManifest := new(bytes.Buffer)
+	err = tmpl.Execute(renderedManifest, templateVars)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Printf("Rendered manifest: %s", string(renderedManifest.Bytes()))
+
+	sepYamlfiles := strings.Split(string(renderedManifest.Bytes()), "---")
+	retVal := make([]runtime.Object, 0, len(sepYamlfiles))
+	for _, f := range sepYamlfiles {
+		if f == "\n" || f == "" {
+			// ignore empty cases
+			continue
+		}
+
+		decode := scheme.Codecs.UniversalDeserializer().Decode
+		obj, groupVersionKind, err := decode([]byte(f), nil, nil)
+
+		if err != nil {
+			log.Println(fmt.Sprintf("Error while decoding YAML object. Err was: %s", err))
+			continue
+		}
+
+		log.Printf("Parsed object type: %s", groupVersionKind.Kind)
+		retVal = append(retVal, obj)
+	}
+
+	for _, obj := range retVal {
+		log.Printf("Creating object: %v", obj)
+		createObject(clientset, *config, obj)
+	}
+
+	// Boom we are ready to roll
+	profileOption := ""
+	bold := color.New(color.Bold).SprintFunc()
+	boldBlue := color.New(color.FgHiBlue, color.Bold).SprintFunc()
+	fmt.Fprintf(os.Stdout, "\n🔥 %s\n", boldBlue("We have ignition"))
+	fmt.Fprintf(os.Stdout, "\n%s  Optimizing Container %s of Deployment %s in Namespace %s", color.HiBlueString("ℹ"), bold(deploymentName), bold(containerName), bold(namespace))
+	fmt.Fprintf(os.Stdout, "\n%s  Ingress traffic is routed from Service %s\n", color.HiBlueString("ℹ"), bold(serviceName))
+	fmt.Fprintf(os.Stdout, "\n%s  Servo running in Kubernetes %s\n", color.HiBlueString("ℹ"), bold("deployments/servo"))
+	// fmt.Fprintf(os.Stdout, "%s  Servo attached to opsani profile %s\n", color.HiBlueString("ℹ"), bold(vitalCommand.profile.Name))
+	fmt.Fprintf(os.Stdout, "%s  Manifests written to %s\n", color.HiBlueString("ℹ"), bold("./manifests"))
+	fmt.Fprintf(os.Stdout,
+		"\n%s  View ignite subcommands: `%s`\n"+
+			"%s  View servo subcommands: `%s`\n"+
+			"%s  Follow servo logs: `%s`\n"+
+			"%s  Watch pod status: `%s`\n"+
+			"%s  Open Opsani console: `%s`\n\n",
+		color.HiGreenString("❯"), color.YellowString(fmt.Sprintf("opsani %signite --help", profileOption)),
+		color.HiGreenString("❯"), color.YellowString(fmt.Sprintf("opsani %sservo --help", profileOption)),
+		color.HiGreenString("❯"), color.YellowString(fmt.Sprintf("opsani %sservo logs -f", profileOption)),
+		color.HiGreenString("❯"), color.YellowString("kubectl get pods --watch"),
+		color.HiGreenString("❯"), color.YellowString(fmt.Sprintf("opsani %sconsole", profileOption)))
+	fmt.Println(bold("Optimization results will begin reporting in the console shortly."))
 
 	fmt.Println("")
 	log.Fatal("done.")
@@ -877,4 +1449,54 @@ func connectoToKubernetes() {
 
 		time.Sleep(10 * time.Second)
 	}
+}
+
+func createObject(kubeClientset kubernetes.Interface, restConfig rest.Config, obj runtime.Object) error {
+	// Create a REST mapper that tracks information about the available resources in the cluster.
+	groupResources, err := restmapper.GetAPIGroupResources(kubeClientset.Discovery())
+	if err != nil {
+		return err
+	}
+	rm := restmapper.NewDiscoveryRESTMapper(groupResources)
+
+	// Get some metadata needed to make the REST request.
+	gvk := obj.GetObjectKind().GroupVersionKind()
+	gk := schema.GroupKind{Group: gvk.Group, Kind: gvk.Kind}
+	mapping, err := rm.RESTMapping(gk, gvk.Version)
+	if err != nil {
+		return err
+	}
+
+	_, err = meta.NewAccessor().Name(obj)
+	if err != nil {
+		return err
+	}
+
+	// Create a client specifically for creating the object.
+	restClient, err := newRestClient(restConfig, mapping.GroupVersionKind.GroupVersion())
+	if err != nil {
+		return err
+	}
+
+	// Use the REST helper to create the object in the "default" namespace.
+	restHelper := resource.NewHelper(restClient, mapping)
+	newObj, err := restHelper.Create("default", false, obj) //, &metav1.CreateOptions{})
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("Got new object: %s", newObj)
+	return nil
+}
+
+func newRestClient(restConfig rest.Config, gv schema.GroupVersion) (rest.Interface, error) {
+	restConfig.ContentConfig = resource.UnstructuredPlusDefaultContentConfig()
+	restConfig.GroupVersion = &gv
+	if len(gv.Group) == 0 {
+		restConfig.APIPath = "/api"
+	} else {
+		restConfig.APIPath = "/apis"
+	}
+
+	return rest.RESTClientFor(&restConfig)
 }
