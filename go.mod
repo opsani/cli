@@ -47,6 +47,7 @@ require (
 	gopkg.in/ini.v1 v1.56.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0
 	gotest.tools v2.2.0+incompatible // indirect
+	k8s.io/api v0.21.0 // indirect
 	k8s.io/apimachinery v0.21.0
 	k8s.io/client-go v0.21.0
 	sigs.k8s.io/yaml v1.2.0

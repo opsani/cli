@@ -31,6 +31,7 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/AlecAivazis/survey/v2"
 	"github.com/AlecAivazis/survey/v2/core"
 	"github.com/AlecAivazis/survey/v2/terminal"
 	"github.com/briandowns/spinner"
@@ -41,6 +42,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
+	v1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
@@ -771,6 +773,78 @@ func connectoToKubernetes() {
 
 	table.AppendBulk(data)
 	table.Render()
+
+	fmt.Printf("\n\n")
+
+	// Select Namespace
+	namespaceNames := []string{}
+	for _, namespace := range namespaces.Items {
+		namespaceNames = append(namespaceNames, namespace.Name)
+	}
+
+	namespace := ""
+	prompt := &survey.Select{
+		Message: "Select Namespace:",
+		Options: namespaceNames,
+	}
+	survey.AskOne(prompt, &namespace)
+
+	// List Deployments in Namespace
+	fmt.Printf("Looking for Deployments in Namespace %s\n", namespace)
+	extensionsApi := clientset.AppsV1()
+	deployments, err := extensionsApi.Deployments(namespace).List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Printf("Discovered %d Deployment in the %s Namespace:\n\n", len(deployments.Items), namespace)
+
+	deploymentNames := []string{}
+	for _, deployment := range deployments.Items {
+		deploymentNames = append(deploymentNames, deployment.Name)
+	}
+
+	deploymentName := ""
+	survey.AskOne(&survey.Select{
+		Message: "Select Deployment:",
+		Options: deploymentNames,
+	}, &deploymentName)
+
+	var deployment v1.Deployment
+	for _, d := range deployments.Items {
+		if d.Name == deploymentName {
+			deployment = d
+			break
+		}
+	}
+
+	// List the containers in the Deployment
+	containerNames := []string{}
+	for _, container := range deployment.Spec.Template.Spec.Containers {
+		containerNames = append(containerNames, container.Name)
+	}
+
+	containerName := ""
+	survey.AskOne(&survey.Select{
+		Message: "Select Container:",
+		Options: containerNames,
+	}, &containerName)
+
+	// List services that match the Deployment
+	services, err := api.Services(namespace).List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	serviceNames := []string{}
+	for _, service := range services.Items {
+		serviceNames = append(serviceNames, service.Name)
+	}
+
+	serviceName := ""
+	survey.AskOne(&survey.Select{
+		Message: "Select Service:",
+		Options: serviceNames,
+	}, &serviceName)
 
 	fmt.Println("")
 	log.Fatal("done.")
